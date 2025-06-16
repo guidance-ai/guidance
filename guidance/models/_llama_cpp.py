@@ -162,7 +162,6 @@ class LlamaCppEngine(Engine):
         cache_token_ids = self._cache_token_ids
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
         if num_cached == len(token_ids):
-            # TODO: do something similar for Transformers
             if full_sequence:
                 return self._cached_logits[:num_cached, :]
             else:

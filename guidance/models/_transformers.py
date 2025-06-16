@@ -2,10 +2,11 @@ import os
 import re
 import textwrap
 import warnings
+import operator
 import numpy as np
+from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
-from .._schema import GenToken, GenTokenExtra
 from ..chat import ChatTemplate
 from ._engine import Engine, Tokenizer, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._engine._tokenizer import TokenizerWrappable
@@ -471,17 +472,14 @@ class TransformersEngine(Engine):
                 f"Attempted to run a transformers model past its maximum context window size of {self.model_obj.config.max_position_embeddings}!"
             )
 
-        # get the number of cache positions we are using
+        # check what we have already cached
         cache_token_ids = self._cached_token_ids
-        num_cached = 0
-        for id in cache_token_ids:
-            if (
-                num_cached >= len(cache_token_ids)
-                or num_cached >= len(token_ids)
-                or token_ids[num_cached] != id
-            ):
-                break
-            num_cached += 1
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
+        if num_cached == len(token_ids):
+            if full_sequence:
+                return self._cached_logits[:num_cached, :]
+            else:
+                return self._cached_logits[num_cached - 1, :]
 
         # reset the cache length according to that number of positions
         past_key_values = self._past_key_values
