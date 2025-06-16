@@ -75,6 +75,11 @@ class TransformersTokenizer(Tokenizer):
                 ],
                 encode_callable=hf_tokenizer.encode,
             ).as_ll_tokenizer()
+
+        # Get chat template from the tokenizer if not provided
+        if chat_template is None and isinstance(hf_tokenizer.chat_template, str):
+            chat_template = hf_tokenizer.chat_template
+
         super().__init__(
             ll_tokenizer=ll_tokenizer,
             chat_template=chat_template,

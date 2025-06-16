@@ -235,6 +235,25 @@ CHAT_TEMPLATE_CACHE[phi3_small_template] = Phi3SmallMediumChatTemplate
 CHAT_TEMPLATE_CACHE[phi3_medium_template] = Phi3SmallMediumChatTemplate
 
 # --------------------------------------------------
+# @@@@ Phi-4-mini-instruct @@@@
+# --------------------------------------------------
+# [06/16/25] https://huggingface.co/microsoft/Phi-4-mini-instruct/blob/main/tokenizer_config.json#L104
+
+phi_4_mini_template = "{% for message in messages %}{% if message['role'] == 'system' and 'tools' in message and message['tools'] is not none %}{{ '<|' + message['role'] + '|>' + message['content'] + '<|tool|>' + message['tools'] + '<|/tool|>' + '<|end|>' }}{% else %}{{ '<|' + message['role'] + '|>' + message['content'] + '<|end|>' }}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ '<|assistant|>' }}{% else %}{{ eos_token }}{% endif %}"
+
+class Phi4MiniChatTemplate(ChatTemplate):
+    # available_roles = ["user", "assistant", "system"]
+    template_str = phi_4_mini_template
+
+    def get_role_start(self, role_name):
+        return f"<|{role_name}|>"
+
+    def get_role_end(self, role_name=None):
+        return "<|end|>"
+
+CHAT_TEMPLATE_CACHE[phi_4_mini_template] = Phi4MiniChatTemplate
+
+# --------------------------------------------------
 # @@@@ Mistral-7B-Instruct-v0.2 @@@@
 # --------------------------------------------------
 # [05/08/24] https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2/blob/main/tokenizer_config.json#L42
