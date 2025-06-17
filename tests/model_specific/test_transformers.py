@@ -52,8 +52,10 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
     gpt2_ff += ff_prompt()
     ff_count = gpt2_ff.engine.metrics.engine_output_tokens
 
-    assert nobt_count == 2
-    assert ff_count == 2
+    # 3: 1 fp for the prompt, 1 for the first token of the select, 1 to get probs for the ff_tokens
+    # To future devs, this should be 2 if we turn off the extra fp, e.g. when metrics are disabled
+    assert nobt_count == 3
+    assert ff_count == 3
     assert noff_count > ff_count
 
 

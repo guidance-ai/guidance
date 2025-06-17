@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Callable, Iterator, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..._parser import TokenParser
 from ..._schema import (
@@ -76,12 +77,11 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
+    def __init__(self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True,
                  enable_monitoring=True, **kwargs):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
-        self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
@@ -165,8 +165,8 @@ class Engine(ABC):
             enable_ff_tokens=self.enable_ff_tokens,
         )
 
+        last_temperature = 1.0
         engine_output = None
-        logits_lat_ms = 0
         while not parser.done():
             t0 = time.time()
 
@@ -197,18 +197,26 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
-            # Note that has_pending_stop implies that the response is a stop response,
-            # but the converse is not true. We can therefore avoid some (but not all)
-            # unnecessary calls to get_logits on the final iteration.
-            has_pending_stop = parser.has_pending_stop()
-
-            if not has_pending_stop:
-                t1 = time.time()
-                logits = self.get_logits(token_ids=tokens)
-                logits_lat_ms = (time.time() - t1) * 1000
-            else:
-                # Avoid calling get_logits if we know we won't use it
+            # We can avoid a final get_logits call in the case that:
+            # 1. The parser has a pending stop
+            # 2. There are no ff_tokens (except for our last generated token)
+            # TODO: allow avoiding final forward pass if metrics are disabled
+            # and we have a pending stop
+            if parser.has_pending_stop() and (
+                (not ff_tokens)
+                or (
+                    len(ff_tokens) == 1
+                    and engine_output is not None
+                    and ff_tokens[0] == engine_output.issued_token.token_id
+                )
+            ):
                 logits = None
+                logits_lat_ms = 0.0
+            else:
+                t1 = time.time()
+                logits = self.get_logits(token_ids=tokens, full_sequence=True)
+                logits_lat_ms = (time.time() - t1) * 1000
+
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -221,13 +229,31 @@ class Engine(ABC):
                 # if it exists
                 ff_lat_ms -= logits_lat_ms
 
+            if logits is not None:
+                # Not the last one -- that's for the *next* token.
+                ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
+                ff_probs = (
+                    softmax(np.array(ff_logits))
+                    if last_temperature < 0.0001
+                    else softmax(np.array(ff_logits) / last_temperature)
+                )
+                if ff_probs.shape[0] != len(ff_tokens):
+                    assert ff_probs.shape[0] == len(ff_tokens) - 1
+                    # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
+                    ff_probs = np.concatenate(
+                        (np.ones((1, ff_probs.shape[1])), ff_probs), axis=0
+                    )
+            else:
+                ff_probs = np.empty(shape=())
+
             gen_tokens = []
             if engine_output is None:
-                for token_id in ff_tokens:
+                for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
@@ -240,11 +266,12 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
-                for token_id in ff_tokens[ff_start_index:]:
+                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
                             # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
                             is_force_forwarded=True,
@@ -272,10 +299,8 @@ class Engine(ABC):
                 # Ensure we break AFTER yielding the final response
                 break
 
-            # If there was a pending stop, we should have broken out of the loop
-            assert not has_pending_stop
-
             # Help the type checker: assert that everything we need to get the next token is not None
+            assert logits is not None
             assert mask is not None
             assert ll_response.temperature is not None
 
@@ -294,7 +319,7 @@ class Engine(ABC):
                 mask_for_sampling = mask
 
             engine_output = self.get_next_token_with_top_k(
-                logits=logits,
+                logits=logits[-1, :],
                 logits_lat_ms=logits_lat_ms,
                 token_ids=tokens,
                 mask=mask_for_sampling,
@@ -302,6 +327,7 @@ class Engine(ABC):
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
             )
+            last_temperature = ll_response.temperature
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
                 # Type checker needs some help
@@ -310,8 +336,8 @@ class Engine(ABC):
 
     def get_next_token_with_top_k(
         self,
-        logits: Optional[np.ndarray],
-        logits_lat_ms: Optional[float],
+        logits: NDArray,
+        logits_lat_ms: float,
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
@@ -322,7 +348,7 @@ class Engine(ABC):
 
         Parameters
         -------
-        logits : Optional[np.ndarray]
+        logits : Optional[NDArray]
             The logits for the current token ids in the sequence.
             If None, the model will call get_logits to get the logits.
         logits_lat_ms: Optional[float]
@@ -345,38 +371,7 @@ class Engine(ABC):
             The output from the model.
         """
 
-        if logits is None:
-            t0 = time.time()
-            try:
-                logits = self.get_logits(token_ids=token_ids)
-            except NotImplementedError:
-                # fallback to orignal get_next_token method
-                _t0 = time.time()
-                token_id = self.get_next_token(
-                    token_ids=token_ids,
-                    mask=mask,
-                    temperature=temperature,
-                )
-                _lat = (time.time() - _t0) * 1000
-
-                _issued_token = GenToken(
-                    token_id=token_id,
-                    prob=1.0,
-                    bytes=self.tokenizer.decode([token_id]),
-                    latency_ms=_lat,
-                    is_generated=True,
-                )
-
-                return EngineOutput(
-                    issued_token=_issued_token,
-                    top_k=[_issued_token],
-                    masked_top_k=[_issued_token] if mask is not None else None,
-                )
-            lat_ms = (time.time() - t0) * 1000
-        else:
-            lat_ms = logits_lat_ms
-
-        def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
+        def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
             top_k_indices = np.argsort(_probs)[::-1][:_k]
             top_k_probs = _probs[top_k_indices]
 
@@ -385,7 +380,7 @@ class Engine(ABC):
                     token_id=token,
                     prob=prob,
                     bytes=self.tokenizer.decode([token]),
-                    latency_ms=lat_ms,
+                    latency_ms=logits_lat_ms,
                     is_generated=True,
                 )
                 for token, prob in zip(top_k_indices, top_k_probs)
@@ -435,7 +430,7 @@ class Engine(ABC):
                 token_id=sampled_index,
                 prob=sampled_prob,
                 bytes=self.tokenizer.decode([sampled_index]),
-                latency_ms=lat_ms,
+                latency_ms=logits_lat_ms,
                 is_generated=True,
             )
 
@@ -449,15 +444,11 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
         pass
 
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
-        """Get the top-k probabilities for each token in the sequence."""
-        raise NotImplementedError
-
     def sample_with_temperature(
-        self, logits: np.ndarray, mask: Optional[bytes], temperature: float
+        self, logits: NDArray, mask: Optional[bytes], temperature: float
     ) -> int:
         if mask is not None:
             logits += np.frombuffer(mask, dtype=np.uint8)
