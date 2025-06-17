@@ -119,7 +119,7 @@ class MockEngine(Engine):
     def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> np.ndarray:
         """Get the logits for the given token state."""
         if not full_sequence:
-            return self._get_logits(token_ids)
+            return self._get_logits(token_ids).reshape(1, -1)
         else:
             # TODO: is it worth it to add a prefix cache here?
             l0 = self._get_logits([token_ids[0]])

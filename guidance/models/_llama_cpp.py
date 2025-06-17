@@ -170,7 +170,7 @@ class LlamaCppEngine(Engine):
             if full_sequence:
                 return self._cached_logits[:num_cached, :]
             else:
-                return self._cached_logits[num_cached - 1, :]
+                return self._cached_logits[[num_cached - 1], :]
 
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
@@ -223,7 +223,7 @@ class LlamaCppEngine(Engine):
         if full_sequence:
             return self._cached_logits
         else:
-            return self._cached_logits[-1, :]
+            return self._cached_logits[[-1], :]
 
 class LlamaCpp(Model):
     def __init__(

@@ -481,7 +481,7 @@ class TransformersEngine(Engine):
             if full_sequence:
                 return self._cached_logits[:num_cached, :]
             else:
-                return self._cached_logits[num_cached - 1, :]
+                return self._cached_logits[[num_cached - 1], :]
 
         # check how many tokens are in the kv cache and what the max size of the cache is
         past_key_values = self._past_key_values
@@ -640,7 +640,7 @@ class TransformersEngine(Engine):
         if full_sequence:
             return self._cached_logits
         else:
-            return self._cached_logits[-1, :]
+            return self._cached_logits[[-1], :]
 
 class Transformers(Model):
     def __init__(
