@@ -3,12 +3,11 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput, GenToken, GenTokenExtra
-from .._utils import softmax
+from .._schema import EngineOutput
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
@@ -71,9 +70,8 @@ class MockTokenizer(Tokenizer):
 
 
 class MockEngine(Engine):
-    def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        renderer = DoNothingRenderer(trace_handler=TraceHandler())
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
+    def __init__(self, tokenizer, byte_patterns, force):
+        super().__init__(tokenizer)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -118,8 +116,25 @@ class MockEngine(Engine):
             logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
         )
 
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> np.ndarray:
+        """Get the logits for the given token state."""
+        if not full_sequence:
+            return self._get_logits(token_ids)
+        else:
+            # TODO: is it worth it to add a prefix cache here?
+            l0 = self._get_logits([token_ids[0]])
+            # if we are getting the full sequence then we need to compute the logits for all tokens
+            logits = np.zeros((len(token_ids), len(l0)))
+            logits[0] = l0
+            for i in range(1, len(token_ids)):
+                logits[i] = self._get_logits(token_ids[: i + 1])
+            return logits
+
+    def _get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
+        if len(token_ids) == 0:
+            raise ValueError("token_ids must not be empty")
+
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
@@ -165,7 +180,6 @@ class Mock(Model):
         self,
         byte_patterns=[],
         echo=False,
-        compute_log_probs=False,
         force=False,
         **kwargs,
     ):
@@ -179,7 +193,7 @@ class Mock(Model):
         tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
         tokenizer = MockTokenizer(tokens, special_token_ids=[0])
-        engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        engine = MockEngine(tokenizer, byte_patterns, force)
 
         super().__init__(
             interpreter=EngineInterpreter(engine),

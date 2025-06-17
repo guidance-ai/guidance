@@ -77,12 +77,11 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
+    def __init__(self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True,
                  enable_monitoring=True, **kwargs):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
-        self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
