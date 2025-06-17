@@ -1,0 +1,111 @@
+name: Code Quality
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
+  schedule:
+    # Run at 10:00 UTC every day
+    - cron: "00 10 * * *"
+
+
+jobs:
+  format_ruff:
+    name: Check format with ruff
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Do dev install
+        run: pip install -e .[dev]
+      - name: Check format with ruff
+        shell: bash
+        id: check_format
+        continue-on-error: true
+        run: |
+          if ! ruff format --check; then
+            echo "::warning title=ruff format::Files need re-formatting (run 'ruff format .' locally)"
+            exit 78  # no longer works in github, but would mark action step with a warning
+          fi
+      - name: Check imports with ruff
+        shell: bash
+        id: check_import
+        continue-on-error: true
+        run: |
+          # This is separate from formatting. See:
+          # https://docs.astral.sh/ruff/formatter/#sorting-imports
+          if ! ruff check --select I; then
+            echo "::warning title=ruff import::Files need import sorting (run 'ruff check --select I' locally)"
+            exit 78  # no longer works in github, but would mark action step with a warning
+          fi
+      - name: Mark step with a warning
+        if: ${{ steps.check_format.outcome == 'failure' || steps.check_import.outcome == 'failure' }} 
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Failed ruff checks',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'neutral',
+              completed_at: new Date().toISOString(),
+              output: {
+                title: 'ruff found violations',
+                summary: 'Run `ruff format . and `ruff check --select I` locally and push the changes.'
+              }
+            })
+
+  # Have a separate workflow because we don't want to enforce this at all
+  # It will have too many errors initially and is likely to deter contributors
+  ruff-linting:
+    name: Linting with ruff
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Do dev install
+        run: pip install -e .[dev]
+      - name: Run ruff linting
+        shell: bash
+        continue-on-error: true
+        run: |
+          ruff check
+
+
+  run-mypy:
+    name: Run informational mypy
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Do guidance install
+        run: pip install -e .[all,dev]
+      - name: Get mypy type packages
+        continue-on-error: true
+        run: mypy --install-types --non-interactive guidance
+      - name: Run mypy
+        shell: bash
+        continue-on-error: true
+        run: |
+          mypy guidance
+
+          echo "==========================================="
+          echo "Done"
