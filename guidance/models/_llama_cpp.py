@@ -140,8 +140,8 @@ class LlamaCppEngine(Engine):
             raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
 
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
-        self._cache_token_ids = []
         self._n_vocab = self.model_obj.n_vocab()
+        self._cached_token_ids = []
         self._cached_logits = None
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
@@ -165,7 +165,7 @@ class LlamaCppEngine(Engine):
             )
 
         # check what we have already cached
-        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cache_token_ids)))
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
             if full_sequence:
                 return self._cached_logits[:num_cached, :]
@@ -210,7 +210,7 @@ class LlamaCppEngine(Engine):
         self.metrics.engine_input_tokens += len(token_ids) - num_cached
 
         # save the results
-        self._cache_token_ids = token_ids.copy()
+        self._cached_token_ids = token_ids.copy()
 
         if self._cached_logits is not None:
             logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
