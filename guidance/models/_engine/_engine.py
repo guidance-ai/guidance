@@ -165,6 +165,7 @@ class Engine(ABC):
             enable_ff_tokens=self.enable_ff_tokens,
         )
 
+        last_temperature = 1.0
         engine_output = None
         while not parser.done():
             t0 = time.time()
@@ -231,11 +232,10 @@ class Engine(ABC):
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
                 ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
-                # TODO: calculate at temperature 1?
                 ff_probs = (
                     softmax(np.array(ff_logits))
-                    if ll_response.temperature < 0.0001
-                    else softmax(np.array(ff_logits) / ll_response.temperature)
+                    if last_temperature < 0.0001
+                    else softmax(np.array(ff_logits) / last_temperature)
                 )
                 if ff_probs.shape[0] != len(ff_tokens):
                     assert ff_probs.shape[0] == len(ff_tokens) - 1
@@ -327,6 +327,7 @@ class Engine(ABC):
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
             )
+            last_temperature = ll_response.temperature
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
                 # Type checker needs some help
