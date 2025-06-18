@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional
+from typing import Iterator, Optional, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +22,12 @@ from ._tokenizer import Tokenizer
 
 
 logger = logging.getLogger(__name__)
+
+
+class LogitsOutput(TypedDict):
+    logits: NDArray
+    n_tokens: int
+    n_cached: int
 
 
 class Engine(ABC):
@@ -161,7 +167,14 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits = self.get_logits(token_ids=tokens, full_sequence=True)
+                logits_output = self.get_logits(token_ids=tokens)
+                # TODO: remove this once we get proper token tracking in interpreter state
+                n_uncached = logits_output['n_tokens'] - logits_output['n_cached']
+                assert n_uncached >= 0, "n_uncached must be non-negative"
+                if n_uncached > 0:
+                    self.metrics.engine_input_tokens += n_uncached
+                    self.metrics.engine_output_tokens += 1
+                logits = logits_output["logits"]
                 logits_lat_ms = (time.time() - t1) * 1000
 
 
@@ -391,7 +404,7 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
+    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
         pass
 
     def sample_with_temperature(

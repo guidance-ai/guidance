@@ -8,7 +8,7 @@ from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 from ..chat import ChatTemplate
-from ._engine import Engine, Tokenizer, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
+from ._engine import Engine, Tokenizer, LogitsOutput, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._engine._tokenizer import TokenizerWrappable
 from ._base import Model
 
@@ -459,7 +459,7 @@ class TransformersEngine(Engine):
             model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False):
+    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -478,10 +478,11 @@ class TransformersEngine(Engine):
         # check what we have already cached
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
-            if full_sequence:
-                return self._cached_logits[:num_cached, :]
-            else:
-                return self._cached_logits[[num_cached - 1], :]
+            return {
+                "logits": self._cached_logits[:num_cached, :],
+                "n_tokens": num_cached,
+                "n_cached": num_cached,
+            }
 
         # check how many tokens are in the kv cache and what the max size of the cache is
         past_key_values = self._past_key_values
@@ -621,10 +622,6 @@ class TransformersEngine(Engine):
                         .numpy()
                     )
 
-        # update the metrics
-        self.metrics.engine_input_tokens += len(new_token_ids)
-        self.metrics.engine_output_tokens += 1
-
         # save the results
         self._past_key_values = model_out.past_key_values
         self._cached_token_ids = token_ids.copy()
@@ -637,10 +634,11 @@ class TransformersEngine(Engine):
             axis=0
         )
 
-        if full_sequence:
-            return self._cached_logits
-        else:
-            return self._cached_logits[[-1], :]
+        return {
+            "logits": self._cached_logits,
+            "n_tokens": len(token_ids),
+            "n_cached": num_cached,
+        }
 
 class Transformers(Model):
     def __init__(

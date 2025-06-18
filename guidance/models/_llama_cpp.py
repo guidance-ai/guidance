@@ -6,15 +6,13 @@ import sys
 from itertools import takewhile
 from pathlib import Path
 from typing import TYPE_CHECKING, Union
-import ctypes
 
 import numpy as np
 
-from .._schema import GenToken, GenTokenExtra
-from .._utils import normalize_notebook_stdout_stderr, softmax
+from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer, LogitsOutput
 
 try:
     import llama_cpp
@@ -26,7 +24,6 @@ else:
     import llguidance.llamacpp
 
 if TYPE_CHECKING:
-    from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
 
 logger = logging.getLogger(__name__)
@@ -148,7 +145,7 @@ class LlamaCppEngine(Engine):
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
-    def get_logits(self, token_ids, full_sequence=False):
+    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -167,10 +164,11 @@ class LlamaCppEngine(Engine):
         # check what we have already cached
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
-            if full_sequence:
-                return self._cached_logits[:num_cached, :]
-            else:
-                return self._cached_logits[[num_cached - 1], :]
+            return {
+                "logits": self._cached_logits[:num_cached, :],
+                "n_tokens": num_cached,
+                "n_cached": num_cached,
+            }
 
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
@@ -220,10 +218,11 @@ class LlamaCppEngine(Engine):
             axis=0
         )
 
-        if full_sequence:
-            return self._cached_logits
-        else:
-            return self._cached_logits[[-1], :]
+        return {
+            "logits": self._cached_logits,
+            "n_tokens": len(token_ids),
+            "n_cached": num_cached,
+        }
 
 class LlamaCpp(Model):
     def __init__(

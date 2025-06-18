@@ -4,10 +4,8 @@ from typing import Optional, Sequence
 import numpy as np
 
 from .._schema import EngineOutput
-from ..trace import TraceHandler
-from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer, LogitsOutput
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
@@ -116,19 +114,23 @@ class MockEngine(Engine):
             logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
         )
 
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> np.ndarray:
+    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
         """Get the logits for the given token state."""
-        if not full_sequence:
-            return self._get_logits(token_ids).reshape(1, -1)
-        else:
-            # TODO: is it worth it to add a prefix cache here?
-            l0 = self._get_logits([token_ids[0]])
-            # if we are getting the full sequence then we need to compute the logits for all tokens
-            logits = np.zeros((len(token_ids), len(l0)))
-            logits[0] = l0
-            for i in range(1, len(token_ids)):
-                logits[i] = self._get_logits(token_ids[: i + 1])
-            return logits
+        # TODO: is it worth it to add a prefix cache here?
+        l0 = self._get_logits([token_ids[0]])
+        # if we are getting the full sequence then we need to compute the logits for all tokens
+        logits = np.zeros((len(token_ids), len(l0)))
+        logits[0] = l0
+        for i in range(1, len(token_ids)):
+            logits[i] = self._get_logits(token_ids[: i + 1])
+
+        return {
+            "logits": logits,
+            "n_tokens": len(token_ids),
+            # TODO: add caching support and report this number accurately?
+            # This might help mock some tests that make assertions about caching.
+            "n_cached": 0,
+        }
 
     def _get_logits(self, token_ids: list[int]) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
