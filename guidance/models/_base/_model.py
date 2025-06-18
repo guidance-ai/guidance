@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
@@ -32,6 +31,7 @@ from ...trace import (
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
+from ..._schema import TokenUsage
 from ._interpreter import Interpreter
 from ._state import State
 
@@ -304,7 +304,7 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
-    def _get_usage(self) -> dict:
+    def _get_usage(self) -> TokenUsage:
         """Get the token usage for this model."""
         # TODO(hudson): make this public API once we stabilize the data structure
         return self._interpreter.state.token_usage

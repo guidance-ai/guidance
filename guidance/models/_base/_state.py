@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
 
 from ...trace import CaptureOutput
-from ._metrics import TokenUsage
+from ..._schema import TokenUsage
 
 
 class CaptureVar(TypedDict):
