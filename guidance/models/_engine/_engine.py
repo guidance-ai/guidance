@@ -14,7 +14,6 @@ from ..._schema import (
     EngineOutput,
     EngineResponse,
     GenToken,
-    GuidanceEngineMetrics,
 )
 
 from ..._utils import log_init, softmax
@@ -62,9 +61,6 @@ class Engine(ABC):
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
 
-        # TODO(nopdive): Remove on refactor.
-        self.metrics = GuidanceEngineMetrics()
-
         if self._enable_monitoring:
             # Idempotent start
             _ = get_monitor()
@@ -90,9 +86,6 @@ class Engine(ABC):
         return (
             self.tokenizer.chat_template()
         )  # Instantiate the class before returning to client for now
-
-    def reset_metrics(self):
-        self.metrics = GuidanceEngineMetrics()
 
     def __call__(
         self,

@@ -304,6 +304,10 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
+    def _get_usage(self) -> dict:
+        """Get the token usage for this model."""
+        # TODO(hudson): make this public API once we stabilize the data structure
+        return self._interpreter.state.token_usage
 
 class ModelStream:
     def __init__(

@@ -5,6 +5,7 @@ from typing_extensions import Annotated
 from functools import cached_property
 
 
+# TODO(hudson): remove this class
 class GuidanceEngineMetrics(BaseModel):
     engine_input_tokens: NonNegativeInt = 0
     engine_output_tokens: NonNegativeInt = 0
