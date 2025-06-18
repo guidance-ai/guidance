@@ -11,6 +11,7 @@ from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
 from ..._schema import GenTokenExtra
+from ._engine import is_engine_usage
 
 
 class EngineInterpreter(Interpreter[EngineState]):
@@ -74,7 +75,19 @@ class EngineInterpreter(Interpreter[EngineState]):
         )
 
         delayed_bytes = b""
-        for chunk in engine_gen:
+        while True:
+            try:
+                chunk = next(engine_gen)
+            except StopIteration as e:
+                if not is_engine_usage(e.value):
+                    raise e
+                usage = e.value
+                self.state.token_usage.prompt_tokens += usage["n_prompt_tokens"]
+                self.state.token_usage.prompt_tokens_details.cached_tokens += usage["n_cached_prompt_tokens"]
+                self.state.token_usage.completion_tokens += usage["n_completion_tokens"]
+                self.state.token_usage.completion_tokens_details.fast_forward_tokens += usage["n_ff_tokens"]
+                break
+
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text

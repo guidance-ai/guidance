@@ -3,7 +3,8 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, TypedDict
+from typing import Optional, TypedDict, Generator
+from typing_extensions import TypeIs
 
 import numpy as np
 from numpy.typing import NDArray
@@ -29,6 +30,18 @@ class LogitsOutput(TypedDict):
     n_tokens: int
     n_cached: int
 
+
+class EngineUsage(TypedDict):
+    n_prompt_tokens: int
+    n_cached_prompt_tokens: int
+    n_completion_tokens: int
+    n_ff_tokens: int
+
+def is_engine_usage(obj: object) -> TypeIs[EngineUsage]:
+    """Check if the object is an EngineUsage type."""
+    return isinstance(obj, dict) and all(
+        key in obj for key in EngineUsage.__required_keys__
+    )
 
 class Engine(ABC):
     """The engine owns the inference computation and is used/created by the Model class.
@@ -87,7 +100,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineResponse]:
+    ) -> Generator[EngineResponse, None, EngineUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -120,6 +133,10 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
+        n_prompt_tokens = 0
+        n_cached_prompt_tokens = 0
+        n_completion_tokens = 0
+        n_ff_tokens = 0
         while not parser.done():
             t0 = time.time()
 
@@ -168,15 +185,22 @@ class Engine(ABC):
             else:
                 t1 = time.time()
                 logits_output = self.get_logits(token_ids=tokens)
-                # TODO: remove this once we get proper token tracking in interpreter state
-                n_uncached = logits_output['n_tokens'] - logits_output['n_cached']
-                assert n_uncached >= 0, "n_uncached must be non-negative"
-                if n_uncached > 0:
-                    self.metrics.engine_input_tokens += n_uncached
-                    self.metrics.engine_output_tokens += 1
                 logits = logits_output["logits"]
+                if engine_output is None:
+                    assert n_prompt_tokens == 0, "n_prompt_tokens should be 0 for the first call"
+                    assert n_cached_prompt_tokens == 0, "n_cached_tokens should be 0 for the first call"
+                    # Number of tokens pre-filled, including the actual prompt and any tokens fast-forwarded
+                    # at the start of the grammar.
+                    n_prompt_tokens = logits_output['n_tokens']
+                    # Number of prompt tokens that hit cache
+                    n_cached_prompt_tokens = logits_output['n_cached']
+                else:
+                    # TODO: might have an off-by-one error if our last token is a fast-forward token
+                    # TODO: consider utilizing n_cached_tokens
+                    if len(ff_tokens) > 0:
+                        n_ff_tokens += len(ff_tokens) - 1
+                        n_completion_tokens += len(ff_tokens)
                 logits_lat_ms = (time.time() - t1) * 1000
-
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -293,6 +317,13 @@ class Engine(ABC):
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
+
+        return {
+            "n_prompt_tokens": n_prompt_tokens,
+            "n_cached_prompt_tokens": n_cached_prompt_tokens,
+            "n_completion_tokens": n_completion_tokens,
+            "n_ff_tokens": n_ff_tokens,
+        }
 
     def get_next_token_with_top_k(
         self,

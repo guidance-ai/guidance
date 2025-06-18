@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
 
 from ...trace import CaptureOutput
+from ._metrics import TokenUsage
 
 
 class CaptureVar(TypedDict):
@@ -13,6 +14,7 @@ class State(ABC):
     def __init__(self) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
         self.active_role: Optional[str] = None
+        self.token_usage: TokenUsage = TokenUsage()
 
     @abstractmethod
     def __str__(self) -> str:
