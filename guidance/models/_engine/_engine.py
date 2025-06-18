@@ -2,9 +2,8 @@
 
 import logging
 import time
-import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
+from typing import Iterator, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,55 +16,12 @@ from ..._schema import (
     GuidanceEngineMetrics,
 )
 
-from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax
-from ...visual import (
-    ExecutionCompletedMessage,
-    ExecutionStartedMessage,
-    GuidanceMessage,
-    OutputRequestMessage,
-    MetricMessage,
-)
+from ..._utils import log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
-if TYPE_CHECKING:
-    from .._base._model import Model
 
 logger = logging.getLogger(__name__)
-
-
-def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
-    get_exchange().unsubscribe(msg_recv)
-    log_cleanup(log_msg)
-
-
-def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
-    def closure(message):
-        return _msg_recv(engine_weak_ref, message)
-
-    return closure
-
-
-def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
-    # NOTE(nopdive): This is run on a background thread.
-
-    engine = engine_weakref()
-    if engine is None:
-        return
-
-    if isinstance(message, MetricMessage):
-        return
-
-    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
-    if isinstance(message, ExecutionStartedMessage):
-        pass
-    elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
-        pass
-    elif isinstance(message, ExecutionCompletedMessage):
-        pass
-    elif isinstance(message, OutputRequestMessage):
-        pass
 
 
 class Engine(ABC):
@@ -94,15 +50,6 @@ class Engine(ABC):
             # Idempotent start
             _ = get_monitor()
 
-        msg_recv = _wrapped_msg_recv(weakref.ref(self))
-        get_exchange().subscribe(msg_recv)
-
-        weakref.finalize(
-            self,
-            _engine_cleanup,
-            msg_recv,
-            f"engine({id(self)})",
-        )
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
