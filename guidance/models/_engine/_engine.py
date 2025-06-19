@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_TEMPERATURE_EPSILON = 0.0001
 
 def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
     get_exchange().unsubscribe(msg_recv)
@@ -234,7 +235,7 @@ class Engine(ABC):
                 ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
                 ff_probs = (
                     softmax(np.array(ff_logits))
-                    if last_temperature < 0.0001
+                    if last_temperature < _TEMPERATURE_EPSILON
                     else softmax(np.array(ff_logits) / last_temperature)
                 )
                 if ff_probs.shape[0] != len(ff_tokens):
@@ -390,7 +391,7 @@ class Engine(ABC):
         # compute top-k without masking
         probs = (
             softmax(np.array(logits))
-            if temperature < 0.0001
+            if temperature < _TEMPERATURE_EPSILON
             else softmax(np.array(logits) / temperature)
         )
 
@@ -402,7 +403,7 @@ class Engine(ABC):
         masked_top_k: list[GenToken] = []
         if mask is not None:
             masked_logits = logits + np.frombuffer(mask, dtype=np.uint8)
-            if temperature < 0.0001:
+            if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -200)
             else:
                 masked_logits /= temperature
@@ -410,7 +411,7 @@ class Engine(ABC):
             masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
 
-        if temperature < 0.0001:
+        if temperature < _TEMPERATURE_EPSILON:
             if len(masked_top_k) > 0:
                 issued_token = masked_top_k[0]
             else:
@@ -452,7 +453,7 @@ class Engine(ABC):
     ) -> int:
         if mask is not None:
             logits += np.frombuffer(mask, dtype=np.uint8)
-        if temperature < 0.0001:
+        if temperature < _TEMPERATURE_EPSILON:
             return int(np.argmax(logits))
         # Get probabilities from softmax
         probabilities = softmax(logits / temperature)
