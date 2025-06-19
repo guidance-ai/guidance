@@ -416,14 +416,20 @@ class Engine(ABC):
             else:
                 if len(top_k) == 0:
                     top_k = get_top_k(probs, k)
-                issued_token = top_k[0]
+                try:
+                    issued_token = top_k[0]
+                except:
+                    raise Exception(str(probs[:8]) + " " + str(masked_probs[:8]) + " " + str(logits[:8]))
         else:
             # we need to sample from the probabilities
             if mask is None:
                 sampled_index = np.random.choice(len(probs), p=probs)
                 sampled_prob = probs[sampled_index]
             else:
-                sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+                try:
+                    sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
+                except:
+                    raise Exception(str(probs[:8]) + " " + str(masked_probs[:8]) + " " + str(logits[:8]))
                 sampled_prob = masked_probs[sampled_index]
 
             issued_token = GenToken(
