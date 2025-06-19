@@ -3,6 +3,7 @@ import wave
 from copy import deepcopy
 from io import BytesIO
 import time
+import inspect
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
 
 from abc import ABC, abstractmethod
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionChunk
     from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
+    from openai import OpenAI
 
 
 def get_role_start(role: str) -> str:
@@ -183,6 +185,13 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
+        
+        sig_params = inspect.signature(self.client.chat.completions.create).parameters
+        for key in list(kwargs.keys()):
+            if key not in sig_params:
+                # Remove any kwargs that are not supported by the OpenAI API
+                del kwargs[key]
+        
         return self.client.chat.completions.create(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
@@ -200,8 +209,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
+        **kwargs
     ):
-        self.state = OpenAIState()
+        super().__init__(state=OpenAIState(), **kwargs)
         self.model = model
         self.client = client
 
@@ -249,6 +259,13 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
+            
+        # Only pass args that are compatible with OpenAI's API.
+        # NOTE: top_k will be handled differently by VLLM or Litellm
+        if "top_p" not in kwargs and "top_p" in self.kwargs:
+            kwargs["top_p"] = self.kwargs["top_p"]
+        if "top_k" not in kwargs and "top_k" in self.kwargs:
+            kwargs["top_k"] = self.kwargs["top_k"]
 
         with self.client.streaming_chat_completions(
             model=self.model,

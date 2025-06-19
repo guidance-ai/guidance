@@ -236,7 +236,7 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        **llama_cpp_kwargs,
+        **llama_cpp_kwargs
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
@@ -249,5 +249,5 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine)
+        interpreter = EngineInterpreter(engine, **llama_cpp_kwargs)
         super().__init__(interpreter=interpreter, echo=echo)

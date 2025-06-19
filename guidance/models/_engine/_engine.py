@@ -135,6 +135,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
+        **kwargs: Optional[dict],
     ) -> Iterator[EngineResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -156,6 +157,8 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
+        filter_top_p = kwargs.get("top_p", None)
+        filter_top_k = kwargs.get("top_k", None)
 
         tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
 
@@ -327,6 +330,8 @@ class Engine(ABC):
                 temperature=ll_response.temperature,
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
+                filter_top_k=filter_top_k,
+                filter_top_p=filter_top_p
             )
             last_temperature = ll_response.temperature
 
@@ -344,6 +349,8 @@ class Engine(ABC):
         temperature: float,
         k: int = 5,
         force_return_unmasked_probs: bool = False,
+        filter_top_k: Optional[int] = None,
+        filter_top_p: Optional[float] = None,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -387,6 +394,52 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            
+        def apply_top_k_filter(_logits: NDArray, _k: int) -> NDArray:
+            indices_to_remove = _logits.argsort()[:-_k]
+            _logits[indices_to_remove] -= 200.0
+            return _logits
+        
+        def apply_top_p_filter(_logits: NDArray, _p: float) -> NDArray:
+            sorted_indices = np.argsort(_logits)[::-1]
+            sorted_logits = _logits[sorted_indices]
+            probs = np.exp(sorted_logits) / np.sum(np.exp(sorted_logits))
+            cumulative_probs = np.cumsum(probs)
+            indices_to_remove = cumulative_probs > _p
+            if np.any(indices_to_remove):
+                first_to_remove = np.argmax(indices_to_remove)
+                sorted_indices_to_remove = sorted_indices[first_to_remove:]
+                _logits[sorted_indices_to_remove] -= 200.0
+            return _logits
+
+        def apply_top_k_and_top_p_filter(_logits: NDArray, _k: int, _p: float) -> NDArray:
+            if _k is None and _p is None:
+                return _logits
+            
+            # if _k is not None:
+            #     _logits = apply_top_k_filter(_logits, _k)
+                
+            # if _p is not None:
+            #     _logits = apply_top_p_filter(_logits, _p)
+            
+            # try ourbest to sort logits one time only
+            sorted_logits = _logits.argsort()
+            if _k is not None:
+                indices_to_remove = sorted_logits[:-_k]
+                _logits[indices_to_remove] -= 200.0
+                
+            if _p is not None:
+                sorted_indices = sorted_logits[::-1]
+                sorted_logits = _logits[sorted_indices]
+                probs = np.exp(sorted_logits) / np.sum(np.exp(sorted_logits))
+                cumulative_probs = np.cumsum(probs)
+                indices_to_remove = cumulative_probs > _p
+                if np.any(indices_to_remove):
+                    first_to_remove = np.argmax(indices_to_remove)
+                    sorted_indices_to_remove = sorted_indices[first_to_remove:]
+                    _logits[sorted_indices_to_remove] -= 200.0
+                
+            return _logits
 
         # compute top-k without masking
         probs = (
@@ -394,6 +447,10 @@ class Engine(ABC):
             if temperature < _TEMPERATURE_EPSILON
             else softmax(np.array(logits) / temperature)
         )
+        print(f"Logits: {logits.shape}")
+        print(f"Logits: {logits}")
+        print(f"Probs: {probs.shape}")
+        print(f"Probs: {probs}")
 
         top_k: list[GenToken] = []
         if force_return_unmasked_probs:

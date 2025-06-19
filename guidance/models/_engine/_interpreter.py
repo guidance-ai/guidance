@@ -14,8 +14,8 @@ from ..._schema import GenTokenExtra
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine):
-        self.state = EngineState()
+    def __init__(self, engine: Engine, **kwargs):
+        super().__init__(state=EngineState(), **kwargs)
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
 
@@ -71,6 +71,8 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
+            top_p=self.kwargs.get("top_p", None),
+            top_k=self.kwargs.get("top_k", None),
         )
 
         delayed_bytes = b""

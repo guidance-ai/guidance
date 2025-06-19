@@ -26,8 +26,26 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.OpenAI(api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client))
+            
+        openai_kwargs = {}
+        for key, value in kwargs.items():
+            # only allow these keys to be passed to the OpenAI client
+            if key in [
+                "organization",
+                "project",
+                "base_url",
+                "websocket_base_url",
+                "timeout",
+                "max_retries",
+                "default_headers",
+                "default_query",
+                "http_client",
+                "_strict_response_validation",
+            ]:
+                openai_kwargs[key] = value
+            
+        client = openai.OpenAI(api_key=api_key, **openai_kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
 
 
 class OpenAI(Model):

@@ -29,8 +29,9 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S):
+    def __init__(self, state: S, **kwargs):
         self.state = state
+        self.kwargs = kwargs
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)
