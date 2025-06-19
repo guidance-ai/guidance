@@ -176,6 +176,7 @@ class BaseOpenAIClientWrapper(ABC):
 class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     def __init__(self, client: "openai.OpenAI"):
         self.client = client
+        self.sig_params = inspect.signature(self.client.chat.completions.create).parameters
 
     def streaming_chat_completions(
         self,
@@ -186,9 +187,8 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
         
-        sig_params = inspect.signature(self.client.chat.completions.create).parameters
         for key in list(kwargs.keys()):
-            if key not in sig_params:
+            if key not in self.sig_params:
                 # Remove any kwargs that are not supported by the OpenAI API
                 del kwargs[key]
         
