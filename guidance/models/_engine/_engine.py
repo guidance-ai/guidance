@@ -408,12 +408,13 @@ class Engine(ABC):
             if _p is not None:
                 sorted_indices = sorted_logits[::-1]
                 sorted_logits = _logits[sorted_indices]
-                probs = np.exp(sorted_logits) / np.sum(np.exp(sorted_logits))
+                probs = softmax(sorted_logits)
                 cumulative_probs = np.cumsum(probs)
                 indices_to_remove = cumulative_probs > _p
                 if np.any(indices_to_remove):
                     first_to_remove = np.argmax(indices_to_remove)
-                    sorted_indices_to_remove = sorted_indices[first_to_remove:]
+                    # make sure we always keep at least one token
+                    sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
                     _logits[sorted_indices_to_remove] -= float("inf")
                 
             return _logits
@@ -424,10 +425,6 @@ class Engine(ABC):
             if temperature < _TEMPERATURE_EPSILON
             else softmax(np.array(logits) / temperature)
         )
-        print(f"Logits: {logits.shape}")
-        print(f"Logits: {logits}")
-        print(f"Probs: {probs.shape}")
-        print(f"Probs: {probs}")
 
         top_k: list[GenToken] = []
         if force_return_unmasked_probs:
