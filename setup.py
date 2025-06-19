@@ -23,7 +23,7 @@ llamacpp_requires = ["llama-cpp-python==0.3.9"]
 transformers_requires = ["transformers==4.51.3"]
 
 install_requires = [
-    "numpy",
+    "numpy==2.2.0",
     "pydantic",
     "requests",
     "psutil",
