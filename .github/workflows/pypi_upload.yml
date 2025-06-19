@@ -13,7 +13,7 @@ on:
 jobs:
   build_wheels:
     name: Build wheel distribution
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
 
   build_sdist:
     name: Build source distribution
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
