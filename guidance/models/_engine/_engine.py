@@ -404,7 +404,7 @@ class Engine(ABC):
         if mask is not None:
             masked_logits = logits + np.frombuffer(mask, dtype=np.uint8)
             if temperature < _TEMPERATURE_EPSILON:
-                masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -200)
+                masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
                 masked_logits /= temperature
 
