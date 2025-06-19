@@ -394,39 +394,16 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
-            
-        def apply_top_k_filter(_logits: NDArray, _k: int) -> NDArray:
-            indices_to_remove = _logits.argsort()[:-_k]
-            _logits[indices_to_remove] -= 200.0
-            return _logits
-        
-        def apply_top_p_filter(_logits: NDArray, _p: float) -> NDArray:
-            sorted_indices = np.argsort(_logits)[::-1]
-            sorted_logits = _logits[sorted_indices]
-            probs = np.exp(sorted_logits) / np.sum(np.exp(sorted_logits))
-            cumulative_probs = np.cumsum(probs)
-            indices_to_remove = cumulative_probs > _p
-            if np.any(indices_to_remove):
-                first_to_remove = np.argmax(indices_to_remove)
-                sorted_indices_to_remove = sorted_indices[first_to_remove:]
-                _logits[sorted_indices_to_remove] -= 200.0
-            return _logits
 
         def apply_top_k_and_top_p_filter(_logits: NDArray, _k: int, _p: float) -> NDArray:
             if _k is None and _p is None:
                 return _logits
             
-            # if _k is not None:
-            #     _logits = apply_top_k_filter(_logits, _k)
-                
-            # if _p is not None:
-            #     _logits = apply_top_p_filter(_logits, _p)
-            
             # try ourbest to sort logits one time only
             sorted_logits = _logits.argsort()
             if _k is not None:
                 indices_to_remove = sorted_logits[:-_k]
-                _logits[indices_to_remove] -= 200.0
+                _logits[indices_to_remove] -= float("inf")
                 
             if _p is not None:
                 sorted_indices = sorted_logits[::-1]
@@ -437,7 +414,7 @@ class Engine(ABC):
                 if np.any(indices_to_remove):
                     first_to_remove = np.argmax(indices_to_remove)
                     sorted_indices_to_remove = sorted_indices[first_to_remove:]
-                    _logits[sorted_indices_to_remove] -= 200.0
+                    _logits[sorted_indices_to_remove] -= float("inf")
                 
             return _logits
 
