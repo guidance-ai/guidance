@@ -401,13 +401,13 @@ class Engine(ABC):
         # compute top-k with masking
         masked_top_k: list[GenToken] = []
         if mask is not None:
-            # shift logits to [0 - max] range first and apply mask
-            masked_logits = (logits - np.min(logits)) * np.frombuffer(mask, dtype=np.uint8)
-            masked_probs = (
-                softmax(masked_logits)
-                if temperature < 0.0001
-                else softmax(masked_logits / temperature)
-            )
+            masked_logits = logits + np.frombuffer(mask, dtype=np.uint8)
+            if temperature < 0.0001:
+                masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -200)
+            else:
+                masked_logits /= temperature
+
+            masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
 
         if temperature < 0.0001:
