@@ -421,9 +421,9 @@ class Engine(ABC):
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(logits))
+            softmax(apply_top_k_and_top_p_filter(np.array(logits), filter_top_k, filter_top_p))
             if temperature < _TEMPERATURE_EPSILON
-            else softmax(np.array(logits) / temperature)
+            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, filter_top_k, filter_top_p))
         )
 
         top_k: list[GenToken] = []
@@ -435,6 +435,9 @@ class Engine(ABC):
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
+            
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, filter_top_k, filter_top_p)
+            
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
