@@ -11,6 +11,7 @@ from ._openai_base import (
     OpenAIRegexMixin,
     OpenAIRuleMixin,
 )
+from .._utils import parse_openai_client_kwargs
 
 
 class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
@@ -27,23 +28,7 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
             
-        openai_kwargs = {}
-        for key, value in kwargs.items():
-            # only allow these keys to be passed to the OpenAI client
-            if key in [
-                "organization",
-                "project",
-                "base_url",
-                "websocket_base_url",
-                "timeout",
-                "max_retries",
-                "default_headers",
-                "default_query",
-                "http_client",
-                "_strict_response_validation",
-            ]:
-                openai_kwargs[key] = value
-            
+        openai_kwargs = parse_openai_client_kwargs(kwargs)
         client = openai.OpenAI(api_key=api_key, **openai_kwargs)
         super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
 
