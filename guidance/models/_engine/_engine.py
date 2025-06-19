@@ -402,7 +402,8 @@ class Engine(ABC):
         # compute top-k with masking
         masked_top_k: list[GenToken] = []
         if mask is not None:
-            masked_logits = logits + np.frombuffer(mask, dtype=np.uint8)
+            mask = np.frombuffer(mask, dtype=np.uint8)
+            masked_logits = np.where(mask != 0, logits, -np.inf)
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
