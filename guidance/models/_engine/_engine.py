@@ -403,7 +403,7 @@ class Engine(ABC):
             sorted_logits = _logits.argsort()
             if _k is not None:
                 indices_to_remove = sorted_logits[:-_k]
-                _logits[indices_to_remove] -= float("inf")
+                _logits[indices_to_remove] = -float("inf")
                 
             if _p is not None:
                 sorted_indices = sorted_logits[::-1]
@@ -415,7 +415,7 @@ class Engine(ABC):
                     first_to_remove = np.argmax(indices_to_remove)
                     # make sure we always keep at least one token
                     sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
-                    _logits[sorted_indices_to_remove] -= float("inf")
+                    _logits[sorted_indices_to_remove] = -float("inf")
                 
             return _logits
 
@@ -436,12 +436,12 @@ class Engine(ABC):
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
             
-            masked_logits = apply_top_k_and_top_p_filter(masked_logits, filter_top_k, filter_top_p)
-            
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
                 masked_logits /= temperature
+                
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, filter_top_k, filter_top_p)
 
             masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
