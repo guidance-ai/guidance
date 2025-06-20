@@ -132,6 +132,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
+        **kwargs: Optional[dict],
     ) -> Iterator[EngineResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -153,6 +154,8 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
+        filter_top_p = kwargs.get("top_p", None)
+        filter_top_k = kwargs.get("top_k", None)
 
         tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
 
@@ -324,6 +327,8 @@ class Engine(ABC):
                 temperature=ll_response.temperature,
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
+                filter_top_k=filter_top_k,
+                filter_top_p=filter_top_p
             )
             last_temperature = ll_response.temperature
 
@@ -341,6 +346,8 @@ class Engine(ABC):
         temperature: float,
         k: int = 5,
         force_return_unmasked_probs: bool = False,
+        filter_top_k: Optional[int] = None,
+        filter_top_p: Optional[float] = None,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -384,12 +391,46 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            
+        def apply_top_k_only(_logits: NDArray, _k: int) -> NDArray:
+            indices_to_remove = _logits.argpartition(-_k)[:-_k]
+            _logits[indices_to_remove] = -float("inf")
+            return _logits
+            
+
+        def apply_top_k_and_top_p_filter(_logits: NDArray, _k: int, _p: float) -> NDArray:
+            if _k is None and _p is None:
+                return _logits
+            
+            if _k is not None and _p is None:
+                return apply_top_k_only(_logits, _k)
+            
+            # try our best to sort logits one time only
+            sorted_logits = _logits.argsort()
+            if _k is not None:
+                indices_to_remove = sorted_logits[:-_k]
+                _logits[indices_to_remove] = -float("inf")
+                
+            if _p is not None:
+                sorted_indices = sorted_logits[::-1]
+                sorted_logits = _logits[sorted_indices]
+                probs = softmax(sorted_logits)
+                cumulative_probs = np.cumsum(probs)
+                indices_to_remove = cumulative_probs > _p
+                if np.any(indices_to_remove):
+                    # -1 to keep the first token that exceeds the threshold
+                    first_to_remove = np.argmax(indices_to_remove) - 1
+                    # make sure we always keep at least one token
+                    sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
+                    _logits[sorted_indices_to_remove] = -float("inf")
+                
+            return _logits
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(logits))
+            softmax(apply_top_k_and_top_p_filter(np.array(logits), filter_top_k, filter_top_p))
             if temperature < _TEMPERATURE_EPSILON
-            else softmax(np.array(logits) / temperature)
+            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, filter_top_k, filter_top_p))
         )
 
         top_k: list[GenToken] = []
@@ -401,10 +442,13 @@ class Engine(ABC):
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
+            
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
                 masked_logits /= temperature
+                
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, filter_top_k, filter_top_p)
 
             masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)

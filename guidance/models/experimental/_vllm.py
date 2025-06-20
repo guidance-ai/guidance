@@ -7,6 +7,7 @@ from .._openai_base import (
     OpenAIClientWrapper
 )
 from .._base import Model
+from ..._utils import parse_openai_client_kwargs
 
 
 class VLLMInterpreter(BaseOpenAIInterpreter):
@@ -23,16 +24,28 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-        client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client))
+        
+        openai_kwargs = parse_openai_client_kwargs(kwargs)
+        client = openai.OpenAI(base_url=base_url, api_key=api_key, **openai_kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
+        
+        extra_body = {
+            "guided_decoding_backend" : "guidance",
+            "guided_grammar" : node.ll_grammar(),
+        }
+        
+        # top_k must be put in extra_body
+        top_k = kwargs.pop("top_k", None)
+        if top_k is None:
+            top_k = self.kwargs.get("top_k", None)
+        if top_k is not None:
+            extra_body["top_k"] = top_k
+        
         for attr in self._run(
-            extra_body=dict(
-                guided_decoding_backend="guidance",
-                guided_grammar=node.ll_grammar(),
-            )
+            extra_body=extra_body
         ):
             if isinstance(attr, TextOutput):
                 buffer += attr.value

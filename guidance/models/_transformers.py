@@ -679,7 +679,8 @@ class Transformers(Model):
                 enable_ff_tokens=enable_ff_tokens,
                 enable_monitoring=enable_monitoring,
                 **kwargs,
-            )
+            ),
+            # **kwargs
         )
         super().__init__(
             interpreter=client,
