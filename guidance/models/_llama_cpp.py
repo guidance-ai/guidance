@@ -203,10 +203,6 @@ class LlamaCppEngine(Engine):
             ).copy()
             logits_for_each_batch.append(logits)
 
-        # update the metrics
-        self.metrics.engine_output_tokens += 1
-        self.metrics.engine_input_tokens += len(token_ids) - num_cached
-
         # save the results
         self._cached_token_ids = token_ids.copy()
 
