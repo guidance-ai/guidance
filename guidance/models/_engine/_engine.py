@@ -4,7 +4,7 @@ import logging
 import time
 import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
+from typing import Callable, Iterator, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,9 +28,6 @@ from ...visual import (
 )
 from ._state import EngineState
 from ._tokenizer import Tokenizer
-
-if TYPE_CHECKING:
-    from .._base._model import Model
 
 logger = logging.getLogger(__name__)
 
@@ -448,32 +445,3 @@ class Engine(ABC):
     @abstractmethod
     def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
         pass
-
-    def sample_with_temperature(
-        self, logits: NDArray, mask: Optional[bytes], temperature: float
-    ) -> int:
-        if mask is not None:
-            logits += np.frombuffer(mask, dtype=np.uint8)
-        if temperature < _TEMPERATURE_EPSILON:
-            return int(np.argmax(logits))
-        # Get probabilities from softmax
-        probabilities = softmax(logits / temperature)
-        # Sample an index based on the probabilities
-        sampled_index = np.random.choice(len(logits), p=probabilities)
-        return sampled_index
-
-    def _report_failed_match(self, prompt):
-        """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
-        return Exception(
-            "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
-            + str(prompt[-40:])
-        )
-
-
-class ConstraintException(Exception):
-    def __init__(self, *args, **kwargs):
-        self.prompt = kwargs.pop("prompt", None)
-        self.data = kwargs.pop("data", None)
-        super().__init__(*args, **kwargs)
-
-

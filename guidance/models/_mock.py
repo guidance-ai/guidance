@@ -97,10 +97,6 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def sample_with_temperature(self, logits, mask, temperature):
-        self.called_temperatures.append(temperature)
-        return super().sample_with_temperature(logits, mask, temperature)
-
     def get_next_token_with_top_k(
         self,
         logits: Optional[np.ndarray],
