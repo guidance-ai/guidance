@@ -56,7 +56,6 @@ class PeriodicMetricsGenerator:
         import time
         from ..registry import get_exchange
 
-        time_start = time.time()
         while not self._cancelled:
             try:
                 await asyncio.sleep(self._sleep_sec)
@@ -82,12 +81,8 @@ class PeriodicMetricsGenerator:
                 if not used_ram:
                     used_ram = MISSING_VALUE
 
-                time_end = time.time()
-                time_elapsed = time_end - time_start
-
                 if not self._is_paused:
                     exchange = get_exchange()
-                    exchange.publish(MetricMessage(name="wall time", value=time_elapsed), topic=METRICS_TOPIC)
                     exchange.publish(MetricMessage(name="cpu", value=cpu_percent), topic=METRICS_TOPIC)
                     exchange.publish(MetricMessage(name="ram", value=used_ram), topic=METRICS_TOPIC)
                     exchange.publish(MetricMessage(name="gpu", value=gpu_percent), topic=METRICS_TOPIC)

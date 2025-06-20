@@ -7,6 +7,7 @@ import pytest
 
 import guidance
 from guidance import gen, select
+from guidance.models._engine._interpreter import text_to_grammar
 
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
@@ -150,7 +151,7 @@ def test_llama_cpp_almost_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size - 1)
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -158,7 +159,7 @@ def test_llama_cpp_exactly_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * batch_size
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -166,7 +167,7 @@ def test_llama_cpp_more_than_one_batch(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (batch_size + 1)
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -174,7 +175,7 @@ def test_llama_cpp_almost_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) - 1)
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -182,7 +183,7 @@ def test_llama_cpp_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * (2 * batch_size)
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
@@ -190,7 +191,7 @@ def test_llama_cpp_more_than_two_batches(llamacpp_model):
     lm = llamacpp_model
     batch_size = lm.engine.model_obj.n_batch
     long_str = lm.engine.tokenizer.bos_token.decode("utf-8") * ((2 * batch_size) + 1)
-    lm += long_str + gen(max_tokens=10, regex=r".+")
+    lm += text_to_grammar(lm.engine.tokenizer, long_str) + gen(max_tokens=10, regex=r".+")
     assert len(str(lm)) > len(long_str)
 
 
