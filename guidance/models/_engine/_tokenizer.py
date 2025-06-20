@@ -1,10 +1,17 @@
-from typing import Any, Optional, Sequence, Union, Callable
+from typing import Any, Optional, Sequence, Union, Callable, Protocol, TypedDict
 from dataclasses import dataclass
 from functools import cached_property
 
-
-from ...chat import ChatTemplate, load_template_class
 import llguidance
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
+
+class ChatFormatter(Protocol):
+    def __call__(self, messages: Sequence[ChatMessage]) -> str:
+        """Formats a sequence of chat messages into a string."""
+        pass
 
 @dataclass
 class TokenizerWrappable:
@@ -33,18 +40,22 @@ class Tokenizer:
     def __init__(
         self,
         ll_tokenizer: llguidance.LLTokenizer,
-        chat_template: Union[str, ChatTemplate, None],
+        chat_template: Optional[str] = None,
         bos_token_id: Optional[int] = None,
     ):
         self._ll_tokenizer = ll_tokenizer
         # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
         # Defaults to ChatML if nothing is found
-        self._chat_template = load_template_class(chat_template)
+        self._chat_template = chat_template
         self._bos_token_id = bos_token_id
 
     def is_special_token(self, token_id: int) -> bool:
         """Returns True if the given token ID is a special token."""
         return self._ll_tokenizer.is_special_token(token_id)
+
+    @property
+    def chat_formatter(self) -> Optional[ChatFormatter]:
+        return None
 
     @property
     def bos_token_id(self) -> Union[int, None]:

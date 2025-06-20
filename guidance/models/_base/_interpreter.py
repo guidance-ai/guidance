@@ -1,4 +1,5 @@
 import base64
+from abc import ABC, abstractmethod
 from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
@@ -27,10 +28,12 @@ from ._state import State
 
 S = TypeVar("S", bound=State)
 
-
-class Interpreter(Generic[S]):
+class Interpreter(Generic[S], ABC):
     def __init__(self, state: S):
         self.state = state
+
+    @abstractmethod
+    def state_str(self) -> str: ...
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)
