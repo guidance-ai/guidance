@@ -188,6 +188,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
             logprobs=log_probs,
             stream=True,
+            stream_options={"include_usage": True},
             **kwargs,
         )
 
@@ -266,6 +267,13 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
+            if chunk.usage is not None:
+                # Update token usage
+                self.state.token_usage.prompt_tokens += chunk.usage.prompt_tokens
+                self.state.token_usage.completion_tokens += chunk.usage.completion_tokens
+                if chunk.usage.prompt_tokens_details is not None:
+                    if chunk.usage.prompt_tokens_details.cached_tokens is not None:
+                        self.state.token_usage.prompt_tokens_details.cached_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -347,8 +355,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
-            if choice.finish_reason is not None:
-                break
+            if choice.finish_reason is not None and choice.finish_reason != "stop":
+                # TODO: handle "bad" finish reasons
+                pass
 
         if audio is not None:
             assert self.state.audio is None

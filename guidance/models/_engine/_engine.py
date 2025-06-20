@@ -2,9 +2,9 @@
 
 import logging
 import time
-import weakref
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterator, Optional
+from typing import Optional, TypedDict, Generator
+from typing_extensions import TypeIs
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,59 +14,22 @@ from ..._schema import (
     EngineOutput,
     EngineResponse,
     GenToken,
-    GuidanceEngineMetrics,
+    TokenUsage,
 )
 
-from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax
-from ...visual import (
-    ExecutionCompletedMessage,
-    ExecutionStartedMessage,
-    GuidanceMessage,
-    OutputRequestMessage,
-    MetricMessage,
-)
+from ..._utils import log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
-if TYPE_CHECKING:
-    from .._base._model import Model
 
 logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
 
-def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
-    get_exchange().unsubscribe(msg_recv)
-    log_cleanup(log_msg)
-
-
-def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
-    def closure(message):
-        return _msg_recv(engine_weak_ref, message)
-
-    return closure
-
-
-def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
-    # NOTE(nopdive): This is run on a background thread.
-
-    engine = engine_weakref()
-    if engine is None:
-        return
-
-    if isinstance(message, MetricMessage):
-        return
-
-    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
-    if isinstance(message, ExecutionStartedMessage):
-        pass
-    elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
-        pass
-    elif isinstance(message, ExecutionCompletedMessage):
-        pass
-    elif isinstance(message, OutputRequestMessage):
-        pass
+class LogitsOutput(TypedDict):
+    logits: NDArray
+    n_tokens: int
+    n_cached: int
 
 
 class Engine(ABC):
@@ -88,22 +51,10 @@ class Engine(ABC):
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
 
-        # TODO(nopdive): Remove on refactor.
-        self.metrics = GuidanceEngineMetrics()
-
         if self._enable_monitoring:
             # Idempotent start
             _ = get_monitor()
 
-        msg_recv = _wrapped_msg_recv(weakref.ref(self))
-        get_exchange().subscribe(msg_recv)
-
-        weakref.finalize(
-            self,
-            _engine_cleanup,
-            msg_recv,
-            f"engine({id(self)})",
-        )
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
@@ -126,16 +77,13 @@ class Engine(ABC):
             self.tokenizer.chat_template()
         )  # Instantiate the class before returning to client for now
 
-    def reset_metrics(self):
-        self.metrics = GuidanceEngineMetrics()
-
     def __call__(
         self,
         state: EngineState,
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineResponse]:
+    ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -168,6 +116,7 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
+        usage = TokenUsage()
         while not parser.done():
             t0 = time.time()
 
@@ -215,9 +164,22 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits = self.get_logits(token_ids=tokens, full_sequence=True)
+                logits_output = self.get_logits(token_ids=tokens)
+                logits = logits_output["logits"]
+                if engine_output is None:
+                    assert usage.prompt_tokens == 0, "prompt_tokens should be 0 for the first call"
+                    assert usage.prompt_tokens_details.cached_tokens == 0, "cached_tokens should be 0 for the first call"
+                    # Number of tokens pre-filled, including the actual prompt and any tokens fast-forwarded
+                    # at the start of the grammar.
+                    usage.prompt_tokens = logits_output['n_tokens']
+                    # Number of prompt tokens that hit cache
+                    usage.prompt_tokens_details.cached_tokens = logits_output['n_cached']
+                else:
+                    # TODO: might have an off-by-one error if our last token is a fast-forward token
+                    if len(ff_tokens) > 0:
+                        usage.completion_tokens += len(ff_tokens)
+                        usage.completion_tokens_details.fast_forward_tokens += len(ff_tokens) - 1
                 logits_lat_ms = (time.time() - t1) * 1000
-
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -335,6 +297,8 @@ class Engine(ABC):
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
 
+        return usage
+
     def get_next_token_with_top_k(
         self,
         logits: NDArray,
@@ -446,7 +410,7 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
+    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
         pass
 
     def sample_with_temperature(
