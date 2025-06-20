@@ -373,7 +373,7 @@ class Engine(ABC):
         """
 
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
-            top_k_indices = np.argsort(_probs)[::-1][:_k]
+            top_k_indices = _probs.argpartition(-_k)[-_k:]
             top_k_probs = _probs[top_k_indices]
 
             return [
