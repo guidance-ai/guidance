@@ -376,7 +376,7 @@ class Engine(ABC):
             top_k_indices = _probs.argpartition(-_k)[-_k:]
             top_k_probs = _probs[top_k_indices]
 
-            return [
+            top_k_tokens = [
                 GenToken(
                     token_id=token,
                     prob=prob,
@@ -387,6 +387,11 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            # Sort by probability in descending order, as above argpartition
+            # does not guarantee order. Sorting the smaller array is faster.
+            return sorted(
+                top_k_tokens, key=lambda x: x.prob, reverse=True
+            )
 
         # compute top-k without masking
         probs = (
