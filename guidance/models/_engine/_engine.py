@@ -394,12 +394,21 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            
+        def apply_top_k_only(_logits: NDArray, _k: int) -> NDArray:
+            indices_to_remove = _logits.argpartition(-_k)[:-_k]
+            _logits[indices_to_remove] = -float("inf")
+            return _logits
+            
 
         def apply_top_k_and_top_p_filter(_logits: NDArray, _k: int, _p: float) -> NDArray:
             if _k is None and _p is None:
                 return _logits
             
-            # try ourbest to sort logits one time only
+            if _k is not None and _p is None:
+                return apply_top_k_only(_logits, _k)
+            
+            # try our best to sort logits one time only
             sorted_logits = _logits.argsort()
             if _k is not None:
                 indices_to_remove = sorted_logits[:-_k]
