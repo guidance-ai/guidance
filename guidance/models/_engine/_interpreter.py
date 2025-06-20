@@ -170,7 +170,7 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
 
-LLG_SPECIAL_TOKEN_PAT = re.compile(b"\xff\[([0-9]+)\]")
+LLG_SPECIAL_TOKEN_PAT = re.compile(br"\xff\[([0-9]+)\]")
 def recode_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
     """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
     return LLG_SPECIAL_TOKEN_PAT.sub(

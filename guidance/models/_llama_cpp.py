@@ -61,30 +61,6 @@ class _LlamaBatchContext:
                 self.batch = None
                 llama_batch_free(batch)
 
-def detokenize(tokenizer: "LlamaTokenizer", tokens: list[int], special: bool, size: int) -> bytes:
-    """Re-implementation of llama_cpp.LLamaTokenizer.detokenize that ditches the hard-coded size=32"""
-    output = b""
-    buffer = ctypes.create_string_buffer(size)
-    for token in tokens:
-        n = llama_cpp.llama_token_to_piece(
-            tokenizer._model.vocab,
-            llama_cpp.llama_token(token),
-            buffer,
-            size,
-            0,
-            special
-        )
-        if n < 0:
-            raise ValueError(f"Error writing token {token} to buffer of size {size}. Error: {n}")
-        assert n <= size
-        output += bytes(buffer[:n])
-    # NOTE: Llama1 models automatically added a space at the start of the prompt
-    # this line removes a leading space if the first token is a beginning of sentence token
-    return (
-        output[1:]
-        if len(tokens) > 0 and tokens[0] == tokenizer._model.token_bos() and output[0:1] == b" "
-        else output
-        )
 
 class LlamaCppTokenizer(Tokenizer):
     def __init__(self, model_obj: "Llama", chat_template: Optional[str] = None):
@@ -197,14 +173,15 @@ class LlamaCppEngine(Engine):
             raise TypeError("model must be None, a file path string, or a llama_cpp.Llama object.")
 
         self._context = _LlamaBatchContext(self.model_obj.n_batch, self.model_obj.n_ctx())
-        self._cache_token_ids = []
         self._n_vocab = self.model_obj.n_vocab()
+        self._cached_token_ids = []
+        self._cached_logits = None
 
         super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
-    def get_logits(self, token_ids):
+    def get_logits(self, token_ids, full_sequence=False):
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -214,79 +191,34 @@ class LlamaCppEngine(Engine):
         if len(token_ids) == 0:
             raise ValueError("token_ids must contain some tokens.")
 
-        # check what we have already cached
-        cache_token_ids = self._cache_token_ids
-        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, cache_token_ids)))
-        if num_cached == len(token_ids):
-            if num_cached == len(cache_token_ids):
-                return self._cached_logits
-            num_cached = (
-                num_cached - 1
-            )  # llama_cpp doesn't like it when we pass in 0 new tokens, so re-input one
-
         # make sure we don't run off the end of the model's context
         if self.model_obj.n_ctx() <= len(token_ids):
             raise Exception(
                 f"Attempted to use a context length of {len(token_ids)} tokens, but this LlamaCpp model is only configured to support up to {self.model_obj.n_ctx()}!"
             )
 
-        self._cache_token_ids = token_ids.copy()
+        # check what we have already cached
+        num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
+        if num_cached == len(token_ids):
+            if full_sequence:
+                return self._cached_logits[:num_cached, :]
+            else:
+                return self._cached_logits[[num_cached - 1], :]
 
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
 
+        # clear obsolete parts of logit cache
+        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
+            self._cached_logits = self._cached_logits[:num_cached, :]
+
         # eval the model
+        logits_for_each_batch = []
         n_batch = self.model_obj.n_batch
         batch = self._context.batch
         for i in range(num_cached, len(token_ids), n_batch):
             n_tokens = min(i + n_batch, len(token_ids)) - i
             batch.n_tokens = n_tokens
-            for j in range(n_tokens):
-                batch.token[j] = token_ids[i + j]
-                batch.pos[j] = i + j
-                batch.seq_id[j][0] = 0
-                batch.n_seq_id[j] = 1
-                batch.logits[j] = False
-
-            if i + n_tokens == len(token_ids):
-                batch.logits[n_tokens - 1] = True
-
-            ret = llama_cpp.llama_decode(self.model_obj.ctx, batch)
-            self.metrics.engine_input_tokens += n_tokens
-            if ret != 0:
-                raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
-
-        self.metrics.engine_output_tokens += 1
-
-        # get the logits
-        logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-        if llama_cpp.__version__ < "0.2.58":
-            logits = logits[(n_tokens - 1) * self._n_vocab : n_tokens * self._n_vocab]
-        logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
-
-        self._cached_logits = logits
-
-        return logits
-
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[GenTokenExtra]:
-        if len(token_ids) == 0:
-            return []
-
-        # clear kv-cache
-        llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, 0, -1)
-
-        # create new context
-        context = self._context
-        n_batch = self.model_obj.n_batch
-        batch = context.batch
-
-        logits_batch = []
-        for i in range(0, len(token_ids), n_batch):
-            n_tokens = min(i + n_batch, len(token_ids)) - i
-            batch.n_tokens = n_tokens
-
             for j in range(n_tokens):
                 batch.token[j] = token_ids[i + j]
                 batch.pos[j] = i + j
@@ -298,83 +230,33 @@ class LlamaCppEngine(Engine):
             if ret != 0:
                 raise Exception(f"Call to llama_cpp.llama_decode returned {ret}.")
 
-            # get all the logits
-            if llama_cpp.__version__ < "0.2.58":
-                logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-                logits = logits.reshape((-1, self._n_vocab))
-                logits_batch.extend(logits)
-            else:
-                for j in range(n_tokens):
-                    logits = llama_cpp.llama_get_logits_ith(self.model_obj.ctx, j)
-                    logits = np.ctypeslib.as_array(logits, shape=(self._n_vocab,)).copy()
-                    logits_batch.append(logits)
+            # get the logits for *this* batch
+            llama_logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
+            logits = np.ctypeslib.as_array(
+                llama_logits,
+                shape=(n_tokens, self._n_vocab),
+            ).copy()
+            logits_for_each_batch.append(logits)
 
-        # process each token's logits
-        text_sequence = []
+        # update the metrics
+        self.metrics.engine_output_tokens += 1
+        self.metrics.engine_input_tokens += len(token_ids) - num_cached
 
-        # add 1st token
-        _bytes = self.tokenizer.decode([token_ids[0]])
-        try:
-            _text = _bytes.decode("utf-8")
-        except UnicodeDecodeError as e:
-            _text = str(_bytes)
-            print(f"Failed to decode token: {token_ids[0]}, error: {e}, _bytes: {str(_bytes)}")
-        text_sequence.append(
-            GenTokenExtra(
-                token_id=token_ids[0],
-                bytes=_text,
-                top_k=[GenToken(token_id=token_ids[0], bytes=_text)],
-            )
+        # save the results
+        self._cached_token_ids = token_ids.copy()
+
+        if self._cached_logits is not None:
+            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
+
+        self._cached_logits = np.concatenate(
+            logits_for_each_batch,
+            axis=0
         )
 
-        for token_id, logits in zip(token_ids[1:], logits_batch[:-1]):
-            _probs = softmax(logits)
-
-            # get the top k indices
-            top_k_ids, top_k_probs = self._get_top_k(_probs.copy(), top_k, ascending=False)
-            if token_id not in top_k_ids:
-                top_k_ids = np.append(top_k_ids, token_id)
-                top_k_probs = np.append(top_k_probs, _probs[token_id])
-
-            top_k_list = []
-            for _token_id, _prob in zip(top_k_ids, top_k_probs):
-                _text = ""
-                try:
-                    _text = self.tokenizer.decode([_token_id]).decode("utf-8")
-                except UnicodeDecodeError as e:
-                    _bytes = self.tokenizer.decode([_token_id])
-                    _text = str(_bytes)
-                    print(
-                        f"Failed to decode token: {_token_id}, error: {e}, _bytes: {str(_bytes)}"
-                    )
-                top_k_list.append(GenToken(token_id=_token_id, prob=_prob, bytes=_text))
-
-            text_sequence.append(
-                GenTokenExtra(
-                    token_id=token_id,
-                    prob=_probs[token_id],
-                    bytes=self.tokenizer.decode([token_id]).decode("utf-8"),
-                    top_k=top_k_list,
-                )
-            )
-
-        return text_sequence
-
-    def _get_top_k(self, probs: np.ndarray, k: int, axis: int = None, ascending: bool = True):
-        if not ascending:
-            probs *= -1
-        ind = np.argpartition(probs, k, axis=axis)
-        ind = np.take(ind, np.arange(k), axis=axis)  # k non-sorted indices
-        probs = np.take_along_axis(probs, ind, axis=axis)  # k non-sorted values
-
-        # sort within k elements
-        ind_part = np.argsort(probs, axis=axis)
-        ind = np.take_along_axis(ind, ind_part, axis=axis)
-        if not ascending:
-            probs *= -1
-        val = np.take_along_axis(probs, ind_part, axis=axis)
-        return ind, val
-
+        if full_sequence:
+            return self._cached_logits
+        else:
+            return self._cached_logits[[-1], :]
 
 class LlamaCpp(Model):
     def __init__(

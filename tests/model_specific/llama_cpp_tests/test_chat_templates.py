@@ -3,10 +3,8 @@ import pytest
 
 import guidance
 
-from guidance.chat import CHAT_TEMPLATE_CACHE
 
-
-def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_model_name):
+def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp):
     # Retrieve the template string
     if (
         hasattr(llamacpp_model.engine.model_obj, "metadata")
@@ -15,9 +13,6 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         model_chat_template = llamacpp_model.engine.model_obj.metadata["tokenizer.chat_template"]
     else:
         pytest.skip("Chat template not available from LlamaCpp object")
-
-    lm = guidance.models.Mock("")
-    lm._interpreter.chat_template = CHAT_TEMPLATE_CACHE[model_chat_template]()
 
     messages = [
         {"role": "user", "content": "Good_day_to_you!"},
@@ -37,16 +32,26 @@ def test_chat_format_smoke(llamacpp_model: guidance.models.LlamaCpp, selected_mo
         eos_token=llamacpp_model.engine.tokenizer.eos_token.decode(),
     )
 
+    lm = llamacpp_model
     with guidance.user():
         lm += "Good_day_to_you!"
     with guidance.assistant():
         lm += "Hello!"
-    # Only check substring due to BOS/EOS tokens
-    if selected_model_name == "llamacpp_mistral_7b_cpu":
-        # The templates extracted via Transformers and GGUF are somewhat
-        # different for Mistral. This is showing up in slightly
-        # different spacing (our template is putting in a few extra spaces)
-        # so at least make sure the 'tags' are correct
-        assert str(lm).replace(" ", "") in jinja2_render.replace(" ", "")
+
+    # Compare the tokenization of the strings, rather than the strings
+    # themselves (e.g. `<|user|>` may tokenize the same as `<|user|>\n`)
+    lm_tokens = lm._interpreter.engine.tokenizer.encode(
+        str(lm).encode()
+    )
+    jinja2_tokens = lm._interpreter.engine.tokenizer.encode(
+        jinja2_render.encode()
+    )
+
+    # Only check substring due to BOS/EOS tokens, unfinished closing tags
+    diff = len(jinja2_tokens) - len(lm_tokens)
+    assert diff >= 0
+    for i in range(diff+1):
+        if jinja2_tokens[i:i+len(lm_tokens)] == lm_tokens:
+            break
     else:
-        assert str(lm) in jinja2_render
+        raise AssertionError("lm mismatches jinja template", str(lm), str(jinja2_render))
