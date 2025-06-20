@@ -1,3 +1,4 @@
+import inspect
 import json
 import re
 import textwrap
@@ -9,6 +10,7 @@ from typing import (
     Any,
     Callable,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     TypeVar,
@@ -21,6 +23,8 @@ from typing_extensions import assert_never
 from functools import cached_property
 from llguidance import LLMatcher
 import warnings
+
+import pydantic
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -475,6 +479,7 @@ class RuleNode(GrammarNode):
     stop: Optional[Union[RegexNode, LiteralNode]] = None
     suffix: Optional[LiteralNode] = None
     stop_capture: Optional[str] = None
+    lazy: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -483,6 +488,7 @@ class RuleNode(GrammarNode):
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
+            or self.lazy
         ) and not self.value.is_allowed_in_lark_rule_with_attrs:
             raise ValueError(
                 "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
@@ -498,6 +504,7 @@ class RuleNode(GrammarNode):
                 and self.stop is None
                 and self.suffix is None
                 and self.stop_capture is None
+                and not self.lazy
             )
             and super().is_allowed_in_lark_terminal
         )
@@ -605,6 +612,70 @@ class LarkNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.lark(self, **kwargs)
 
+@dataclass
+class ToolDefinition:
+    callable: Callable
+    name: str
+    description: str
+    args: type[pydantic.BaseModel]
+
+    @classmethod
+    def from_callable(cls, callable: Callable) -> "ToolDefinition":
+        signature = inspect.signature(callable)
+        args = {}
+        for name, param in signature.parameters.items():
+            if param.kind not in {
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            }:
+                raise ValueError(f"Unsupported parameter kind: {param.kind.description}")
+            args[name] = (
+                param.annotation if param.annotation is not inspect.Parameter.empty else Any
+            )
+        return cls(
+            callable=callable,
+            name=callable.__name__,
+            description=(callable.__doc__ or "").strip(),
+            args=pydantic.create_model(
+                callable.__name__,
+                __config__=pydantic.ConfigDict(extra="forbid"),
+                **{name: (annotation, ...) for name, annotation in args.items()},
+            ),
+        )
+
+@dataclass(frozen=True)
+class ToolCallNode(ASTNode):
+    tools: dict[str, ToolDefinition]
+    tool_choice: Literal["auto", "required"] = "auto"
+    parallel_tool_calls: bool = False
+
+    @classmethod
+    def from_tools(
+        cls,
+        tools: list[Union[callable, ToolDefinition]],
+        tool_choice: Literal["auto", "required"] =  "auto",
+        parallel_tool_calls: bool = False
+    ) -> "ToolCallNode":
+        tool_defs = {}
+        for tool in tools:
+            if isinstance(tool, ToolDefinition):
+                tool_def = tool
+            elif callable(tool):
+                tool_def = ToolDefinition.from_callable(tool)
+            else:
+                raise ValueError(f"Unsupported tool type: {type(tool)}")
+            if tool_def.name in tool_defs:
+                raise ValueError(f"Duplicate tool name: {tool_def.name}")
+            tool_defs[tool_def.name] = tool_def
+        return cls(tools=tool_defs, tool_choice=tool_choice, parallel_tool_calls=parallel_tool_calls)
+
+    def __post_init__(self):
+        if not self.tools:
+            raise ValueError("ToolCallNode must have at least one tool")
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.tool_call(self, **kwargs)
+
 class LarkSerializer:
 
     def __init__(self, enforce_max_tokens: bool = True):
@@ -669,6 +740,8 @@ class LarkSerializer:
                 attrs.append(f"suffix={self.visit(node.suffix)}")
             if node.stop_capture:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
+            if node.lazy:
+                attrs.append("lazy")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
             
