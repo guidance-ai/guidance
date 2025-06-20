@@ -412,7 +412,7 @@ class Engine(ABC):
                 cumulative_probs = np.cumsum(probs)
                 indices_to_remove = cumulative_probs > _p
                 if np.any(indices_to_remove):
-                    first_to_remove = np.argmax(indices_to_remove)
+                    first_to_remove = np.argmax(indices_to_remove) - 1 # -1 to keep the first token that exceeds the threshold
                     # make sure we always keep at least one token
                     sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
                     _logits[sorted_indices_to_remove] = -float("inf")
