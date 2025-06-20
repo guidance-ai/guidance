@@ -449,19 +449,6 @@ class Engine(ABC):
     def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
         pass
 
-    def sample_with_temperature(
-        self, logits: NDArray, mask: Optional[bytes], temperature: float
-    ) -> int:
-        if mask is not None:
-            logits += np.frombuffer(mask, dtype=np.uint8)
-        if temperature < _TEMPERATURE_EPSILON:
-            return int(np.argmax(logits))
-        # Get probabilities from softmax
-        probabilities = softmax(logits / temperature)
-        # Sample an index based on the probabilities
-        sampled_index = np.random.choice(len(logits), p=probabilities)
-        return sampled_index
-
     def _report_failed_match(self, prompt):
         """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
         return Exception(
