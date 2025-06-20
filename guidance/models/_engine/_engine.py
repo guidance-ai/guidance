@@ -456,4 +456,13 @@ class Engine(ABC):
 
     @abstractmethod
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> NDArray:
+        """
+        Get the logits for the given token ids.
+        If include_all_uncached_tokens is True:
+            logits for all uncached tokens will be returned, i.e.
+            the return value's shape will be `(len(tokens)-num_cached, vocab_size)`.
+        If include_all_uncached_tokens is False:
+            logits for the last token will be returned, i.e.
+            the return value's shape will be `(1, vocab_size)`.
+        """
         pass
