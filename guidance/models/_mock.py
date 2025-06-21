@@ -112,21 +112,7 @@ class MockEngine(Engine):
             logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
         )
 
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> np.ndarray:
-        """Get the logits for the given token state."""
-        if not full_sequence:
-            return self._get_logits(token_ids).reshape(1, -1)
-        else:
-            # TODO: is it worth it to add a prefix cache here?
-            l0 = self._get_logits([token_ids[0]])
-            # if we are getting the full sequence then we need to compute the logits for all tokens
-            logits = np.zeros((len(token_ids), len(l0)))
-            logits[0] = l0
-            for i in range(1, len(token_ids)):
-                logits[i] = self._get_logits(token_ids[: i + 1])
-            return logits
-
-    def _get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
         if len(token_ids) == 0:
             raise ValueError("token_ids must not be empty")
@@ -154,7 +140,7 @@ class MockEngine(Engine):
                         logits[i] += bias
                         bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
-        return logits
+        return logits.reshape(1, -1)
 
     def _get_next_tokens(self, byte_string):
         special_tokens = [
