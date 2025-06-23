@@ -340,33 +340,3 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
         return _bytes.decode("utf-8")
     except UnicodeDecodeError:
         return str(_bytes)
-
-def parse_openai_client_kwargs(kwargs):
-    """
-    Parses kwargs to extract only the valid OpenAI client parameters.
-
-    Parameters
-    ----------
-    kwargs : dict
-        The keyword arguments to parse.
-
-    Returns
-    -------
-    dict
-        A dictionary containing only the valid OpenAI client parameters.
-    """
-    
-    valid_keys = [
-        "base_url",
-        "api_key",
-        "organization",
-        "project",
-        "websocket_base_url",
-        "timeout",
-        "max_retries",
-        "default_headers",
-        "default_query",
-        "http_client",
-        "_strict_response_validation",
-    ]
-    return {key: value for key, value in kwargs.items() if key in valid_keys}

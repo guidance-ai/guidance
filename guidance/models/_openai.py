@@ -13,7 +13,6 @@ from ._openai_base import (
     OpenAIRegexMixin,
     OpenAIRuleMixin,
 )
-from .._utils import parse_openai_client_kwargs
 
 
 class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
