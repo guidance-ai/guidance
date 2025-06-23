@@ -81,10 +81,10 @@ class EngineInterpreter(Interpreter[EngineState]):
                 if not isinstance(e.value, TokenUsage):
                     raise e
                 usage = e.value
-                self.state.token_usage.prompt_tokens += usage["n_prompt_tokens"]
-                self.state.token_usage.prompt_tokens_details.cached_tokens += usage["n_cached_prompt_tokens"]
-                self.state.token_usage.completion_tokens += usage["n_completion_tokens"]
-                self.state.token_usage.completion_tokens_details.fast_forward_tokens += usage["n_ff_tokens"]
+                self.state.token_usage.prompt_tokens += usage.prompt_tokens
+                self.state.token_usage.prompt_tokens_details.cached_tokens += usage.prompt_tokens_details.cached_tokens
+                self.state.token_usage.completion_tokens += usage.completion_tokens
+                self.state.token_usage.completion_tokens_details.fast_forward_tokens += usage.completion_tokens_details.fast_forward_tokens
                 break
 
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
