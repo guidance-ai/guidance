@@ -459,7 +459,7 @@ class TransformersEngine(Engine):
             model = transformers_package.AutoModelForCausalLM.from_pretrained(model, **kwargs)
         return model
 
-    def get_logits(self, token_ids: list[int]) -> LogitsOutput:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -478,11 +478,15 @@ class TransformersEngine(Engine):
         # check what we have already cached
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
-            return {
-                "logits": self._cached_logits[:num_cached, :],
-                "n_tokens": num_cached,
-                "n_cached": num_cached,
-            }
+            if num_cached == len(self._cached_token_ids):
+                # last token input is the same as the last cached token, so return the last cached logits
+                return {
+                    "logits": self._cached_logits,
+                    "n_tokens": len(token_ids),
+                    "n_cached": num_cached,
+                }
+            # we need to pass at least one new token
+            num_cached = num_cached - 1
 
         # check how many tokens are in the kv cache and what the max size of the cache is
         past_key_values = self._past_key_values
@@ -541,14 +545,13 @@ class TransformersEngine(Engine):
 
         # clear obsolete parts of kv cache
         if past_length > num_cached:
-            past_length = num_cached
             if isinstance(past_key_values, tuple):
                 self._past_key_values = tuple(
-                    tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+                    tuple(p[..., :num_cached, :] for p in v) for v in past_key_values
                 )
             else:
                 if hasattr(past_key_values, "crop"):
-                    self._past_key_values.crop(past_length)
+                    self._past_key_values.crop(num_cached)
                 else:
                     warnings.warn(
                         f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache."
@@ -558,18 +561,19 @@ class TransformersEngine(Engine):
                         self._past_key_values.reset()
                     else:
                         self._past_key_values = None
-                    past_length = 0
-
-        # clear obsolete parts of logit cache
-        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
-            self._cached_logits = self._cached_logits[:num_cached, :]
+                    # Our cache is no longer valid
+                    num_cached = 0
+            past_length = num_cached
+        elif past_length < num_cached:
+            # Should never happen, but just in case -- we're not using all of the cached tokens
+            # (because they're not really in the kv cache somehow)
+            num_cached = past_length
 
         # eval the model
-        assert past_length <= num_cached
-        assert num_cached <= len(token_ids)
+        assert past_length <= len(token_ids)
         new_token_ids = token_ids[past_length:]
         assert len(new_token_ids) > 0
-        logits_for_each_batch = []
+        logits_for_each_batch: list[np.ndarray] = []
         with torch.no_grad():
             # Not all models support batched tokens for some reason
             try:
@@ -625,17 +629,18 @@ class TransformersEngine(Engine):
         # save the results
         self._past_key_values = model_out.past_key_values
         self._cached_token_ids = token_ids.copy()
+        self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
-        if self._cached_logits is not None:
-            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
-
-        self._cached_logits = np.concatenate(
-            logits_for_each_batch,
-            axis=0
-        )
-
+        if include_all_uncached_tokens:
+            logits = np.concatenate(
+                logits_for_each_batch,
+                axis=0
+            )
+            assert logits.shape[0] == len(token_ids) - num_cached
+        else:
+            logits = self._cached_logits
         return {
-            "logits": self._cached_logits,
+            "logits": logits,
             "n_tokens": len(token_ids),
             "n_cached": num_cached,
         }
