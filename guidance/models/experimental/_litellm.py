@@ -1,6 +1,8 @@
 from typing import Iterator, ContextManager, TYPE_CHECKING
 from pydantic import TypeAdapter
 
+from guidance._schema import SamplingParams
+
 from ..._ast import GrammarNode, RuleNode, RegexNode, JsonNode, LarkNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
@@ -61,7 +63,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
     SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm"]
 
-    def __init__(self, model_description: dict, **kwargs):
+    def __init__(self, model_description: dict, default_sampling_params: SamplingParams = {}, **kwargs):
         try:
             import litellm
         except ImportError:
@@ -79,7 +81,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         # Otherwise, generation will fail for some endpoints.
         self.log_probs = False
 
-        super().__init__(model=self.model, client=self.client, **kwargs)
+        super().__init__(model=self.model, client=self.client, default_sampling_params=default_sampling_params, **kwargs)
 
     def _check_model(self, model_desc: dict) -> str:
         """Check if the model description is valid."""        

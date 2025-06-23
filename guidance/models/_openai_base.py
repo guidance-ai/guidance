@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
+from guidance._schema import SamplingParams
+
 from .._ast import (
     ASTNode,
     GenAudio,
@@ -187,11 +189,12 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
         
+        # make sure we only pass parameters that are supported create function
         for key in list(kwargs.keys()):
             if key not in self.sig_params:
                 # Remove any kwargs that are not supported by the OpenAI API
                 del kwargs[key]
-        
+
         return self.client.chat.completions.create(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
@@ -209,9 +212,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
+        default_sampling_params: SamplingParams = {},
         **kwargs
     ):
-        super().__init__(state=OpenAIState(), **kwargs)
+        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
         self.model = model
         self.client = client
 
@@ -260,12 +264,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
             
-        # Only pass args that are compatible with OpenAI's API.
-        # NOTE: top_k will be handled differently by VLLM or Litellm
-        if "top_p" not in kwargs and "top_p" in self.kwargs:
-            kwargs["top_p"] = self.kwargs["top_p"]
-        if "top_k" not in kwargs and "top_k" in self.kwargs:
-            kwargs["top_k"] = self.kwargs["top_k"]
+        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
+            kwargs["top_p"] = self.default_sampling_params["top_p"]
+        if "top_k" not in kwargs and "top_k" in self.default_sampling_params:
+            kwargs["top_k"] = self.default_sampling_params["top_k"]
 
         with self.client.streaming_chat_completions(
             model=self.model,

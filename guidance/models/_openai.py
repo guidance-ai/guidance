@@ -1,5 +1,7 @@
 from typing import Optional
 
+from guidance._schema import SamplingParams
+
 
 from ._base import Model
 from ._openai_base import (
@@ -19,6 +21,7 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
         self,
         model: str,
         api_key: Optional[str] = None,
+        default_sampling_params: SamplingParams = {},
         **kwargs,
     ):
         try:
@@ -27,10 +30,9 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
-            
-        openai_kwargs = parse_openai_client_kwargs(kwargs)
-        client = openai.OpenAI(api_key=api_key, **openai_kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
+                    
+        client = openai.OpenAI(api_key=api_key, **kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), default_sampling_params=default_sampling_params)
 
 
 class OpenAI(Model):
@@ -38,6 +40,7 @@ class OpenAI(Model):
         self,
         model: str,
         echo: bool = True,
+        default_sampling_params: SamplingParams = {},
         *,
         api_key: Optional[str] = None,
         **kwargs,
@@ -69,4 +72,4 @@ class OpenAI(Model):
         else:
             interpreter_cls = OpenAIInterpreter
 
-        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)
+        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, default_sampling_params=default_sampling_params, **kwargs), echo=echo)

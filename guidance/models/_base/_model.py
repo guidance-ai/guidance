@@ -35,6 +35,8 @@ from ...visual import TraceMessage
 from ._interpreter import Interpreter
 from ._state import State
 
+from ..._schema import SamplingParams
+
 if TYPE_CHECKING:
     from ...library._block import Block
 
@@ -62,6 +64,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
+        default_sampling_params: SamplingParams = {},
         echo: bool = True,
     ) -> None:
         self.echo = echo

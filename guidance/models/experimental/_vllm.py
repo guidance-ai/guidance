@@ -1,5 +1,7 @@
 from typing import Iterator, Optional
 
+from guidance._schema import SamplingParams
+
 from ..._ast import GrammarNode
 from ...trace import OutputAttr, TextOutput
 from .._openai_base import (
@@ -14,6 +16,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
+        default_sampling_params: SamplingParams = {},
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs,
@@ -27,7 +30,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         
         openai_kwargs = parse_openai_client_kwargs(kwargs)
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **openai_kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), default_sampling_params=default_sampling_params, **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
@@ -40,7 +43,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         # top_k must be put in extra_body
         top_k = kwargs.pop("top_k", None)
         if top_k is None:
-            top_k = self.kwargs.get("top_k", None)
+            top_k = self.default_sampling_params.get("top_k", None)
         if top_k is not None:
             extra_body["top_k"] = top_k
         
@@ -77,8 +80,8 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
 
 
 class VLLMModel(Model):
-    def __init__(self, model: str, echo=True, **kwargs):
+    def __init__(self, model: str, echo=True, default_sampling_params: SamplingParams = {}, **kwargs):
         super().__init__(
-            interpreter=VLLMInterpreter(model=model, **kwargs),
+            interpreter=VLLMInterpreter(model=model, default_sampling_params=default_sampling_params, **kwargs),
             echo=echo,
         )

@@ -1,6 +1,6 @@
 from base64 import b64decode, b64encode
 from io import BytesIO
-from typing import Iterator
+from typing import Any, Iterator, TypedDict
 from copy import deepcopy
 import re
 
@@ -10,15 +10,15 @@ from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
-from ..._schema import GenTokenExtra
+from ..._schema import GenTokenExtra, SamplingParams
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, **kwargs):
-        super().__init__(state=EngineState(), **kwargs)
+    def __init__(self, engine: Engine, default_sampling_params: SamplingParams = {}):
+        super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
-
+        
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
         cls = self.__class__
@@ -71,8 +71,8 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
-            top_p=self.kwargs.get("top_p", None),
-            top_k=self.kwargs.get("top_k", None),
+            top_p=kwargs.get("top_p", self.default_sampling_params.get("top_p", None)),
+            top_k=kwargs.get("top_k", self.default_sampling_params.get("top_k", None)),
         )
 
         delayed_bytes = b""

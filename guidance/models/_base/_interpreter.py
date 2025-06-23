@@ -1,6 +1,8 @@
 import base64
 from typing import Generic, Iterator, TypeVar
 
+from guidance._schema import SamplingParams
+
 from ..._ast import (
     ASTNode,
     AudioBlob,
@@ -29,9 +31,9 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S, **kwargs):
+    def __init__(self, state: S, default_sampling_params: SamplingParams = {}):
         self.state = state
-        self.kwargs = kwargs
+        self.default_sampling_params = default_sampling_params
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)
