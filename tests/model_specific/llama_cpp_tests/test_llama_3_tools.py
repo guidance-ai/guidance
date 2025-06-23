@@ -6,14 +6,14 @@ from guidance._ast import ToolDefinition
 from guidance.tools import Llama3IPythonToolCallHandler, Llama3FunctionToolCallHandler
 
 @pytest.fixture(scope="module")
-def llama3_model(selected_model, selected_model_name):
-    if selected_model_name in ["llamacpp_llama3-2_3b_cpu"] and selected_model is not None:
+def llama3_point_2(selected_model, selected_model_name):
+    if selected_model_name in ["llamacpp_llama3.2_3b_cpu"] and selected_model is not None:
         return selected_model
     else:
-        pytest.skip("Requires Llama3 model")
+        pytest.skip("Requires Llama3.2")
 
-def test_llama_cpp_python_tool(llama3_model: guidance.models.Model):
-    lm = llama3_model
+def test_llama_cpp_python_tool(llama3_point_2: guidance.models.Model):
+    lm = llama3_point_2
     lm._interpreter.tool_call_handler_cls = Llama3IPythonToolCallHandler
     called = False
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
@@ -74,8 +74,8 @@ Use tools to get latest trending songs."""
     assert called
 
 
-def test_llama_cpp_function(llama3_model: guidance.models.Model):
-    lm = llama3_model
+def test_llama_cpp_function(llama3_point_2: guidance.models.Model):
+    lm = llama3_point_2
     lm._interpreter.tool_call_handler_cls = Llama3FunctionToolCallHandler
     called = False
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
