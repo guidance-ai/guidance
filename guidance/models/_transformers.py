@@ -636,11 +636,7 @@ class TransformersEngine(Engine):
                 logits_for_each_batch,
                 axis=0
             )
-            assert logits.shape[0] == len(token_ids) - num_cached, (
-                f"Expected {len(token_ids) - num_cached} logits, got {logits.shape[0]}."
-                f"\nEach batch had shape {', '.join(str(x.shape) for x in logits_for_each_batch)}."
-                f"\n{num_cached=}, {len(token_ids)=}, {len(new_token_ids)=}"
-            )
+            assert logits.shape[0] == len(token_ids) - num_cached
             return logits
         else:
             return self._cached_logits
