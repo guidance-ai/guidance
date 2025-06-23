@@ -5,7 +5,6 @@ import time
 import weakref
 from typing import Callable, Iterator, Optional, Sequence
 from abc import ABC, abstractmethod
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -220,9 +219,8 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits = self.get_logits(token_ids=tokens, full_sequence=True)
+                logits = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
                 logits_lat_ms = (time.time() - t1) * 1000
-
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
@@ -237,19 +235,27 @@ class Engine(ABC):
 
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
-                ff_logits = logits[max(len(logits)-len(ff_tokens)-1, 0):-1]
+                ff_logits = logits[-len(ff_tokens)-1:-1]
                 ff_probs = (
-                    softmax(np.array(ff_logits))
+                    softmax(ff_logits)
                     if last_temperature < _TEMPERATURE_EPSILON
-                    else softmax(np.array(ff_logits) / last_temperature)
+                    else softmax(ff_logits / last_temperature)
                 )
-                if ff_probs.shape[0] != len(ff_tokens):
-                    assert ff_probs.shape[0] == len(ff_tokens) - 1
+
+                if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
                     # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                    ff_probs = np.concatenate(
-                        (np.ones((1, ff_probs.shape[1])), ff_probs), axis=0
+                    ff_probs = np.pad(
+                        ff_probs, [(1, 0), (0, 0)], mode='constant', constant_values=1.0
+                    )
+                elif ff_probs.shape[0] < len(ff_tokens):
+                    # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
+                    # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
+                    ff_probs = np.pad(
+                        ff_probs, [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
+                        mode='constant', constant_values=np.nan
                     )
             else:
+                # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
 
             gen_tokens = []
@@ -378,10 +384,10 @@ class Engine(ABC):
         """
 
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
-            top_k_indices = np.argsort(_probs)[::-1][:_k]
+            top_k_indices = _probs.argpartition(-_k)[-_k:]
             top_k_probs = _probs[top_k_indices]
 
-            return [
+            top_k_tokens = [
                 GenToken(
                     token_id=token,
                     prob=prob,
@@ -392,6 +398,11 @@ class Engine(ABC):
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            # Sort by probability in descending order, as above argpartition
+            # does not guarantee order. Sorting the smaller array is faster.
+            return sorted(
+                top_k_tokens, key=lambda x: x.prob, reverse=True
+            )
 
         # compute top-k without masking
         probs = (
@@ -451,28 +462,17 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int], full_sequence: bool = False) -> NDArray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> NDArray:
+        """
+        Get the logits for the given token ids.
+        If include_all_uncached_tokens is True:
+            logits for all uncached tokens will be returned, i.e.
+            the return value's shape will be `(len(tokens)-num_cached, vocab_size)`.
+        If include_all_uncached_tokens is False:
+            logits for the last token will be returned, i.e.
+            the return value's shape will be `(1, vocab_size)`.
+        """
         pass
-
-    def sample_with_temperature(
-        self, logits: NDArray, mask: Optional[bytes], temperature: float
-    ) -> int:
-        if mask is not None:
-            logits += np.frombuffer(mask, dtype=np.uint8)
-        if temperature < _TEMPERATURE_EPSILON:
-            return int(np.argmax(logits))
-        # Get probabilities from softmax
-        probabilities = softmax(logits / temperature)
-        # Sample an index based on the probabilities
-        sampled_index = np.random.choice(len(logits), p=probabilities)
-        return sampled_index
-
-    def _report_failed_match(self, prompt):
-        """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
-        return Exception(
-            "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
-            + str(prompt[-40:])
-        )
 
     def apply_chat_template(
         self,
@@ -523,4 +523,3 @@ class ConstraintException(Exception):
         self.prompt = kwargs.pop("prompt", None)
         self.data = kwargs.pop("data", None)
         super().__init__(*args, **kwargs)
-

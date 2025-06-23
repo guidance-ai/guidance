@@ -181,7 +181,7 @@ class LlamaCppEngine(Engine):
                          compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
                          enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
 
-    def get_logits(self, token_ids, full_sequence=False):
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -200,20 +200,17 @@ class LlamaCppEngine(Engine):
         # check what we have already cached
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
         if num_cached == len(token_ids):
-            if full_sequence:
-                return self._cached_logits[:num_cached, :]
-            else:
-                return self._cached_logits[[num_cached - 1], :]
+            if num_cached == len(self._cached_token_ids):
+                # last token input is the same as the last cached token, so return the last cached logits
+                return self._cached_logits
+            # we need to pass at least one new token
+            num_cached = num_cached - 1
 
         # clear obsolete parts of kv cache
         llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
 
-        # clear obsolete parts of logit cache
-        if self._cached_logits is not None and len(self._cached_logits) > num_cached:
-            self._cached_logits = self._cached_logits[:num_cached, :]
-
         # eval the model
-        logits_for_each_batch = []
+        logits_for_each_batch: list[np.ndarray] = []
         n_batch = self.model_obj.n_batch
         batch = self._context.batch
         for i in range(num_cached, len(token_ids), n_batch):
@@ -232,11 +229,11 @@ class LlamaCppEngine(Engine):
 
             # get the logits for *this* batch
             llama_logits = llama_cpp.llama_get_logits(self.model_obj.ctx)
-            logits = np.ctypeslib.as_array(
+            logits_for_this_batch = np.ctypeslib.as_array(
                 llama_logits,
                 shape=(n_tokens, self._n_vocab),
             ).copy()
-            logits_for_each_batch.append(logits)
+            logits_for_each_batch.append(logits_for_this_batch)
 
         # update the metrics
         self.metrics.engine_output_tokens += 1
@@ -244,19 +241,18 @@ class LlamaCppEngine(Engine):
 
         # save the results
         self._cached_token_ids = token_ids.copy()
+        self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
-        if self._cached_logits is not None:
-            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
-
-        self._cached_logits = np.concatenate(
-            logits_for_each_batch,
-            axis=0
-        )
-
-        if full_sequence:
-            return self._cached_logits
+        if include_all_uncached_tokens:
+            logits = np.concatenate(
+                logits_for_each_batch,
+                axis=0
+            )
+            assert logits.shape[0] == len(token_ids) - num_cached
+            return logits
         else:
-            return self._cached_logits[[-1], :]
+            return self._cached_logits
+
 
 class LlamaCpp(Model):
     def __init__(
