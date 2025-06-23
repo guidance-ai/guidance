@@ -541,14 +541,13 @@ class TransformersEngine(Engine):
 
         # clear obsolete parts of kv cache
         if past_length > num_cached:
-            past_length = num_cached
             if isinstance(past_key_values, tuple):
                 self._past_key_values = tuple(
-                    tuple(p[..., :past_length, :] for p in v) for v in past_key_values
+                    tuple(p[..., :num_cached, :] for p in v) for v in past_key_values
                 )
             else:
                 if hasattr(past_key_values, "crop"):
-                    self._past_key_values.crop(past_length)
+                    self._past_key_values.crop(num_cached)
                 else:
                     warnings.warn(
                         f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache."
@@ -558,8 +557,10 @@ class TransformersEngine(Engine):
                         self._past_key_values.reset()
                     else:
                         self._past_key_values = None
-                    past_length = 0
-        else:
+                    # Our cache is no longer valid
+                    num_cached = 0
+            past_length = num_cached
+        elif past_length < num_cached:
             # Should never happen, but just in case -- we're not using all of the cached tokens
             # (because they're not really in the kv cache somehow)
             num_cached = past_length
