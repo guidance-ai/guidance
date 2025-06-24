@@ -20,8 +20,8 @@ class TokenUsage(BaseModel):
     ff_tokens: NonNegativeInt = 0
     """Number of output tokens that were fast-forwarded by the parser."""
 
-    @computed_field
-    @cached_property
+    @computed_field # type: ignore[misc]
+    @property
     def token_savings(self) -> Annotated[float, Ge(0), Le(1)]:
         """Assuming that every ff_token would have required a round trip, this is the percentage of round-trips
         that were saved by using the parser to fast-forward tokens.
