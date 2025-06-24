@@ -49,36 +49,31 @@ def test_stop_quote(selected_model):
 
 def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
 
     lm += "Generate the next letter: a b c d "
-    print(f"{lm.engine.metrics=}")
     lm += gen("first", max_tokens=1)
-    print(f"{lm.engine.metrics=}")
-    print(f"{str(lm)=}")
-    all_bytes = str(lm).encode()
-    print(f"{lm._interpreter.engine.tokenizer.encode(all_bytes)=}")
-    generated_bytes = lm["first"].encode()
-    print(f"{lm._interpreter.engine.tokenizer.encode(generated_bytes)=}")
+
     # Can't be sure of exact count due to token healing
+    usage = lm._get_usage()
     assert (
-        lm.engine.metrics.engine_output_tokens == 1 or lm.engine.metrics.engine_output_tokens == 2
+        1 <= usage.output_tokens <= 2
     )
-    assert lm.engine.metrics.engine_input_tokens >= 1
-    last_input_tokens = lm.engine.metrics.engine_input_tokens
 
     lm += " f g"
     lm += gen("second", max_tokens=1)
+
     # Again, trouble with healing
+    new_usage = lm._get_usage()
     assert (
-        lm.engine.metrics.engine_output_tokens >= 2 or lm.engine.metrics.engine_output_tokens <= 4
+        2 <= new_usage.output_tokens <= 4
     )
-    assert lm.engine.metrics.engine_input_tokens > last_input_tokens
+
+    assert new_usage.input_tokens > usage.input_tokens
+    assert new_usage.output_tokens > usage.output_tokens
 
 
 def test_metrics_select(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
 
     lm += "I will "
     lm += select(
@@ -88,14 +83,15 @@ def test_metrics_select(selected_model: models.Model):
             "go for a swim in the ocean",
         ]
     )
-    print(f"lm={str(lm)}")
-    print(f"{lm.engine.metrics=}")
-    assert lm.engine.metrics.engine_input_tokens > 1
-    assert lm.engine.metrics.engine_output_tokens > 0
+
+    usage = lm._get_usage()
+    assert usage.input_tokens > 0
+    assert usage.output_tokens > 0
+
     # Guidance should be able to force the generation after only a couple of tokens
     # so even though the options are long, relatively few output tokens should be
     # needed
-    assert lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
+    assert usage.ff_tokens > 0
 
 
 def test_unicode(selected_model: models.Model):
@@ -112,15 +108,16 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
 
 def test_unicode2(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
+
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    assert lm.engine.metrics.engine_input_tokens > 1
+
+    usage = lm._get_usage()
+    assert usage.input_tokens > 1
     # Due to token healing, we can't be sure of the
     # precise output count
     assert (
-        lm.engine.metrics.engine_output_tokens == 10
-        or lm.engine.metrics.engine_output_tokens == 11
+        10 <= usage.output_tokens <= 11
     )
 
 
