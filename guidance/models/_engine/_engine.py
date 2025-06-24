@@ -413,26 +413,29 @@ class Engine(ABC):
         def apply_top_k_and_top_p_filter(_logits: NDArray, _sampling_params: Optional[SamplingParams]) -> NDArray:
             if _sampling_params is None:
                 return _logits
+            
+            _top_p = _sampling_params.get("top_p", None)
+            _top_k = _sampling_params.get("top_k", None)
 
-            if _sampling_params["top_k"] is None and _sampling_params["top_p"] is None:
+            if _top_k is None and _top_p is None:
                 # No filtering, return logits as is
                 return _logits
 
-            if _sampling_params["top_k"] is not None and _sampling_params["top_p"] is None:
-                return apply_top_k_only(_logits, _sampling_params["top_k"])
+            if _top_k is not None and _top_p is None:
+                return apply_top_k_only(_logits, _top_k)
 
             # try our best to sort logits one time only
             sorted_logits = _logits.argsort()
-            if _sampling_params["top_k"] is not None:
-                indices_to_remove = sorted_logits[:-_sampling_params["top_k"]]
+            if _top_k is not None:
+                indices_to_remove = sorted_logits[:-_top_k]
                 _logits[indices_to_remove] = -float("inf")
 
-            if _sampling_params["top_p"] is not None:
+            if _top_p is not None:
                 sorted_indices = sorted_logits[::-1]
                 sorted_logits = _logits[sorted_indices]
                 probs = softmax(sorted_logits)
                 cumulative_probs = np.cumsum(probs)
-                indices_to_remove = cumulative_probs > _sampling_params["top_p"]
+                indices_to_remove = cumulative_probs > _top_p
                 if np.any(indices_to_remove):
                     # -1 to keep the first token that exceeds the threshold
                     first_to_remove = np.argmax(indices_to_remove) - 1
