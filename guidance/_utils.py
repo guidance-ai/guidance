@@ -380,8 +380,8 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional['
         cumulative_probs = np.cumsum(probs)
         indices_to_remove = cumulative_probs > top_p
         if np.any(indices_to_remove):
-            # -1 to keep the first token that exceeds the threshold
-            first_to_remove = np.argmax(indices_to_remove) - 1
+            # +1 to keep the first token that exceeds the threshold
+            first_to_remove = np.argmax(indices_to_remove) + 1
             # make sure we always keep at least one token
             sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
             logits[sorted_indices_to_remove] = -float("inf")
