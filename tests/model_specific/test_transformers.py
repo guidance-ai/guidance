@@ -249,3 +249,31 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
             break
     else:
         raise AssertionError("lm mismatches jinja template", str(lm), str(jinja2_render))
+    
+def test_top_p_top_k_filtering():
+    import torch
+    import numpy as np
+    from guidance._utils import apply_top_k_and_top_p_filter
+    from transformers.generation.logits_process import TopKLogitsWarper, TopPLogitsWarper
+    
+    torch.random.manual_seed(0)
+    logits = torch.randn((1, 1000))
+    
+    # apply top_k filtering
+    top_k = 64
+    top_k_warp = TopKLogitsWarper(top_k)
+    transformers_logits = top_k_warp(None, logits)[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k filtering"
+    
+    # apply top_p filtering
+    top_p = 0.9
+    top_p_warp = TopPLogitsWarper(top_p)
+    transformers_logits = top_p_warp(None, logits)[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_p": top_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_p filtering"
+    
+    # apply both top_k and top_p filtering
+    transformers_logits = top_p_warp(None, top_k_warp(None, logits))[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k, "top_p": top_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k and top_p filtering"
