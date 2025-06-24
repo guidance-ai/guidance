@@ -15,7 +15,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams],
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs,
@@ -33,21 +33,14 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
         
+        kwargs = self._process_kwargs(**kwargs)
         extra_body = {
             "guided_decoding_backend" : "guidance",
             "guided_grammar" : node.ll_grammar(),
         }
+        kwargs["extra_body"].update(extra_body)
         
-        # top_k must be put in extra_body
-        top_k = kwargs.pop("top_k", None)
-        if top_k is None:
-            top_k = self.default_sampling_params.get("top_k", None)
-        if top_k is not None:
-            extra_body["top_k"] = top_k
-        
-        for attr in self._run(
-            extra_body=extra_body
-        ):
+        for attr in self._run(**kwargs):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
@@ -75,10 +68,23 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
+                    
+    def _process_kwargs(self, **kwargs):
+        if "extra_body" not in kwargs:
+            kwargs["extra_body"] = {}
+            
+        # top_k must be put in extra_body
+        top_k = kwargs.pop("top_k", None)
+        if top_k is None:
+            top_k = self.default_sampling_params.get("top_k", None)
+        if top_k is not None:
+            kwargs["extra_body"]["top_k"] = top_k
+            
+        return kwargs
 
 
 class VLLMModel(Model):
-    def __init__(self, model: str, echo=True, default_sampling_params: SamplingParams = {}, **kwargs):
+    def __init__(self, model: str, default_sampling_params: Optional[SamplingParams], echo=True, **kwargs):
         super().__init__(
             interpreter=VLLMInterpreter(model=model, default_sampling_params=default_sampling_params, **kwargs),
             echo=echo,

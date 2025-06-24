@@ -3,7 +3,6 @@ import wave
 from copy import deepcopy
 from io import BytesIO
 import time
-import inspect
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
 
 from abc import ABC, abstractmethod
@@ -178,7 +177,6 @@ class BaseOpenAIClientWrapper(ABC):
 class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     def __init__(self, client: "openai.OpenAI"):
         self.client = client
-        self.sig_params = inspect.signature(self.client.chat.completions.create).parameters
 
     def streaming_chat_completions(
         self,
@@ -188,12 +186,6 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
-        
-        # make sure we only pass parameters that are supported create function
-        for key in list(kwargs.keys()):
-            if key not in self.sig_params:
-                # Remove any kwargs that are not supported by the OpenAI API
-                del kwargs[key]
 
         return self.client.chat.completions.create(
             model=model,
@@ -212,7 +204,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams],
         **kwargs
     ):
         super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
@@ -264,10 +256,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
             
+        # only process kwargs that are supported by the OpenAI API
         if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
             kwargs["top_p"] = self.default_sampling_params["top_p"]
-        if "top_k" not in kwargs and "top_k" in self.default_sampling_params:
-            kwargs["top_k"] = self.default_sampling_params["top_k"]
 
         with self.client.streaming_chat_completions(
             model=self.model,

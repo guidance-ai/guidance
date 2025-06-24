@@ -18,9 +18,9 @@ from ._openai_base import (
 class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     def __init__(
         self,
-        model: str,
+        model: str,        
+        default_sampling_params: Optional[SamplingParams],
         api_key: Optional[str] = None,
-        default_sampling_params: SamplingParams = {},
         **kwargs,
     ):
         try:
@@ -38,8 +38,8 @@ class OpenAI(Model):
     def __init__(
         self,
         model: str,
-        echo: bool = True,
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams],
+        echo: bool = True,        
         *,
         api_key: Optional[str] = None,
         **kwargs,

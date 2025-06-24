@@ -1,6 +1,6 @@
 from base64 import b64decode, b64encode
 from io import BytesIO
-from typing import Iterator
+from typing import Iterator, Optional
 from copy import deepcopy
 import re
 
@@ -14,7 +14,7 @@ from ..._schema import GenTokenExtra, SamplingParams
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, default_sampling_params: SamplingParams = {}):
+    def __init__(self, engine: Engine, default_sampling_params: Optional[SamplingParams]):
         super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
