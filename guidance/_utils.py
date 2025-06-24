@@ -9,12 +9,15 @@ import weakref
 import functools
 import numpy as np
 import logging
-from typing import Union, cast
+from typing import Union, cast, Optional, TYPE_CHECKING
 import pathlib
 import pydantic
 import urllib
 import http
 import re
+
+if TYPE_CHECKING:
+   from ._schema import SamplingParams
 
 logger = logging.getLogger(__name__)
 
@@ -340,3 +343,47 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
         return _bytes.decode("utf-8")
     except UnicodeDecodeError:
         return str(_bytes)
+
+def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
+    if k <= 0:
+        return logits
+    
+    indices_to_remove = logits.argpartition(-k)[:-k]
+    logits[indices_to_remove] = -float("inf")
+    return logits
+    
+
+def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional['SamplingParams']) -> np.ndarray:
+    if sampling_params is None:
+        return logits
+    
+    top_p = sampling_params.get("top_p", None)
+    top_k = sampling_params.get("top_k", None)
+
+    if top_k is None and top_p is None:
+        # No filtering, return logits as is
+        return logits
+
+    if top_k is not None and top_p is None:
+        return apply_top_k_only(logits, top_k)
+
+    # try our best to sort logits one time only
+    sorted_logits = logits.argsort()
+    if top_k is not None and top_k > 0:
+        indices_to_remove = sorted_logits[:-top_k]
+        logits[indices_to_remove] = -float("inf")
+
+    if top_p is not None and top_p > 0:
+        sorted_indices = sorted_logits[::-1]
+        sorted_logits = logits[sorted_indices]
+        probs = softmax(sorted_logits)
+        cumulative_probs = np.cumsum(probs)
+        indices_to_remove = cumulative_probs > top_p
+        if np.any(indices_to_remove):
+            # -1 to keep the first token that exceeds the threshold
+            first_to_remove = np.argmax(indices_to_remove) - 1
+            # make sure we always keep at least one token
+            sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
+            logits[sorted_indices_to_remove] = -float("inf")
+        
+    return logits

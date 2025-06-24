@@ -19,7 +19,7 @@ from ..._schema import (
 )
 
 from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax
+from ..._utils import log_cleanup, log_init, softmax, apply_top_k_and_top_p_filter
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
@@ -406,46 +406,46 @@ class Engine(ABC):
                 top_k_tokens, key=lambda x: x.prob, reverse=True
             )
             
-        def apply_top_k_only(_logits: NDArray, _k: int) -> NDArray:
-            indices_to_remove = _logits.argpartition(-_k)[:-_k]
-            _logits[indices_to_remove] = -float("inf")
-            return _logits
+        # def apply_top_k_only(_logits: NDArray, _k: int) -> NDArray:
+        #     indices_to_remove = _logits.argpartition(-_k)[:-_k]
+        #     _logits[indices_to_remove] = -float("inf")
+        #     return _logits
             
 
-        def apply_top_k_and_top_p_filter(_logits: NDArray, _sampling_params: Optional[SamplingParams]) -> NDArray:
-            if _sampling_params is None:
-                return _logits
+        # def apply_top_k_and_top_p_filter(_logits: NDArray, _sampling_params: Optional[SamplingParams]) -> NDArray:
+        #     if _sampling_params is None:
+        #         return _logits
             
-            _top_p = _sampling_params.get("top_p", None)
-            _top_k = _sampling_params.get("top_k", None)
+        #     _top_p = _sampling_params.get("top_p", None)
+        #     _top_k = _sampling_params.get("top_k", None)
 
-            if _top_k is None and _top_p is None:
-                # No filtering, return logits as is
-                return _logits
+        #     if _top_k is None and _top_p is None:
+        #         # No filtering, return logits as is
+        #         return _logits
 
-            if _top_k is not None and _top_p is None:
-                return apply_top_k_only(_logits, _top_k)
+        #     if _top_k is not None and _top_p is None:
+        #         return apply_top_k_only(_logits, _top_k)
 
-            # try our best to sort logits one time only
-            sorted_logits = _logits.argsort()
-            if _top_k is not None:
-                indices_to_remove = sorted_logits[:-_top_k]
-                _logits[indices_to_remove] = -float("inf")
+        #     # try our best to sort logits one time only
+        #     sorted_logits = _logits.argsort()
+        #     if _top_k is not None:
+        #         indices_to_remove = sorted_logits[:-_top_k]
+        #         _logits[indices_to_remove] = -float("inf")
 
-            if _top_p is not None:
-                sorted_indices = sorted_logits[::-1]
-                sorted_logits = _logits[sorted_indices]
-                probs = softmax(sorted_logits)
-                cumulative_probs = np.cumsum(probs)
-                indices_to_remove = cumulative_probs > _top_p
-                if np.any(indices_to_remove):
-                    # -1 to keep the first token that exceeds the threshold
-                    first_to_remove = np.argmax(indices_to_remove) - 1
-                    # make sure we always keep at least one token
-                    sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
-                    _logits[sorted_indices_to_remove] = -float("inf")
+        #     if _top_p is not None:
+        #         sorted_indices = sorted_logits[::-1]
+        #         sorted_logits = _logits[sorted_indices]
+        #         probs = softmax(sorted_logits)
+        #         cumulative_probs = np.cumsum(probs)
+        #         indices_to_remove = cumulative_probs > _top_p
+        #         if np.any(indices_to_remove):
+        #             # -1 to keep the first token that exceeds the threshold
+        #             first_to_remove = np.argmax(indices_to_remove) - 1
+        #             # make sure we always keep at least one token
+        #             sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
+        #             _logits[sorted_indices_to_remove] = -float("inf")
                 
-            return _logits
+        #     return _logits
 
         # compute top-k without masking
         probs = (
