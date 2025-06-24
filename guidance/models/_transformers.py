@@ -659,7 +659,7 @@ class Transformers(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams] = None,
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""

@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput
+from .._schema import EngineOutput, SamplingParams
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
@@ -164,6 +164,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo=False,
         force=False,
         **kwargs,

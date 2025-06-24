@@ -204,7 +204,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
-        default_sampling_params: Optional[SamplingParams],
+        default_sampling_params: Optional[SamplingParams] = None,
         **kwargs
     ):
         super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)

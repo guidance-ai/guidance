@@ -38,7 +38,7 @@ class OpenAI(Model):
     def __init__(
         self,
         model: str,
-        default_sampling_params: Optional[SamplingParams],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,        
         *,
         api_key: Optional[str] = None,

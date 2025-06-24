@@ -14,7 +14,7 @@ from ..._schema import GenTokenExtra, SamplingParams
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, default_sampling_params: Optional[SamplingParams]):
+    def __init__(self, engine: Engine, default_sampling_params: Optional[SamplingParams] = None):
         super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()

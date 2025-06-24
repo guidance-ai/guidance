@@ -5,7 +5,7 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 import ctypes
 
 import numpy as np
@@ -232,7 +232,7 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams] = None,
         **llama_cpp_kwargs
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""

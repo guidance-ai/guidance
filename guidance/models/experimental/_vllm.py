@@ -84,7 +84,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
 
 
 class VLLMModel(Model):
-    def __init__(self, model: str, default_sampling_params: Optional[SamplingParams], echo=True, **kwargs):
+    def __init__(self, model: str, default_sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
         super().__init__(
             interpreter=VLLMInterpreter(model=model, default_sampling_params=default_sampling_params, **kwargs),
             echo=echo,

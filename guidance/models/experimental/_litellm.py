@@ -247,7 +247,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         return kwargs
 
 class LiteLLM(Model):
-    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams], echo=True, **kwargs):
+    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
         interpreter = LiteLLMInterpreter(model_description=model_description, default_sampling_params=default_sampling_params, **kwargs)
         super().__init__(
             interpreter=interpreter,

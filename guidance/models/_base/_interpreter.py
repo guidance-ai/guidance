@@ -31,7 +31,7 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams]):
+    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
         self.state = state
         self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
 
