@@ -33,12 +33,22 @@ class TokenUsage(BaseModel):
         return self.ff_tokens / self.output_tokens
 
     def __add__(self, other: "TokenUsage") -> "TokenUsage":
+        if self.ff_tokens is not None and other.ff_tokens is not None:
+            ff_tokens = self.ff_tokens + other.ff_tokens
+        elif self.ff_tokens is None and other.ff_tokens is not None:
+            ff_tokens = None
+        else:
+            raise ValueError(
+                "Cannot add TokenUsage objects if one of them has ff_tokens"
+                " set to None and the other has it set to a value."
+            )
+
         return TokenUsage(
             input_tokens=self.input_tokens + other.input_tokens,
             cached_tokens=self.cached_tokens + other.cached_tokens,
             round_trips=self.round_trips + other.round_trips,
             output_tokens=self.output_tokens + other.output_tokens,
-            ff_tokens=self.ff_tokens + other.ff_tokens,
+            ff_tokens=ff_tokens,
         )
 
 # TODO(hudson): remove this class

@@ -113,7 +113,7 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
-        usage = TokenUsage()
+        usage = TokenUsage(ff_tokens=0)
         while not parser.done():
             t0 = time.time()
 
