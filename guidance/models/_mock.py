@@ -106,13 +106,12 @@ class MockEngine(Engine):
         temperature: float,
         k: int = 1,
         force_return_unmasked_probs: bool = False,
-        filter_top_k: Optional[int] = None,
-        filter_top_p: Optional[float] = None,
+        sampling_params: Optional[SamplingParams] = None,
         
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
-            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, filter_top_k, filter_top_p
+            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
         )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
