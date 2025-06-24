@@ -11,10 +11,10 @@ class CaptureVar(TypedDict):
 
 
 class State(ABC):
-    def __init__(self) -> None:
+    def __init__(self, token_usage: Optional[TokenUsage] = None) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
         self.active_role: Optional[str] = None
-        self.token_usage: TokenUsage = TokenUsage()
+        self.token_usage: TokenUsage = token_usage or TokenUsage()
 
     @abstractmethod
     def __str__(self) -> str:
