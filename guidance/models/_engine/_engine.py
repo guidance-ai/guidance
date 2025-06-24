@@ -405,7 +405,6 @@ class Engine(ABC):
             )
             
         def apply_top_k_only(_logits: NDArray, _k: int) -> NDArray:
-            print(f"Applying top-k filter with k={_k}")
             indices_to_remove = _logits.argpartition(-_k)[:-_k]
             _logits[indices_to_remove] = -float("inf")
             return _logits
@@ -421,12 +420,10 @@ class Engine(ABC):
             # try our best to sort logits one time only
             sorted_logits = _logits.argsort()
             if _k is not None:
-                print(f"Applying top-k filter with k={_k}")
                 indices_to_remove = sorted_logits[:-_k]
                 _logits[indices_to_remove] = -float("inf")
                 
             if _p is not None:
-                print(f"Applying top-p filter with p={_p}")
                 sorted_indices = sorted_logits[::-1]
                 sorted_logits = _logits[sorted_indices]
                 probs = softmax(sorted_logits)
