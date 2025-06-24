@@ -64,7 +64,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
-        default_sampling_params: SamplingParams = {},
+        default_sampling_params: Optional[SamplingParams],
         echo: bool = True,
     ) -> None:
         self.echo = echo
