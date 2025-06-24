@@ -80,11 +80,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             except StopIteration as e:
                 if not isinstance(e.value, TokenUsage):
                     raise e
-                usage = e.value
-                self.state.token_usage.prompt_tokens += usage.prompt_tokens
-                self.state.token_usage.prompt_tokens_details.cached_tokens += usage.prompt_tokens_details.cached_tokens
-                self.state.token_usage.completion_tokens += usage.completion_tokens
-                self.state.token_usage.completion_tokens_details.fast_forward_tokens += usage.completion_tokens_details.fast_forward_tokens
+                self.state.token_usage += e.value
                 break
 
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)

@@ -269,11 +269,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
             if chunk.usage is not None:
                 # Update token usage
-                self.state.token_usage.prompt_tokens += chunk.usage.prompt_tokens
-                self.state.token_usage.completion_tokens += chunk.usage.completion_tokens
+                self.state.token_usage.input_tokens += chunk.usage.prompt_tokens
+                self.state.token_usage.output_tokens += chunk.usage.completion_tokens
+                # TODO: decide on semantics of "round trips" for openai -- should it be
+                # the number of api requests rather than the number of completion tokens?
+                self.state.token_usage.round_trips += chunk.usage.completion_tokens
                 if chunk.usage.prompt_tokens_details is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
-                        self.state.token_usage.prompt_tokens_details.cached_tokens += chunk.usage.prompt_tokens_details.cached_tokens
+                        self.state.token_usage.cached_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             try:
                 choice = chunk.choices[0]
             except IndexError:

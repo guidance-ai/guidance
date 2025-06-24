@@ -163,19 +163,10 @@ class Engine(ABC):
                 t1 = time.time()
                 logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
                 logits = logits_output["logits"]
-                if engine_output is None:
-                    assert usage.prompt_tokens == 0, "prompt_tokens should be 0 for the first call"
-                    assert usage.prompt_tokens_details.cached_tokens == 0, "cached_tokens should be 0 for the first call"
-                    # Number of tokens pre-filled, including the actual prompt and any tokens fast-forwarded
-                    # at the start of the grammar.
-                    usage.prompt_tokens = logits_output['n_tokens']
-                    # Number of prompt tokens that hit cache
-                    usage.prompt_tokens_details.cached_tokens = logits_output['n_cached']
-                else:
-                    # TODO: might have an off-by-one error if our last token is a fast-forward token
-                    if len(ff_tokens) > 0:
-                        usage.completion_tokens += len(ff_tokens)
-                        usage.completion_tokens_details.fast_forward_tokens += len(ff_tokens) - 1
+                usage.input_tokens += logits_output["n_tokens"]
+                usage.cached_tokens += logits_output["n_cached"]
+                if logits_output["n_tokens"] > logits_output["n_cached"]:
+                    usage.round_trips += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
@@ -228,12 +219,14 @@ class Engine(ABC):
                         )
                     )
             else:
+                usage.output_tokens += len(ff_tokens)
                 gen_tokens.append(engine_output.issued_token)
                 if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
                     engine_output.issued_token.is_backtracked = True
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
+                usage.ff_tokens += len(ff_tokens[ff_start_index:])
                 for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
