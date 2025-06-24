@@ -151,6 +151,8 @@ class Engine(ABC):
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
+        sampling_params: Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
         """
         # TODO: Pass these to get_logits
         # images = state.images
