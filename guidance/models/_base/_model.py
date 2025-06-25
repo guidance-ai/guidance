@@ -68,6 +68,10 @@ class Model:
         echo: bool = True,
     ) -> None:
         self.echo = echo
+        if self.echo:  # NOTE(nopdive): User requests renderer, lazy instantiate.
+            from ...registry import get_renderer
+            _ = get_renderer()
+
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
         self.token_count: int = 0
@@ -81,18 +85,20 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        from ...registry import get_trace_handler, get_renderer
+        from ...registry import get_trace_handler, get_exchange
+        from ..._topics import TRACE_TOPIC
 
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
         if self.echo:
-            get_renderer().update(
+            get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
                     node_attr=node_attr,
                 ),
+                topic=TRACE_TOPIC,
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:

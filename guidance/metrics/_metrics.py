@@ -10,8 +10,8 @@ from .._schema import GuidanceEngineMetrics
 from ..models import Model
 
 from ..visual import MetricMessage
+from .._topics import METRICS_TOPIC
 
-METRICS_TOPIC = "/metrics"
 MISSING_VALUE = 0
 
 logger = logging.getLogger(__name__)
