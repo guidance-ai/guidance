@@ -33,7 +33,7 @@ class Interpreter(Generic[S], ABC):
         self.state = state
 
     @abstractmethod
-    def state_str(self) -> str: ...
+    def get_prompt(self) -> str: ...
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)

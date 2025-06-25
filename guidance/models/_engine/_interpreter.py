@@ -18,13 +18,8 @@ class EngineInterpreter(Interpreter[EngineState]):
         self.state = EngineState()
         self.engine = engine
 
-    def state_str(self) -> str:
-        msgs = self.state.messages
-        if self.state.active_message is not None:
-            msgs = msgs + [self.state.active_message]
-        return self.engine.apply_chat_template(
-            msgs,
-        )
+    def get_prompt(self) -> str:
+        return self.engine.get_prompt(self.state)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""

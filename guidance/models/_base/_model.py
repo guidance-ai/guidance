@@ -210,7 +210,7 @@ class Model:
         return obj
 
     def __str__(self) -> str:
-        return self._interpreter.state_str()
+        return self._interpreter.get_prompt()
 
     def __len__(self):
         return len(str(self))

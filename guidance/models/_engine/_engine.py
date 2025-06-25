@@ -154,7 +154,7 @@ class Engine(ABC):
         # audio = state.audio
         # videos = state.videos
 
-        prompt = state.get_prompt(self)
+        prompt = self.get_prompt(state)
         tokens = self.tokenizer.encode(
             prompt.encode()
         )
@@ -505,6 +505,10 @@ class Engine(ABC):
             raise ValueError("Sentinel not found in the chat template output.")
 
         return text[:last_sentinel_index]
+
+    def get_prompt(self, state: EngineState) -> str:
+        """Get the prompt for the engine."""
+        return state.get_prompt(self)
 
 
 class ConstraintException(Exception):
