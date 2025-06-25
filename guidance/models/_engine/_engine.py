@@ -113,7 +113,7 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
-        usage = TokenUsage(ff_tokens=0)
+        usage = TokenUsage(round_trips=1, ff_tokens=0)
         while not parser.done():
             t0 = time.time()
 
@@ -164,9 +164,11 @@ class Engine(ABC):
                 logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
                 logits = logits_output["logits"]
                 usage.input_tokens += logits_output["n_tokens"]
-                usage.cached_tokens += logits_output["n_cached"]
-                if logits_output["n_tokens"] > logits_output["n_cached"]:
-                    usage.round_trips += 1
+                usage.cached_input_tokens += logits_output["n_cached"]
+                usage.output_tokens += 1
+                if logits_output["n_cached"] >= logits_output["n_tokens"]:
+                    # We didn't actually have to do a forward pass here
+                    usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
@@ -219,7 +221,6 @@ class Engine(ABC):
                         )
                     )
             else:
-                usage.output_tokens += len(ff_tokens)
                 gen_tokens.append(engine_output.issued_token)
                 if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
                     engine_output.issued_token.is_backtracked = True
@@ -227,6 +228,9 @@ class Engine(ABC):
                 else:
                     ff_start_index = 1
                 usage.ff_tokens += len(ff_tokens[ff_start_index:])
+                # Add ff tokens to output_tokens. Note that we already counted the engine_output
+                # token where we computed logits above
+                usage.output_tokens += len(ff_tokens[ff_start_index:])
                 for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
                     gen_tokens.append(
                         GenToken(

@@ -36,7 +36,7 @@ def test_json_usage_smoke(selected_model: models.Model):
     gen_lb = 1*n_props  # 1 token per property
     gen_ub = 2*n_props  # 2 tokens per property
 
-    assert prompt_lb <= usage.input_tokens - usage.output_tokens - usage.cached_tokens <= prompt_ub
+    assert prompt_lb <= usage.input_tokens - usage.output_tokens - usage.cached_input_tokens <= prompt_ub
     assert ff_lb <= usage.ff_tokens <= ff_ub
     assert gen_lb <= usage.output_tokens - usage.ff_tokens <= gen_ub
     assert (ff_lb / (ff_lb + gen_ub)) <= usage.token_savings <= (ff_ub / (ff_ub + gen_lb))

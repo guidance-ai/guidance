@@ -262,6 +262,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
         t0 = time.time()
+        # We made another call to the OpenAI API, so we count it as a round trip.
+        self.state.token_usage.round_trips += 1
         for chunk in chunks:
             t1 = time.time()
             latency_ms = (t1 - t0) * 1000
@@ -271,12 +273,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 # Update token usage
                 self.state.token_usage.input_tokens += chunk.usage.prompt_tokens
                 self.state.token_usage.output_tokens += chunk.usage.completion_tokens
-                # TODO: decide on semantics of "round trips" for openai -- should it be
-                # the number of api requests rather than the number of completion tokens?
-                self.state.token_usage.round_trips += chunk.usage.completion_tokens
                 if chunk.usage.prompt_tokens_details is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
-                        self.state.token_usage.cached_tokens += chunk.usage.prompt_tokens_details.cached_tokens
+                        self.state.token_usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             try:
                 choice = chunk.choices[0]
             except IndexError:
