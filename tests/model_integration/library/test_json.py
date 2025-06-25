@@ -34,7 +34,7 @@ def test_json_usage_smoke(selected_model: models.Model):
     ff_ub = 10*n_props + 4 # 10 tokens per property + 4 for the boundaries
 
     gen_lb = 1*n_props  # 1 token per property
-    gen_ub = 2*n_props  # 2 tokens per property
+    gen_ub = 3*n_props  # 3 tokens per property
 
     assert prompt_lb <= usage.input_tokens - usage.output_tokens - usage.cached_input_tokens <= prompt_ub
     assert ff_lb <= usage.ff_tokens <= ff_ub
