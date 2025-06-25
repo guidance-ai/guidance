@@ -1,4 +1,5 @@
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union, TypedDict
+
 from pydantic import BaseModel, Field, NonNegativeInt, RootModel, model_validator, computed_field
 from typing_extensions import Annotated
 from annotated_types import Ge, Le
@@ -225,3 +226,7 @@ class LLInterpreterResponse(BaseModel):
     progress: LLProgress
     stop: bool
     temperature: Optional[float]
+
+class SamplingParams(TypedDict):
+    top_p: Optional[float]
+    top_k: Optional[int]

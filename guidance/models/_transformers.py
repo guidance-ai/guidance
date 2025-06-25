@@ -7,6 +7,8 @@ import numpy as np
 from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
+from guidance._schema import SamplingParams
+
 from ..chat import ChatTemplate
 from ._engine import Engine, Tokenizer, LogitsOutput, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
 from ._engine._tokenizer import TokenizerWrappable
@@ -661,6 +663,7 @@ class Transformers(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
+        default_sampling_params: Optional[SamplingParams] = None,
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
@@ -682,7 +685,8 @@ class Transformers(Model):
                 enable_ff_tokens=enable_ff_tokens,
                 enable_monitoring=enable_monitoring,
                 **kwargs,
-            )
+            ),
+            default_sampling_params=default_sampling_params
         )
         super().__init__(
             interpreter=client,

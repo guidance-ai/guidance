@@ -5,10 +5,11 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Optional
 
 import numpy as np
 
+from .._schema import SamplingParams
 from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
 from ._base import Model
@@ -233,7 +234,8 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        **llama_cpp_kwargs,
+        default_sampling_params: Optional[SamplingParams] = None,
+        **llama_cpp_kwargs
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 
@@ -246,5 +248,5 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine)
+        interpreter = EngineInterpreter(engine, default_sampling_params=default_sampling_params)
         super().__init__(interpreter=interpreter, echo=echo)

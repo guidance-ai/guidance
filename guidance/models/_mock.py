@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput
+from .._schema import EngineOutput, SamplingParams
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, Tokenizer, LogitsOutput
 from ._engine._tokenizer import TokenizerWrappable
@@ -104,10 +104,12 @@ class MockEngine(Engine):
         temperature: float,
         k: int = 1,
         force_return_unmasked_probs: bool = False,
+        sampling_params: Optional[SamplingParams] = None,
+        
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
-            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
+            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
         )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
@@ -165,6 +167,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo=False,
         force=False,
         **kwargs,

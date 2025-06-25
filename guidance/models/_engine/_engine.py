@@ -14,9 +14,10 @@ from ..._schema import (
     EngineResponse,
     GenToken,
     TokenUsage,
+    SamplingParams
 )
 
-from ..._utils import log_init, softmax
+from ..._utils import log_init, softmax, apply_top_k_and_top_p_filter
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
@@ -80,6 +81,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
+        sampling_params: Optional[SamplingParams] = None,
     ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -96,6 +98,8 @@ class Engine(ABC):
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
+        sampling_params: Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
         """
         # TODO: Pass these to get_logits
         # images = state.images
@@ -290,6 +294,7 @@ class Engine(ABC):
                 temperature=ll_response.temperature,
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
+                sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
 
@@ -309,6 +314,7 @@ class Engine(ABC):
         temperature: float,
         k: int = 5,
         force_return_unmasked_probs: bool = False,
+        sampling_params: Optional[SamplingParams] = None,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -330,6 +336,8 @@ class Engine(ABC):
             The number of top-k tokens to return.
         force_return_unmasked_probs: bool
             If True, the top-k unmasked probabilities will be returned.
+        sampling_params : Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
 
         Returns
         -------
@@ -360,9 +368,9 @@ class Engine(ABC):
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(logits))
+            softmax(apply_top_k_and_top_p_filter(np.array(logits), sampling_params))
             if temperature < _TEMPERATURE_EPSILON
-            else softmax(np.array(logits) / temperature)
+            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, sampling_params))
         )
 
         top_k: list[GenToken] = []
@@ -374,10 +382,13 @@ class Engine(ABC):
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
+            
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
                 masked_logits /= temperature
+
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, sampling_params)
 
             masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
