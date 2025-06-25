@@ -165,9 +165,9 @@ class Engine(ABC):
                 logits = logits_output["logits"]
                 usage.input_tokens += logits_output["n_tokens"]
                 usage.cached_input_tokens += logits_output["n_cached"]
-                usage.output_tokens += 1
-                if logits_output["n_cached"] >= logits_output["n_tokens"]:
-                    # We didn't actually have to do a forward pass here
+                if logits_output["n_tokens"] > logits_output["n_cached"]:
+                    usage.forward_passes += 1
+                else:
                     usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
@@ -227,10 +227,9 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
+                # Just update ff tokens here -- usage for engine_output has already been
+                # handled where we got logits above
                 usage.ff_tokens += len(ff_tokens[ff_start_index:])
-                # Add ff tokens to output_tokens. Note that we already counted the engine_output
-                # token where we computed logits above
-                usage.output_tokens += len(ff_tokens[ff_start_index:])
                 for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
                     gen_tokens.append(
                         GenToken(

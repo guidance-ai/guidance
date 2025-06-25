@@ -272,7 +272,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if chunk.usage is not None:
                 # Update token usage
                 self.state.token_usage.input_tokens += chunk.usage.prompt_tokens
-                self.state.token_usage.output_tokens += chunk.usage.completion_tokens
+                # Estimate forward passes as number of completion tokens
+                self.state.token_usage.forward_passes += chunk.usage.completion_tokens
                 if chunk.usage.prompt_tokens_details is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
                         self.state.token_usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
