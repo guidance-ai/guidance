@@ -10,19 +10,24 @@ from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
-from ..._schema import GenTokenExtra
+from ..._schema import GenTokenExtra, SamplingParams
 
 if TYPE_CHECKING:
     from ...tools import ToolCallHandler
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, *, tool_call_handler: Optional[type["ToolCallHandler"]] = None):
-        self.state = EngineState()
+    def __init__(
+        self,
+        engine: Engine,
+        default_sampling_params: Optional[SamplingParams] = None,
+        tool_call_handler: Optional[type["ToolCallHandler"]] = None
+    ):
+        super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
         self.engine = engine
         self.tool_call_handler_cls = tool_call_handler
         self.chat_template = self.engine.get_chat_template()
-
+        
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
         cls = self.__class__
@@ -75,6 +80,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
+            sampling_params=self.default_sampling_params # NOTE: passing default sampling params for now
         )
         delayed_bytes = b""
         for chunk in engine_gen:

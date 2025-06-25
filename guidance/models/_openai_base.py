@@ -10,6 +10,8 @@ import json
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
+from guidance._schema import SamplingParams
+
 from .._ast import (
     ASTNode,
     GenAudio,
@@ -33,6 +35,7 @@ if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionChunk
     from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
+    from openai import OpenAI
 
 
 def get_role_start(role: str) -> str:
@@ -214,6 +217,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
+
         return self.client.chat.completions.create(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
@@ -231,8 +235,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
+        default_sampling_params: Optional[SamplingParams] = None,
+        **kwargs
     ):
-        self.state = OpenAIState()
+        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
         self.model = model
         self.client = client
 
@@ -280,6 +286,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
+            
+        # only process kwargs that are supported by the OpenAI API
+        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
+            kwargs["top_p"] = self.default_sampling_params["top_p"]
 
         with self.client.streaming_chat_completions(
             model=self.model,
