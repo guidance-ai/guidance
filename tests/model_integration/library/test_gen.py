@@ -51,22 +51,26 @@ def test_metrics_smoke(selected_model: models.Model):
     lm += "Generate the next letter: a b c d "
     lm += gen("first", max_tokens=1)
 
-    # Can't be sure of exact count due to token healing
+    # Can't be sure of exact count due to token healing:
+    # either one after the prompt, or a backtrack causing two
     usage = lm._get_usage()
     assert (
-        1 <= usage.output_tokens <= 2
+        1 <= usage.forward_passes <= 2
     )
 
     lm += " f g"
     lm += gen("second", max_tokens=1)
 
-    # Again, trouble with healing
+    # Again, trouble with healing:
+    # plus one for the new text
+    # plus one or two for the healing
     new_usage = lm._get_usage()
     assert (
-        2 <= new_usage.output_tokens <= 4
+        2 <= new_usage.forward_passes <= 5
     )
 
     assert new_usage.input_tokens > usage.input_tokens
+    assert new_usage.forward_passes > usage.forward_passes
     assert new_usage.output_tokens > usage.output_tokens
 
 
@@ -115,7 +119,7 @@ def test_unicode2(selected_model: models.Model):
     # Due to token healing, we can't be sure of the
     # precise output count
     assert (
-        10 <= usage.output_tokens <= 11
+        10 <= usage.forward_passes <= 11
     )
 
 

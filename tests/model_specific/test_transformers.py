@@ -42,15 +42,15 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
 
     gpt2_noff = models.Transformers("gpt2", enable_backtrack=False, enable_ff_tokens=False)
     gpt2_noff += ff_prompt()
-    noff_count = gpt2_noff._get_usage().round_trips
+    noff_count = gpt2_noff._get_usage().forward_passes
 
     gpt2_nobt = models.Transformers("gpt2", enable_backtrack=False)
     gpt2_nobt += ff_prompt()
-    nobt_count = gpt2_nobt._get_usage().round_trips
+    nobt_count = gpt2_nobt._get_usage().forward_passes
 
     gpt2_ff = models.Transformers("gpt2")
     gpt2_ff += ff_prompt()
-    ff_count = gpt2_ff._get_usage().round_trips
+    ff_count = gpt2_ff._get_usage().forward_passes
 
     # 3: 1 fp for the prompt, 1 for the first token of the select, 1 to get probs for the ff_tokens
     # To future devs, this should be 2 if we turn off the extra fp, e.g. when metrics are disabled
