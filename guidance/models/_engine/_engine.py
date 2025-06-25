@@ -153,15 +153,10 @@ class Engine(ABC):
         # images = state.images
         # audio = state.audio
         # videos = state.videos
-        if state.active_message is None:
-            raise ValueError("Cannot run engine without an active message in the state.")
 
-        if self.tokenizer.chat_formatter is None:
-            # TODO
-            raise NotImplementedError("No chat formatter, and completions are not yet supported.")
-
-        prompt = self.apply_chat_template(
-            messages=state.messages + [state.active_message],
+        prompt = state.get_prompt(self)
+        tokens = self.tokenizer.encode(
+            prompt.encode()
         )
         parser = TokenParser(
             grammar,
