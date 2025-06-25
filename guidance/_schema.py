@@ -56,12 +56,11 @@ class TokenUsage(BaseModel):
             )
 
         return TokenUsage(
-            input_tokens=self.input_tokens + other.input_tokens,
-            cached_input_tokens=self.cached_input_tokens + other.cached_input_tokens,
-            round_trips=self.round_trips + other.round_trips,
-            output_tokens=self.output_tokens + other.output_tokens,
-            cached_output_tokens=self.cached_output_tokens + other.cached_output_tokens,
             ff_tokens=ff_tokens,
+            **{
+                field: getattr(self, field) + getattr(other, field)
+                for field in set(self.__class__.model_fields) - {"ff_tokens"}
+            }
         )
 
 # TODO(hudson): remove this class
