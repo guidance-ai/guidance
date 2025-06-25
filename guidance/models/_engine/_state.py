@@ -8,6 +8,7 @@ from .._base import State
 
 if TYPE_CHECKING:
     from ._engine import Engine
+    from ._tokenizer import ChatMessage
 
 
 class TextContent(BaseModel):
@@ -169,10 +170,21 @@ class EngineChatState(State):
         self.messages: list[EngineMessage] = []
 
     def get_prompt(self, engine: "Engine") -> str:
-        messages = self.messages.copy()
+        engine_messages = self.messages.copy()
         if self.active_message is not None:
-            messages.append(self.active_message)
-        return engine.apply_chat_template(messages)
+            engine_messages.append(self.active_message)
+        chat_messages: list["ChatMessage"] = []
+        for message in engine_messages:
+            chat_messages.append(
+                {
+                    "role": message.role,
+                    "content": stringify_content(message.content),
+                }
+            )
+        return engine.apply_chat_template(
+            messages=chat_messages,
+            continue_final_message=(self.active_message is not None),
+        )
 
     def open_role(self, role: str) -> None:
         if self.active_message is not None:

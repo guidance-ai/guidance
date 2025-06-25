@@ -25,7 +25,7 @@ from ...visual import (
     OutputRequestMessage,
     MetricMessage,
 )
-from ._state import EngineState, EngineMessage
+from ._state import EngineState
 from ._tokenizer import Tokenizer, ChatMessage
 
 
@@ -471,23 +471,17 @@ class Engine(ABC):
 
     def apply_chat_template(
         self,
-        messages: Sequence[EngineMessage],
+        messages: Sequence[ChatMessage],
+        continue_final_message: bool = True,
     ) -> str:
         if self.tokenizer.chat_formatter is None:
             raise NotImplementedError("No chat formatter, and completions are not yet supported.")
 
         if len(messages) == 0:
-            return ""
+            return "" # No messages, return empty string..?
 
-        msgs = [
-            ChatMessage(
-                role=msg.role,
-                content="".join(
-                    c.value if c.type == "text" else c.text_representation for c in msg.content
-                )
-            )
-            for msg in messages
-        ]
+        if not continue_final_message:
+            raise NotImplementedError("continue_final_message=False is not supported yet.")
 
         # transformers and llamacpp tokenizers seem super inconsistent about respecting
         # `continue_final_message` and `add_generation_prompt` and tend to add an EOS
