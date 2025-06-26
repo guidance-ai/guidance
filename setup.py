@@ -84,18 +84,6 @@ test_requires = [
     "mypy==1.9.0",
 ] + unittest_requires
 
-bench_requires = [
-    "pandas",
-    "huggingface_hub",
-    "langchain_benchmarks",
-    "langchain-community",
-    "langsmith",
-    "json_stream",
-    "llama-cpp-python",
-    "setuptools",
-    "powerlift",
-]
-
 dev_requires = ["ruff==0.11.11", "mypy"]
 
 
@@ -131,7 +119,6 @@ setup(
         "transformers": transformers_requires,
         "test": test_requires,
         "docs": doc_requires,
-        "bench": bench_requires,
         "dev": dev_requires,
         **extras_requires,
     },
