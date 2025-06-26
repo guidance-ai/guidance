@@ -368,16 +368,13 @@ class JupyterWidgetRenderer(Renderer):
                 return False, -1
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
-        from ..registry import get_bg_async, get_exchange
+        from ..registry import get_bg_async
 
         out_messages: list[GuidanceMessage] = []
 
         # Metrics
         if isinstance(message, MetricMessage):
-            if self._running:
-                # logger.debug(f"RENDERER:metric:{message}")
-                pass
-            else:
+            if not self._running:
                 return
 
         if isinstance(message, ExecutionCompletedMessage):
