@@ -177,6 +177,10 @@ class Engine(ABC):
                     usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
+                # Treat forward pass (cached or not) as a single token -- we'll add ff_token latency later
+                usage.latency.total_ms += logits_lat_ms
+                usage.latency.token_count += 1
+
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
@@ -207,34 +211,30 @@ class Engine(ABC):
                 # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
 
-            ff_lat_ms = (time.time() - t0) * 1000
+            total_lat_ms = (time.time() - t0) * 1000
             if not ll_response.stop:
-                # Logit latency will go into the NEXT token
-                # if it exists
-                ff_lat_ms -= logits_lat_ms
+                # If we're not stopping, the logit latency will go into the next generated token
+                ff_lat_ms = total_lat_ms - logits_lat_ms
+            else:
+                # Otherwise, we need to amortize that logit latency into the ff_tokens
+                ff_lat_ms = total_lat_ms
 
             gen_tokens = []
             if engine_output is None:
                 # Note: intentionally not counting ff_tokens here, as we're counting these
                 # all just as input tokens
-                # TODO: do we need to add a latency here? Are we counting pre-fill time right?
                 for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
                         )
                     )
             else:
-                # Add usage data for the issued token
                 gen_tokens.append(engine_output.issued_token)
-                usage.latency.token_count += 1
-                usage.latency.total_ms += engine_output.issued_token.latency_ms
-
                 if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
                     engine_output.issued_token.is_backtracked = True
                     ff_start_index = 0
@@ -245,7 +245,9 @@ class Engine(ABC):
                 # Just update ff tokens here -- usage for engine_output has already been
                 # handled where we got logits above
                 usage.ff_tokens += len(ff_tokens)
-                usage.latency.total_ms += ff_lat_ms
+                # We always get to remove the logit latency here (unlike ff_lat_ms), since we
+                # already counted the ff latency unconditionally when we got the logits
+                usage.latency.total_ms += total_lat_ms - logits_lat_ms
                 usage.latency.token_count += len(ff_tokens)
 
                 for i, token_id in enumerate(ff_tokens, start=ff_start_index):
