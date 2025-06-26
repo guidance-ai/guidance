@@ -6,7 +6,25 @@ Once benchmark figures are out, we'll figure out what to optimize.
 The most critical class is the trace handler. See its documentation for trace design & motivations.
 """
 
-from ._trace import NodeAttr, InputAttr, OutputAttr, StatefulGuidanceInput, StatelessGuidanceInput
-from ._trace import LiteralInput, EmbeddedInput, ImageInput, RoleCloserInput, RoleOpenerInput
-from ._trace import TextOutput, ImageOutput, CaptureOutput, TraceNode, TraceHandler
-from ._trace import TokenOutput, Backtrack, Token, AudioOutput, VideoOutput
+from ._trace import (
+    AudioOutput,
+    Backtrack,
+    CaptureOutput,
+    EmbeddedInput,
+    ImageInput,
+    ImageOutput,
+    InputAttr,
+    LiteralInput,
+    NodeAttr,
+    OutputAttr,
+    RoleCloserInput,
+    RoleOpenerInput,
+    StatefulGuidanceInput,
+    StatelessGuidanceInput,
+    TextOutput,
+    Token,
+    TokenOutput,
+    TraceHandler,
+    TraceNode,
+    VideoOutput,
+)

@@ -1,10 +1,12 @@
-from guidance import models, json as gen_json
+from guidance import json as gen_json
+from guidance import models
+
 
 def test_json_usage_smoke(selected_model: models.Model):
     lm = selected_model
 
     lm += "My D&D character's stats: " + gen_json(
-        schema = {
+        schema={
             "type": "object",
             "properties": {
                 "strength": {"type": "integer", "minimum": 0.0, "maximum": 20},
@@ -24,17 +26,17 @@ def test_json_usage_smoke(selected_model: models.Model):
 
     # What follows are rough estimates of the token usage based on the schema.
     # Future devs: these might be blatantly wrong, so please adjust them if needed.
-    
+
     n_props = 7  # strength, agility, intelligence, endurance, charisma, luck, wisdom
 
     prompt_lb = 4
     prompt_ub = 15
 
-    ff_lb = 1*n_props # 1 per pr
-    ff_ub = 10*n_props + 4 # 10 tokens per property + 4 for the boundaries
+    ff_lb = 1 * n_props  # 1 per pr
+    ff_ub = 10 * n_props + 4  # 10 tokens per property + 4 for the boundaries
 
-    gen_lb = 1*n_props  # 1 token per property
-    gen_ub = 3*n_props  # 3 tokens per property
+    gen_lb = 1 * n_props  # 1 token per property
+    gen_ub = 3 * n_props  # 3 tokens per property
 
     assert prompt_lb <= usage.input_tokens - usage.output_tokens - usage.cached_input_tokens <= prompt_ub
     assert ff_lb <= usage.ff_tokens <= ff_ub

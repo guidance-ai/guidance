@@ -2,10 +2,10 @@
 
 import threading
 
+from .._bg import BackgroundAsync
 from ..metrics import Monitor, PeriodicMetricsGenerator
 from ..trace import TraceHandler
 from ..visual import AutoRenderer, Renderer, TopicExchange
-from .._bg import BackgroundAsync
 
 _monitor_lock = threading.Lock()
 _monitor = None

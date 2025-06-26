@@ -1,21 +1,20 @@
 import base64
+import time
 import wave
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-import time
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
+from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, Union, cast
 
-from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
 from guidance._schema import SamplingParams
 
-from .._schema import TokenUsage
 from .._ast import (
     ASTNode,
-    GenAudio,
     AudioBlob,
+    GenAudio,
     ImageBlob,
     ImageUrl,
     JsonNode,
@@ -25,15 +24,16 @@ from .._ast import (
     RoleStart,
     RuleNode,
 )
+from .._schema import TokenUsage
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput, Token
+from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
+    from openai import OpenAI
     from openai.types.chat import ChatCompletionChunk
     from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
-    from openai import OpenAI
 
 
 def get_role_start(role: str) -> str:
@@ -197,6 +197,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
             **kwargs,
         )
 
+
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
@@ -207,7 +208,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         model: str,
         client: BaseOpenAIClientWrapper,
         default_sampling_params: Optional[SamplingParams] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
         self.model = model
@@ -215,16 +216,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
+            raise ValueError("OpenAI models require an active role (e.g. use `with assistant(): ...`)")
         return super().run(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if node.role not in ["system", "user", "assistant"]:
-            raise ValueError(
-                f"OpenAI models only support roles 'system', 'user', and 'assistant', got {node.role}"
-            )
+            raise ValueError(f"OpenAI models only support roles 'system', 'user', and 'assistant', got {node.role}")
         self.state.active_role = cast(Literal["system", "user", "assistant"], node.role)
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
@@ -246,9 +243,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def _run(self, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
-            raise ValueError(
-                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-            )
+            raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
         if self.state.active_role != "assistant":
             raise ValueError(
                 "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
@@ -257,7 +252,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
-            
+
         # only process kwargs that are supported by the OpenAI API
         if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
             kwargs["top_p"] = self.default_sampling_params["top_p"]
@@ -316,25 +311,25 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         yield TokenOutput(
                             value=token.token,
                             # amortized latency
-                            latency_ms=latency_ms/len(tokens),
+                            latency_ms=latency_ms / len(tokens),
                             token=Token(
-                                token = token.token,
-                                bytes = b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
-                                prob = 2.718**token.logprob,
+                                token=token.token,
+                                bytes=b"" if token.bytes is None else base64.b64encode(bytes(token.bytes)),
+                                prob=2.718**token.logprob,
                             ),
                             # TODO: actually request the top logprobs
-                            top_k = [
+                            top_k=[
                                 Token(
-                                    token = tok.token,
-                                    bytes = b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
-                                    prob = 2.718**tok.logprob,
+                                    token=tok.token,
+                                    bytes=b"" if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
+                                    prob=2.718**tok.logprob,
                                 )
                                 for tok in token.top_logprobs
-                            ]
+                            ],
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
-            elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
+            elif (delta_audio := cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
                     assert delta_audio.get("id") is not None
@@ -453,7 +448,7 @@ class OpenAIJSONMixin(BaseOpenAIInterpreter):
         if node.schema is None:
             response_format = {"type": "json_object"}
         else:
-            response_format={
+            response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "json_schema",  # TODO?
@@ -494,12 +489,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
         yield ImageOutput(value=node.data, is_input=True)
 
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
-        self.state.content.append(
-            ImageUrlContent(
-                type="image_url",
-                image_url=ImageUrlContentInner(url=node.url)
-            )
-        )
+        self.state.content.append(ImageUrlContent(type="image_url", image_url=ImageUrlContentInner(url=node.url)))
         image_bytes = bytes_from(node.url, allow_local=False)
         yield ImageOutput(value=base64.b64encode(image_bytes), is_input=True)
 

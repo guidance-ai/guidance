@@ -1,7 +1,7 @@
 import json
 import re
-from json import dumps as json_dumps
 import warnings
+from json import dumps as json_dumps
 
 import pytest
 from jsonschema import ValidationError, validate
@@ -161,8 +161,9 @@ class TestNumber:
         assert ve.value.args[0].startswith("Unsatisfiable schema")
         assert re.fullmatch(
             r"Unsatisfiable schema: (exclusiveMinimum|minimum) \(5\) is (greater than|equal to) (exclusiveMaximum|maximum) \((4|5)\)",
-            ve.value.args[0]
+            ve.value.args[0],
         )
+
 
 class TestBoundedNumeric:
     @pytest.mark.parametrize(
@@ -173,15 +174,11 @@ class TestBoundedNumeric:
             (-5, {"type": "integer", "minimum": -5}, True),
             pytest.param(
                 *(5.0, {"type": "integer", "minimum": 5}, True),
-                marks=pytest.mark.xfail(
-                    reason="JSON technically allows trailing zeroes, but we currently don't"
-                ),
+                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't"),
             ),
             pytest.param(
                 *(-5.0, {"type": "integer", "minimum": -5}, True),
-                marks=pytest.mark.xfail(
-                    reason="JSON technically allows trailing zeroes, but we currently don't"
-                ),
+                marks=pytest.mark.xfail(reason="JSON technically allows trailing zeroes, but we currently don't"),
             ),
             (5.1, {"type": "integer", "minimum": 5}, False),
             (-5.1, {"type": "integer", "minimum": -5}, False),
@@ -385,9 +382,7 @@ class TestString:
             ),
         ],
     )
-    def test_regex_properly_escaped_bad(
-        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_regex_properly_escaped_bad(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         # Note that the strings being fed in include the double quotes required
         # to make them JSON strings
         schema_obj = {"type": "string", "pattern": r".{3}"}
@@ -399,9 +394,7 @@ class TestString:
             schema_obj=schema_obj,
         )
 
-    @pytest.mark.parametrize(
-        "my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"]
-    )
+    @pytest.mark.parametrize("my_string", ["a", "bb", "ccc", "150", ",?", ".\t\n", "(){", "aA7", "\\9O"])
     def test_min_and_maxLength(self, my_string: str):
         schema = """{ "type": "string", "minLength": 1, "maxLength": 3}"""
 
@@ -579,6 +572,7 @@ class TestString:
             # Sanity check
             validate(instance=string, schema=schema)
             generate_and_check(string, schema)
+
 
 class TestSimpleObject:
     # These are objects without cross references
@@ -1084,9 +1078,7 @@ class TestArrayWithLengthConstraints:
             ),  # Array has one fewer item than required by minItems
         ],
     )
-    def test_bad_with_prefix_and_items(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_with_prefix_and_items(self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
             "items": self.items_schema_obj,
@@ -1148,9 +1140,7 @@ class TestArrayWithLengthConstraints:
             ),  # maxItems set to 0, but array is not empty
         ],
     )
-    def test_bad_with_prefix(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_with_prefix(self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = {
             "prefixItems": self.prefix_schema_obj,
             "items": False,
@@ -1204,9 +1194,7 @@ class TestArrayWithLengthConstraints:
             ),  # maxItems set to 0, but array is not empty
         ],
     )
-    def test_bad_with_items(
-        self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_with_items(self, min_items, max_items, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = {
             "items": self.items_schema_obj,
             "minItems": min_items,
@@ -1322,10 +1310,7 @@ class TestAnyOf:
         }
         with pytest.raises(ValueError) as ve:
             _ = gen_json(schema=schema)
-        assert (
-            ve.value.args[0]
-            == 'Unsatisfiable schema: minimum (10) is greater than maximum (0)'
-        )
+        assert ve.value.args[0] == "Unsatisfiable schema: minimum (10) is greater than maximum (0)"
 
 
 class TestAllOf:
@@ -1393,7 +1378,6 @@ class TestAllOf:
         # f"Unsatisfiable schema: allOf has conflicting types: [{'integer'}, {'string'}]"
 
 
-
 class TestOneOf:
     @pytest.mark.parametrize("target_obj", [123, 42])
     def test_oneOf_simple(self, target_obj):
@@ -1414,24 +1398,21 @@ class TestOneOf:
             # Simple case, disjoint types
             ({"oneOf": [{"type": "integer"}, {"type": "boolean"}]}, [123, True]),
             # Simple case, disjoint enums
-            ({"oneOf": [{"enum": ["a", "b", "c"]}, {"enum": [1,2,3]}]}, ["a", "b", "c", 1, 2, 3]),
+            ({"oneOf": [{"enum": ["a", "b", "c"]}, {"enum": [1, 2, 3]}]}, ["a", "b", "c", 1, 2, 3]),
             # More complex case, discriminated union
             (
                 {
                     "oneOf": [
                         # Only one of them needs the prop key to be required
                         {"type": "object", "properties": {"prop": {"const": "foo"}}, "required": ["prop"]},
-                        {"type": "object", "properties": {"prop": {"const": "bar"}}}
+                        {"type": "object", "properties": {"prop": {"const": "bar"}}},
                     ]
                 },
-                [{"prop": "foo"}, {"prop": "bar"}]
+                [{"prop": "foo"}, {"prop": "bar"}],
             ),
             # Enums made disjoint by type
-            (
-                {"oneOf": [{"enum": [1,2,"foo"]}, {"enum": [2,3,"bar"]}], "type": "string"},
-                ["foo", "bar"]
-            ),
-        ]
+            ({"oneOf": [{"enum": [1, 2, "foo"]}, {"enum": [2, 3, "bar"]}], "type": "string"}, ["foo", "bar"]),
+        ],
     )
     def test_oneOf_disjoint(self, schema, instances):
         for instance in instances:
@@ -1454,12 +1435,12 @@ class TestOneOf:
                     "oneOf": [
                         # Only one of them needs the prop key to be required
                         {"type": "object", "properties": {"prop": {"const": "foo"}}},
-                        {"type": "object", "properties": {"prop": {"const": "bar"}}}
+                        {"type": "object", "properties": {"prop": {"const": "bar"}}},
                     ]
                 },
-                [{"prop": "foo"}, {"prop": "bar"}]
-            )
-        ]
+                [{"prop": "foo"}, {"prop": "bar"}],
+            ),
+        ],
     )
     def test_oneOf_overlap(self, schema, instances):
         for instance in instances:
@@ -1470,7 +1451,11 @@ class TestOneOf:
             with pytest.warns() as record:
                 generate_and_check(instance, schema)
             assert len(record) == 1
-            assert record[0].message.args[0] == "oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases."
+            assert (
+                record[0].message.args[0]
+                == "oneOf not fully supported, falling back to anyOf. This may cause validation errors in some cases."
+            )
+
 
 class TestEnum:
     simple_schema = """{
@@ -1686,8 +1671,8 @@ class TestConst:
         # TODO: would be nice to have a more specific error message here, e.g.
         # f"Unsatisfiable schema: const {const!r} is inconsistent with parent schema: {schema_obj}"
 
-class TestAdditionalProperties:
 
+class TestAdditionalProperties:
     simple_schema = """{
     "type": "object",
     "additionalProperties": {
@@ -2049,9 +2034,7 @@ class TestEmptySchemas:
             ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
-    def test_nested_empty_schema_bad(
-        self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_nested_empty_schema_bad(self, schema_obj, bad_obj, good_bytes, failure_byte, allowed_bytes):
         bad_string = json_dumps(bad_obj)
         check_match_failure(
             bad_string=bad_string,
@@ -2091,9 +2074,7 @@ class TestEmptySchemas:
             ({"b": 42}, b'{"', b"b", {b"a"}),
         ],
     )
-    def test_nested_empty_schema_with_props_bad(
-        self, bad_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_nested_empty_schema_with_props_bad(self, bad_obj, good_bytes, failure_byte, allowed_bytes):
         schema_obj = json.loads(self.nested_empty_schema_with_props)
 
         bad_string = json_dumps(bad_obj)
@@ -2114,9 +2095,7 @@ class TestEmptySchemas:
         ],
     )
     def test_items(self, schema_obj):
-        generate_and_check(
-            [1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj
-        )
+        generate_and_check([1, 0.4, "hello", False, None, {"a": 42}, [1, 2, 3, "four"]], schema_obj)
 
     def test_no_items(self):
         schema_obj = {"type": "array", "items": False}
@@ -2315,7 +2294,6 @@ class TestBooleanSchema:
         with pytest.raises(ValueError) as ve:
             gen_json(schema=schema_obj)
         assert ve.value.args[0] == "Unsatisfiable schema: required property 'a' is unsatisfiable"
-
 
 
 class TestWhitespace:

@@ -1,4 +1,4 @@
-""" Metrics that arise from both language models and its execution environment."""
+"""Metrics that arise from both language models and its execution environment."""
 
 from ._metrics import Monitor, PeriodicMetricsGenerator, emit_usage
 
