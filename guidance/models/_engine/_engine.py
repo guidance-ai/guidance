@@ -101,6 +101,9 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
+        # Note: t0 will get reset further down in the loop, just after the break condition
+        t0 = time.time()
+
         # TODO: Pass these to get_logits
         # images = state.images
         # audio = state.audio
@@ -118,8 +121,7 @@ class Engine(ABC):
         last_temperature = 1.0
         engine_output = None
         usage = TokenUsage(round_trips=1, ff_tokens=0)
-        # Note: t0 will get reset further down in the loop, just after the break condition
-        t0 = time.time()
+
         while not parser.done():
             recode = False
             if engine_output is None:
