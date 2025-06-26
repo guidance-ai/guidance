@@ -11,79 +11,9 @@ on:
         type: string
 
 jobs:
-  generate-wheels-matrix:
-    # Create a matrix of all architectures & versions to build.
-    # This enables the next step to run cibuildwheel in parallel.
-    # From https://iscinumpy.dev/post/cibuildwheel-2-10-0/#only-210
-    name: Generate wheels matrix
-    runs-on: ubuntu-latest
-    outputs:
-      include: ${{ steps.set-matrix.outputs.include }}
-
-    env:
-      CIBW_SKIP: pp*
-      
-    steps:
-      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-      - name: Install cibuildwheel
-      # Nb. keep cibuildwheel version pin consistent with job below
-        run: pipx install cibuildwheel==2.17.0
-      - id: set-matrix
-        run: |
-          MATRIX=$(
-            {
-              cibuildwheel --print-build-identifiers --platform linux --archs x86_64 \
-              | jq -nRc '{"only": inputs, "os": "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform macos --archs arm64 \
-              | jq -nRc '{"only": inputs, "os": "macos-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform windows --archs auto64 \
-              | jq -nRc '{"only": inputs, "os": "windows-latest"}'
-            } | jq -sc
-          )
-          echo "include=$MATRIX" >> $GITHUB_OUTPUT
-
   build_wheels:
-    name: Build ${{ matrix.only }}
-    needs: generate-wheels-matrix
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.generate-wheels-matrix.outputs.include) }}
-    runs-on: ${{ matrix.os }}
-    
-    env:
-      CIBW_BUILD_VERBOSITY: 1
-      CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
-      CIBW_SKIP: pp*
-
-    steps:
-      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: all
-
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
-        with:
-          only: ${{ matrix.only }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          path: ./wheelhouse/*.whl
-          name: bdist_files_${{ matrix.os }}_${{ strategy.job-index }}
-
-  build_sdist:
-    name: Build source distribution
-    runs-on: ubuntu-20.04
+    name: Build wheel distribution
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
         uses: actions/checkout@v4
@@ -94,10 +24,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Run cargo check
-        shell: bash
+      - name: Build bdist
         run: |
-          cargo --version
+          python -m pip install build
+          python -m build --wheel
+
+      - name: Upload bdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdist_files
+          path: dist/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Build sdist (pep517)
         run: |
@@ -118,13 +67,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: bdist_files_*
-          merge-multiple: true
+          name: sdist_files
           path: dist
-
+      
       - uses: actions/download-artifact@v4
         with:
-          name: sdist_files
+          name: bdist_files
           path: dist
 
       - uses: actions/upload-artifact@v4

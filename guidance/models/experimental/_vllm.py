@@ -1,5 +1,7 @@
 from typing import Iterator, Optional
 
+from guidance._schema import SamplingParams
+
 from ..._ast import GrammarNode
 from ...trace import OutputAttr, TextOutput
 from .._openai_base import (
@@ -13,6 +15,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
+        default_sampling_params: Optional[SamplingParams],
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs,
@@ -23,17 +26,21 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             )
+        
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client))
+        super().__init__(model=model, client=OpenAIClientWrapper(client), default_sampling_params=default_sampling_params, **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
-        for attr in self._run(
-            extra_body=dict(
-                guided_decoding_backend="guidance",
-                guided_grammar=node.ll_grammar(),
-            )
-        ):
+        
+        kwargs = self._process_kwargs(**kwargs)
+        extra_body = {
+            "guided_decoding_backend" : "guidance",
+            "guided_grammar" : node.ll_grammar(),
+        }
+        kwargs["extra_body"].update(extra_body)
+        
+        for attr in self._run(**kwargs):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
@@ -61,11 +68,24 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
+                    
+    def _process_kwargs(self, **kwargs):
+        if "extra_body" not in kwargs:
+            kwargs["extra_body"] = {}
+            
+        # top_k must be put in extra_body
+        top_k = kwargs.pop("top_k", None)
+        if top_k is None:
+            top_k = self.default_sampling_params.get("top_k", None)
+        if top_k is not None:
+            kwargs["extra_body"]["top_k"] = top_k
+            
+        return kwargs
 
 
 class VLLMModel(Model):
-    def __init__(self, model: str, echo=True, **kwargs):
+    def __init__(self, model: str, default_sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
         super().__init__(
-            interpreter=VLLMInterpreter(model=model, **kwargs),
+            interpreter=VLLMInterpreter(model=model, default_sampling_params=default_sampling_params, **kwargs),
             echo=echo,
         )

@@ -27,13 +27,15 @@ from ...trace import (
     RoleCloserInput,
     RoleOpenerInput,
     StatelessGuidanceInput,
-    TextOutput,
+    TokenOutput,
     TraceNode,
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
 from ._interpreter import Interpreter
 from ._state import State
+
+from ..._schema import SamplingParams
 
 if TYPE_CHECKING:
     from ...library._block import Block
@@ -62,6 +64,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,
     ) -> None:
         self.echo = echo
@@ -124,15 +127,15 @@ class Model:
             pass
         elif isinstance(node, GenAudio):
             self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value="")
+                self._id, self._parent_id, AudioInput(value=b"")
             )  # TODO -- what goes here?
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TextOutput):
+            if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
                 # TODO: put this elsewhere (inside state?)
-                self.token_count += output_attr.token_count
+                self.token_count += 1
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?

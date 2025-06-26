@@ -27,7 +27,7 @@ install_requires = [
     "pydantic",
     "requests",
     "psutil",
-    "guidance-stitch",
+    "guidance-stitch==0.1.5",
     "llguidance==0.7.26",
 ]
 
@@ -86,19 +86,6 @@ test_requires = [
     "mypy==1.9.0",
 ] + unittest_requires
 
-bench_requires = [
-    "pandas",
-    "huggingface_hub",
-    "langchain_benchmarks",
-    "langchain-community",
-    "langsmith",
-    "json_stream",
-    "llama-cpp-python",
-    "setuptools",
-    "powerlift",
-]
-
-
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
         return fp.read()
@@ -131,7 +118,6 @@ setup(
         "transformers": transformers_requires,
         "test": test_requires,
         "docs": doc_requires,
-        "bench": bench_requires,
         **extras_requires,
     },
 )

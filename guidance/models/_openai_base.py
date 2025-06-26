@@ -2,10 +2,14 @@ import base64
 import wave
 from copy import deepcopy
 from io import BytesIO
+import time
 from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
+
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
+
+from guidance._schema import SamplingParams
 
 from .._ast import (
     ASTNode,
@@ -21,14 +25,14 @@ from .._ast import (
     RuleNode,
 )
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput
-from ..trace._trace import AudioOutput
+from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput, Token
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionChunk
     from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
+    from openai import OpenAI
 
 
 def get_role_start(role: str) -> str:
@@ -182,6 +186,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
+
         return self.client.chat.completions.create(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
@@ -199,8 +204,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
+        default_sampling_params: Optional[SamplingParams] = None,
+        **kwargs
     ):
-        self.state = OpenAIState()
+        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
         self.model = model
         self.client = client
 
@@ -248,6 +255,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
+            
+        # only process kwargs that are supported by the OpenAI API
+        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
+            kwargs["top_p"] = self.default_sampling_params["top_p"]
 
         with self.client.streaming_chat_completions(
             model=self.model,
@@ -259,7 +270,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
         audio: Optional[AssistantAudio] = None
+        t0 = time.time()
         for chunk in chunks:
+            t1 = time.time()
+            latency_ms = (t1 - t0) * 1000
+            t0 = t1
+
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -273,16 +289,38 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 if len(content) == 0:
                     continue
                 self.state.apply_text(content)
+                # Rather paranoid check, as we have a few slightly different
+                # apis which are "almost" openai compatible...
                 if (
                     hasattr(choice, "logprobs")
                     and choice.logprobs is not None
+                    and hasattr(choice.logprobs, "content")
                     and choice.logprobs.content is not None
                     and len(choice.logprobs.content) > 0
                 ):
-                    prob = 2.718 ** choice.logprobs.content[0].logprob
+                    tokens = choice.logprobs.content
+                    for token in tokens:
+                        yield TokenOutput(
+                            value=token.token,
+                            # amortized latency
+                            latency_ms=latency_ms/len(tokens),
+                            token=Token(
+                                token = token.token,
+                                bytes = b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
+                                prob = 2.718**token.logprob,
+                            ),
+                            # TODO: actually request the top logprobs
+                            top_k = [
+                                Token(
+                                    token = tok.token,
+                                    bytes = b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
+                                    prob = 2.718**tok.logprob,
+                                )
+                                for tok in token.top_logprobs
+                            ]
+                        )
                 else:
-                    prob = float("nan")
-                yield TextOutput(value=delta.content, is_generated=True, prob=prob)
+                    yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
             elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
@@ -309,6 +347,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     yield TextOutput(
                         value=delta_audio["transcript"],
                         is_generated=True,
+                        latency_ms=latency_ms,
                     )
             elif delta.function_call is not None:
                 raise NotImplementedError("Function calling not yet supported for OpenAI")
@@ -334,7 +373,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
-            yield AudioOutput(value=base64.b64encode(wav_bytes).decode(), is_input=False)
+            yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure client is not copied."""
@@ -404,7 +443,7 @@ class OpenAIJSONMixin(BaseOpenAIInterpreter):
                     "schema": node.schema,
                     "strict": True,
                 },
-            },
+            }
         return self._run(
             response_format=response_format,
             **kwargs,
@@ -432,7 +471,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
         self.state.content.append(
             ImageUrlContent(
                 type="image_url",
-                image_url=ImageUrlContentInner(url=f"data:{mime_type};base64,{node.data}"),
+                image_url=ImageUrlContentInner(url=f"data:{mime_type};base64,{node.data.decode()}"),
             )
         )
         yield ImageOutput(value=node.data, is_input=True)
@@ -445,8 +484,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
             )
         )
         image_bytes = bytes_from(node.url, allow_local=False)
-        base64_string = base64.b64encode(image_bytes).decode("utf-8")
-        yield ImageOutput(value=base64_string, is_input=True)
+        yield ImageOutput(value=base64.b64encode(image_bytes), is_input=True)
 
 
 class OpenAIAudioMixin(BaseOpenAIInterpreter):
@@ -459,7 +497,7 @@ class OpenAIAudioMixin(BaseOpenAIInterpreter):
             AudioContent(
                 type="input_audio",
                 input_audio=InputAudio(
-                    data=node.data,
+                    data=node.data.decode("utf-8"),  # Base64 encoded string
                     format=format,
                 ),
             )
