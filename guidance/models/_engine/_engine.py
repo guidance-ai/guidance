@@ -102,7 +102,8 @@ class Engine(ABC):
             Additional sampling parameters to apply to the logits.
         """
         # Note: t0 will get reset further down in the loop, just after the break condition
-        t0 = time.time()
+        _t0 = time.time()
+        t0 = _t0
 
         # TODO: Pass these to get_logits
         # images = state.images
@@ -177,10 +178,6 @@ class Engine(ABC):
                     usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
-                # Treat forward pass (cached or not) as a single token -- we'll add ff_token latency later
-                usage.latency.total_ms += logits_lat_ms
-                usage.latency.token_count += 1
-
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
@@ -211,13 +208,10 @@ class Engine(ABC):
                 # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
 
-            total_lat_ms = (time.time() - t0) * 1000
+            ff_lat_ms = (time.time() - t0) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
-                ff_lat_ms = total_lat_ms - logits_lat_ms
-            else:
-                # Otherwise, we need to amortize that logit latency into the ff_tokens
-                ff_lat_ms = total_lat_ms
+                ff_lat_ms -= logits_lat_ms
 
             gen_tokens = []
             if engine_output is None:
@@ -245,18 +239,12 @@ class Engine(ABC):
                 # Just update ff tokens here -- usage for engine_output has already been
                 # handled where we got logits above
                 usage.ff_tokens += len(ff_tokens)
-                # We always get to remove the logit latency here (unlike ff_lat_ms), since we
-                # already counted the ff latency unconditionally when we got the logits
-                usage.latency.total_ms += total_lat_ms - logits_lat_ms
-                usage.latency.token_count += len(ff_tokens)
-
                 for i, token_id in enumerate(ff_tokens, start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_force_forwarded=True,
                         )
@@ -322,6 +310,7 @@ class Engine(ABC):
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
 
+        usage.total_latency_ms += (time.time() - _t0) * 1000
         return usage
 
     def get_next_token_with_top_k(

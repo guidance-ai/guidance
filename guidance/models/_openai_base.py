@@ -271,8 +271,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             yield from self._handle_stream(chunks)
 
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
+        _t0 = time.time()
+        t0 = _t0
         audio: Optional[AssistantAudio] = None
-        t0 = time.time()
         # We made another call to the OpenAI API, so we count it as a round trip.
         usage = TokenUsage(round_trips=1)
         for chunk in chunks:
@@ -311,8 +312,6 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     and len(choice.logprobs.content) > 0
                 ):
                     tokens = choice.logprobs.content
-                    usage.latency.token_count += len(tokens)
-                    usage.latency.total_ms += latency_ms
                     for token in tokens:
                         yield TokenOutput(
                             value=token.token,
@@ -334,8 +333,6 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                             ]
                         )
                 else:
-                    usage.latency.token_count += 1 # *shrug*
-                    usage.latency.total_ms += latency_ms
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
             elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
@@ -392,6 +389,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
 
+        usage.total_latency_ms += (time.time() - _t0) * 1000
         self.state.add_usage(usage)
 
     def __deepcopy__(self, memo):

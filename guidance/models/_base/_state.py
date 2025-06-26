@@ -37,7 +37,7 @@ class State(ABC):
 
         exchange.publish(MetricMessage(
             name="avg latency",
-            value=usage.latency.avg_ms
+            value=usage.avg_latency_ms
         ), topic=METRICS_TOPIC)
 
     def get_usage(self) -> TokenUsage:
