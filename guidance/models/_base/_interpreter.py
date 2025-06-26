@@ -40,9 +40,7 @@ class Interpreter(Generic[S]):
 
     def _role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is not None:
-            raise ValueError(
-                f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open."
-            )
+            raise ValueError(f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open.")
         return self.role_start(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:

@@ -8,6 +8,7 @@ from typing import (
     overload,
 )
 from contextvars import ContextVar
+
 if sys.version_info >= (3, 10):
     from typing import ParamSpec, TypeAlias, Concatenate
 else:
@@ -19,8 +20,8 @@ from .models import Model
 _in_stateless_context: ContextVar[bool]
 
 P = ParamSpec("P")
-M: TypeAlias = Any # sort of Union[Model, GrammarNode]?
-R = TypeVar("R", bound = Union[Function, RuleNode])
+M: TypeAlias = Any  # sort of Union[Model, GrammarNode]?
+R = TypeVar("R", bound=Union[Function, RuleNode])
 GuidanceWrappable = Callable[Concatenate[M, P], M]
 GuidanceFunction = Callable[P, R]
 StatefulGuidanceFunction = GuidanceFunction[P, Function]
@@ -34,10 +35,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> StatefulGuidanceFunction[P]:
-    ...
-
-
+) -> StatefulGuidanceFunction[P]: ...
 @overload
 def guidance(
     f: None = None,
@@ -46,10 +44,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], StatefulGuidanceFunction[P]]:
-    ...
-
-
+) -> Callable[[GuidanceWrappable[P]], StatefulGuidanceFunction[P]]: ...
 @overload
 def guidance(
     f: GuidanceWrappable[P],
@@ -58,10 +53,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> StatelessGuidanceFunction[P]:
-    ...
-
-
+) -> StatelessGuidanceFunction[P]: ...
 @overload
 def guidance(
     f: None = None,
@@ -70,10 +62,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], StatelessGuidanceFunction[P]]:
-    ...
-
-
+) -> Callable[[GuidanceWrappable[P]], StatelessGuidanceFunction[P]]: ...
 @overload
 def guidance(
     f: GuidanceWrappable[P],
@@ -82,10 +71,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> GuidanceFunction[P, Union[Function, RuleNode]]:
-    ...
-
-
+) -> GuidanceFunction[P, Union[Function, RuleNode]]: ...
 @overload
 def guidance(
     f: None = None,
@@ -94,5 +80,4 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[Function, RuleNode]]]:
-    ...
+) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[Function, RuleNode]]]: ...

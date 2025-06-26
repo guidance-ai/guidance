@@ -140,6 +140,6 @@ def test_string_utf8():
 def test_long_fast_forward():
     if sys.platform == "win32":
         pytest.skip("Skipping long fast forward test on Windows to avoid stack overflow")
-    s = "x"*10_000
+    s = "x" * 10_000
     g = string(s)
     assert g.match(s) is not None

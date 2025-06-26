@@ -1,4 +1,4 @@
-""" Renderer is responsible for displaying output.
+"""Renderer is responsible for displaying output.
 
 Our main focus is on jupyter notebooks and later terminal.
 """
@@ -16,8 +16,14 @@ import traceback
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
-from ._message import ExecutionCompletedMessage, \
-    deserialize_message, serialize_message, ClientReadyAckMessage, ExecutionStartedMessage, OutputRequestMessage
+from ._message import (
+    ExecutionCompletedMessage,
+    deserialize_message,
+    serialize_message,
+    ClientReadyAckMessage,
+    ExecutionStartedMessage,
+    OutputRequestMessage,
+)
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
@@ -34,7 +40,7 @@ except ImportError:
 
 
 try:
-    import stitch # type: ignore[import-untyped]
+    import stitch  # type: ignore[import-untyped]
 
     stitch_installed = True
 except ImportError:
@@ -50,10 +56,10 @@ class Renderer:
     """Renders guidance model to a visual medium."""
 
     def __init__(self):
-        """Initializes. """
+        """Initializes."""
 
     def update(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC) -> None:
-        """ Updates renderer with incoming message.
+        """Updates renderer with incoming message.
 
         Args:
             message: Incoming message.
@@ -61,13 +67,14 @@ class Renderer:
         """
         raise NotImplementedError("Update not implemented.")
 
+
 @lru_cache(maxsize=1)
 def _get_src_doc_template() -> str:
     """Returns the source document template for the stitch widget."""
     import importlib.resources as resources
     import guidance
 
-    path = resources.files(guidance) / 'resources' / 'graphpaper-inline.html'
+    path = resources.files(guidance) / "resources" / "graphpaper-inline.html"
     with path.open("r", encoding="utf-8") as f:
         return f.read()
 
@@ -107,7 +114,7 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
     # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
     recv_queue = recv_queue_weakref()
     if recv_queue is not None:
-        get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, change['new'])
+        get_bg_async().call_soon_threadsafe(recv_queue.put_nowait, change["new"])
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
@@ -126,7 +133,9 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
         logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
-async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
+async def _handle_recv_messages(
+    renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
+) -> None:
     logger.debug("RECV:init")
     from ..registry import get_exchange
     from ..registry import get_bg_async
@@ -164,14 +173,16 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Jupyter
             logger.error(f"RECV:err:{traceback.format_exc()}")
 
 
-async def _handle_send_messages(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]) -> None:
+async def _handle_send_messages(
+    renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
+) -> None:
     logger.debug("SEND:init")
     # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
     #                Currently, we do a replay of messages on completion for client if client
     #                first receives non-zero message identifier.
 
     # What if we only used 1% of our brain?
-    await asyncio.sleep(200 / 1000.)
+    await asyncio.sleep(200 / 1000.0)
     logger.debug("SEND:ready")
 
     while True:
@@ -206,7 +217,7 @@ class JupyterWidgetRenderer(Renderer):
     """Jupyter widget renderer that is implemented via stitch package."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
-        """ Initializes.
+        """Initializes.
 
         Args:
             trace_handler: Trace handler of an engine.
@@ -226,7 +237,7 @@ class JupyterWidgetRenderer(Renderer):
         self.stitch_widget_observed = False
         self._stitch_on_clientmsg: Optional[Callable[[], None]] = None
         self.last_cell_session_id: Optional[str] = None
-        
+
         # Debug tracking
         self._debug_enabled = False
         self._debug_messages: list[GuidanceMessage] = []
@@ -245,7 +256,6 @@ class JupyterWidgetRenderer(Renderer):
         get_exchange().subscribe(self._on_exchange)
         weakref.finalize(self, _cleanup, self.recv_queue, self.send_queue, f"renderer({id(self)})", self._on_exchange)
 
-
     def _on_exchange(self, message: GuidanceMessage) -> None:
         if not isinstance(message, MetricMessage):  # NOTE(nopdive): Metrics spam at fixed intervals.
             logger.debug(f"ON_EXCHANGE:{message}")
@@ -256,7 +266,6 @@ class JupyterWidgetRenderer(Renderer):
             self.update(message)
         elif isinstance(message, TraceMessage):
             self.update(message)
-
 
     def has_divergence(self, message: GuidanceMessage) -> tuple[bool, int]:
         """Checks if message has divergence with current path.
@@ -328,7 +337,6 @@ class JupyterWidgetRenderer(Renderer):
             else:
                 return False, -1
 
-
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
         from ..registry import get_exchange
         from ..registry import get_bg_async
@@ -359,11 +367,10 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug("RENDERER:execution start")
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
-            out_messages.append(MetricMessage(name="status", value='Running'))
+            out_messages.append(MetricMessage(name="status", value="Running"))
 
             _, self.last_cell_session_id = ipy_handle_event_once(
-                partial(_on_cell_completion, weakref.ref(self)),
-                'post_run_cell'
+                partial(_on_cell_completion, weakref.ref(self)), "post_run_cell"
             )
             self._new_widget_needed = True
             self._running = True
@@ -377,32 +384,32 @@ class JupyterWidgetRenderer(Renderer):
         if diverged:
             logger.debug("RENDERER:diverged")
             out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages):] = self._messages[:shared_ancestor_idx]
+            out_messages[len(out_messages) :] = self._messages[:shared_ancestor_idx]
             self._messages.clear()
-        
+
         # Check if requested to reset and replay
         if isinstance(message, OutputRequestMessage):
             logger.debug(f"RENDERER:replay:{message}")
             out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages):] = self._messages[:]
+            out_messages[len(out_messages) :] = self._messages[:]
 
         # Reset if needed
         if self._new_widget_needed:
             logger.debug("RENDERER:new widget needed")
             # Store existing messages before clearing
             existing_messages = self._messages[:]
-            
+
             # Clear messages
             self._messages = []
 
             if self.stitch_widget is not None and self.stitch_widget_observed:
-                self.stitch_widget.unobserve(self._stitch_on_clientmsg, names='clientmsg')
+                self.stitch_widget.unobserve(self._stitch_on_clientmsg, names="clientmsg")
                 self.stitch_widget_observed = False
                 logger.debug("RENDERER:widget unobserved (new)")
 
             self.stitch_widget = _create_stitch_widget()
             self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self.recv_queue))
-            self.stitch_widget.observe(self._stitch_on_clientmsg, names='clientmsg')
+            self.stitch_widget.observe(self._stitch_on_clientmsg, names="clientmsg")
             self.stitch_widget_observed = True
             logger.debug("RENDERER:widget observed (new)")
 
@@ -410,7 +417,7 @@ class JupyterWidgetRenderer(Renderer):
             display(self.stitch_widget)
 
             self._new_widget_needed = False
-            
+
             # Replay existing messages to the new widget
             if existing_messages:
                 logger.debug(f"RENDERER:replaying {len(existing_messages)} existing messages")
@@ -428,17 +435,17 @@ class JupyterWidgetRenderer(Renderer):
                 self.last_trace_id = out_message.trace_id
 
             self._messages.append(out_message)
-            
+
             # Track for debug if enabled
             if self._debug_enabled:
                 self._debug_messages.append(out_message)
-            
+
             get_bg_async().call_soon_threadsafe(self.send_queue.put_nowait, out_message)
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
         from ..registry import get_bg_async
-        
+
         self._debug_enabled = True
         self._debug_messages = []  # Clear previous messages
 
@@ -449,32 +456,33 @@ class JupyterWidgetRenderer(Renderer):
 
     def get_debug_data(self) -> Optional[str]:
         """Get debug data as a JSON string.
-        
+
         Returns:
             JSON string containing debug data, or None if no data available
         """
         import json
         import datetime
-        
+
         if not self._debug_enabled:
             logger.warning("Debug mode not enabled - call enable_debug() first")
             return None
-            
+
         if not self._debug_messages:
             logger.warning("No debug messages captured yet")
             return None
-        
+
         def make_json_serializable(obj):
             """Convert objects to JSON serializable format."""
             if isinstance(obj, bytes):
                 # Convert bytes to base64 string for JSON serialization
                 import base64
-                return base64.b64encode(obj).decode('utf-8')
+
+                return base64.b64encode(obj).decode("utf-8")
             elif isinstance(obj, dict):
                 return {k: make_json_serializable(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [make_json_serializable(item) for item in obj]
-            elif hasattr(obj, 'model_dump'):
+            elif hasattr(obj, "model_dump"):
                 # Pydantic models
                 return make_json_serializable(obj.model_dump())
             else:
@@ -484,22 +492,19 @@ class JupyterWidgetRenderer(Renderer):
             "timestamp": datetime.datetime.now().isoformat(),
             "messageCount": len(self._debug_messages),
             "messages": [
-                make_json_serializable({
-                    "message_id": msg.message_id,
-                    "class_name": msg.class_name,
-                    **msg.model_dump()
-                }) for msg in self._debug_messages
-            ]
+                make_json_serializable({"message_id": msg.message_id, "class_name": msg.class_name, **msg.model_dump()})
+                for msg in self._debug_messages
+            ],
         }
-        
+
         return json.dumps(debug_data, indent=2)
 
 
 class DoNothingRenderer(Renderer):
-    """ It does nothing."""
+    """It does nothing."""
 
     def __init__(self, trace_handler: TraceHandler) -> None:
-        """ Initializes.
+        """Initializes.
 
         Args:
             trace_handler: Trace handler of an engine.
@@ -512,10 +517,10 @@ class DoNothingRenderer(Renderer):
 
 
 class AutoRenderer(Renderer):
-    """ Automatically detects which renderer to use based on environment."""
+    """Automatically detects which renderer to use based on environment."""
 
     def __init__(self, trace_handler: TraceHandler):
-        """ Initializes.
+        """Initializes.
 
         Args:
             trace_handler: Trace handler of an engine.

@@ -1,4 +1,4 @@
-""" Visualization related to trace. """
+"""Visualization related to trace."""
 
 import json
 from typing import Optional, Dict
@@ -11,14 +11,12 @@ from ..trace import (
     RoleOpenerInput,
     RoleCloserInput,
     ImageOutput,
-    TokenOutput
+    TokenOutput,
 )
 import html
 
 
-def trace_node_to_html(
-    node: TraceNode, prettify_roles=False
-) -> str:
+def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     """Represents trace path as html string.
 
     Args:
@@ -39,7 +37,11 @@ def trace_node_to_html(
             active_role = node
         if isinstance(node.output, TextOutput):
             if active_role is not None:
-                if prettify_roles and isinstance(active_role.input, RoleOpenerInput) and (role_name := active_role.input.name) is not None:
+                if (
+                    prettify_roles
+                    and isinstance(active_role.input, RoleOpenerInput)
+                    and (role_name := active_role.input.name) is not None
+                ):
                     fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
                     buffer.append(fmt)
                 if not prettify_roles:
@@ -62,10 +64,10 @@ def trace_node_to_html(
                     token_str = token.token
                     # assert token_str == chunk_text
 
-                    prob = token.prob # TODO: what if nan?
+                    prob = token.prob  # TODO: what if nan?
                     top_k: dict[str, str] = {}
                     # find the correct token
-                    for _token in (attr.top_k or []):
+                    for _token in attr.top_k or []:
                         top_k[f"{_token.token}"] = f"{_token.prob} - Masked: {_token.masked}"
                     top_k_repr = json.dumps(top_k, indent=2)
 
@@ -122,7 +124,7 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
     Args:
         trace_handler: Trace handler needed to pull user-defined identifiers of trace nodes.
     """
-    from anytree import Node, RenderTree # type: ignore[import-untyped]
+    from anytree import Node, RenderTree  # type: ignore[import-untyped]
 
     root = trace_handler.root()
     trace_viz_map: Dict[TraceNode, Node] = {}

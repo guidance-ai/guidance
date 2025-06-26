@@ -5,6 +5,7 @@ from ...trace import CaptureOutput
 from ..._schema import TokenUsage
 from ...metrics import emit_usage
 
+
 class CaptureVar(TypedDict):
     value: str
     log_prob: Optional[float]

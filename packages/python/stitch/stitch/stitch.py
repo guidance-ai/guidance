@@ -16,10 +16,10 @@ from ._frontend import module_name, module_version
 class StitchWidget(DOMWidget):
     """Widget that purely handles communication between an iframe and kernel via postMessage."""
 
-    _model_name = Unicode('StitchModel').tag(sync=True)
+    _model_name = Unicode("StitchModel").tag(sync=True)
     _model_module = Unicode(module_name).tag(sync=True)
     _model_module_version = Unicode(module_version).tag(sync=True)
-    _view_name = Unicode('StitchView').tag(sync=True)
+    _view_name = Unicode("StitchView").tag(sync=True)
     _view_module = Unicode(module_name).tag(sync=True)
     _view_module_version = Unicode(module_version).tag(sync=True)
 

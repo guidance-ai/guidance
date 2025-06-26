@@ -13,7 +13,7 @@ from .._grammar import token_limit
 
 # context blocks
 from ._block import block
-from ._role import role, system, assistant, user #, function, instruction, indent_roles
+from ._role import role, system, assistant, user  # , function, instruction, indent_roles
 
 # from ..models._model import context_free
 

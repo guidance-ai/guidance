@@ -7,7 +7,7 @@ from guidance import regex, gen, select, models
 
 def test_fstring(selected_model):
     lm = selected_model
-    lm += f'this is a test {select(["item1", "item2"])}'
+    lm += f"this is a test {select(['item1', 'item2'])}"
     assert str(lm) in ["this is a test item1", "this is a test item2"]
 
 
@@ -16,7 +16,7 @@ def test_fstring_custom(selected_model):
 
     @guidance
     def my_function(lm):
-        return lm + f'another {select(["item1", "item2"])}'
+        return lm + f"another {select(['item1', 'item2'])}"
 
     lm += f"this is a test {my_function()}"
     assert str(lm) in ["this is a test another item1", "this is a test another item2"]
@@ -36,9 +36,7 @@ def test_token_healing(selected_model):
     if model_obj is None or type(model_obj).__name__ != "GPT2LMHeadModel":
         pytest.skip("Test for GPT2 bug only")
     gpt2 = selected_model
-    lm = gpt2 + (
-        "This is a story of 10 or 5 or " + regex(r"[0-9]+")
-    )
+    lm = gpt2 + ("This is a story of 10 or 5 or " + regex(r"[0-9]+"))
     assert len(lm) > len("This is a story of 10 or 5 or ")
 
 
@@ -75,8 +73,8 @@ def test_associativity(selected_model: models.Model):
     grammar = gen("number", regex=r"\d")
     engine = selected_model.engine
 
-
     from copy import deepcopy
+
     original_get_logits = engine.get_logits
     prompt_tokens_1_list = []
     prompt_tokens_2_list = []
@@ -93,10 +91,10 @@ def test_associativity(selected_model: models.Model):
         _ = selected_model
         # Get the index of the prompt tokens after the first call
         ix_1 = len(prompt_tokens_1_list)
-        _ += (prompt + grammar)
+        _ += prompt + grammar
 
     with patch.object(engine, "get_logits", side_effect=get_logits_2):
-        _ = (selected_model + prompt)
+        _ = selected_model + prompt
         # Get the index of the prompt tokens after the first call
         ix_2 = len(prompt_tokens_2_list)
         _ += grammar
@@ -109,12 +107,9 @@ def test_associativity(selected_model: models.Model):
 
     # Further assert that the tokenization matches the expected tokenization
     expected_prompt_tokens = engine.tokenizer.encode(prompt.encode())
-    if (
-        engine.tokenizer.bos_token is not None
-        and expected_prompt_tokens[:1] != [engine.tokenizer.bos_token_id]
-    ):
+    if engine.tokenizer.bos_token is not None and expected_prompt_tokens[:1] != [engine.tokenizer.bos_token_id]:
         expected_prompt_tokens = [engine.tokenizer.bos_token_id] + expected_prompt_tokens
         expected_prompt_tokens = engine.tokenizer.recode(expected_prompt_tokens)
     # token healing may cause the prompt seen by the model to be shorter
     assert len(expected_prompt_tokens) >= len(prompt_tokens_1)
-    assert prompt_tokens_1 == expected_prompt_tokens[:len(prompt_tokens_1)]
+    assert prompt_tokens_1 == expected_prompt_tokens[: len(prompt_tokens_1)]

@@ -4,6 +4,7 @@ from ._engine._tokenizer import TokenizerWrappable
 from ..chat import load_template_class
 from typing import List
 
+
 class ByteTokenizer(Tokenizer):
     def __init__(self, chat_template=None):
         # directly map integer values to byte strings
@@ -32,7 +33,7 @@ class ByteTokenizer(Tokenizer):
         i = 0
         result = []
         while i < len(byte_string):
-            if parse_special and byte_string[i:i+3] == b'<s>':
+            if parse_special and byte_string[i : i + 3] == b"<s>":
                 result.append(256)
                 i += 3  # Skip the next two characters as part of '<s>'
             else:

@@ -14,20 +14,25 @@ from .models import Model
 
 _in_stateless_context: ContextVar[bool] = ContextVar("in_stateless_context", default=False)
 
+
 def guidance(
-    f = None,
+    f=None,
     *,
-    stateless = False,
-    cache = False,
-    dedent = True,
-    model = Model,
+    stateless=False,
+    cache=False,
+    dedent=True,
+    model=Model,
 ):
     """Decorator used to define guidance grammars"""
     # if we are not yet being used as a decorator, then save the args
 
     if f is None:
         return functools.partial(
-            guidance, stateless=stateless, cache=cache, dedent=dedent, model=model,
+            guidance,
+            stateless=stateless,
+            cache=cache,
+            dedent=dedent,
+            model=model,
         )
 
     # this strips out indentation in multiline strings that aligns with the current python indentation
@@ -42,9 +47,9 @@ class GuidanceFunction:
         self,
         f,
         *,
-        stateless = False,
-        cache = False,
-        model = Model,
+        stateless=False,
+        cache=False,
+        model=Model,
     ):
         self.f = f
         self.stateless = stateless
@@ -72,8 +77,10 @@ class GuidanceFunction:
     def __repr__(self):
         return f"<GuidanceFunction {self.__module__}.{self.__qualname__}{self.__signature__}>"
 
+
 class GuidanceMethod:
     impl_cache = {}
+
     def __init__(self, impl, instance):
         # Make object that looks like a method (__self__ and __func__) in order to be able to better support weak referencing via weakref.WeakMethod
         # Note we keep a hard reference to the instance to keep it (and therefore our cached impl) alive as long as we are alive
@@ -99,7 +106,12 @@ class GuidanceMethod:
         except KeyError:
             # Make a weak bound method to prevent the instance from being kept alive by the cache
             weak_method = make_weak_bound_method(guidance_function.f, instance)
-            impl = _decorator(weak_method, stateless=guidance_function.stateless, cache=guidance_function.cache, model=guidance_function.model)
+            impl = _decorator(
+                weak_method,
+                stateless=guidance_function.stateless,
+                cache=guidance_function.cache,
+                model=guidance_function.model,
+            )
             cls.impl_cache[key] = impl
             # Clean up the cache when the instance is deleted
             weakref.finalize(instance, cls.impl_cache.pop, key)
@@ -127,11 +139,8 @@ def _decorator(f, *, stateless, cache, model):
 
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
-
         # make a stateless grammar if we can
-        if stateless is True or (
-            callable(stateless) and stateless(*args, **kwargs)
-        ):
+        if stateless is True or (callable(stateless) and stateless(*args, **kwargs)):
             # if we have a (deferred) reference set, then we must be in a recursive definition and so we return the reference
             reference = getattr(thread_local, "_self_call_reference_", None)
             if reference is not None:
@@ -173,7 +182,7 @@ def _decorator(f, *, stateless, cache, model):
         # otherwise must be stateful (which means we can't be inside a select() call)
         else:
             return Function(f, args, kwargs)
- 
+
     # Remove the first argument from the wrapped function since we're going to drop the `lm` argument
     wrapped.__signature__ = signature_pop(inspect.signature(f), 0)
 

@@ -6,6 +6,7 @@ from functools import cached_property
 from ...chat import ChatTemplate, load_template_class
 import llguidance
 
+
 @dataclass
 class TokenizerWrappable:
     eos_token_id: int
@@ -19,9 +20,8 @@ class TokenizerWrappable:
 
     def as_ll_tokenizer(self) -> "llguidance.LLTokenizer":
         """Returns an LLTokenizer that can be used by llguidance."""
-        return llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(self)
-        )
+        return llguidance.LLTokenizer(llguidance.TokenizerWrapper(self))
+
 
 class Tokenizer:
     """This is the standardized tokenizer interface used by guidance models.

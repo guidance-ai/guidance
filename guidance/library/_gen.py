@@ -7,6 +7,7 @@ from ._tool import Tool
 
 logger = logging.getLogger(__name__)
 
+
 def gen(
     name=None,
     *,
@@ -91,9 +92,7 @@ def gen(
     if tools and regex:
         raise ValueError("Cannot use `regex` with `tools`")
 
-    assert (
-        n == 1
-    ), "We still need to add support for n>1! Consider putting your gen call in a loop for now."
+    assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
     assert top_p == 1, "We still need to add support for top_p != 1!"
 
     logger.debug(f'start gen(name="{name}")')
@@ -116,10 +115,18 @@ def gen(
 
     if tools is not None:
         tools = [Tool(callable=x) if not isinstance(x, Tool) else x for x in tools]
+
         @guidance(stateless=False, dedent=False)
         def tool_gen(lm):
             options = [
-                grammar_gen(regex=regex, stop_regex=stop_regex, stop=stop, stop_capture=save_stop_name, temperature=temperature, max_tokens=max_tokens)
+                grammar_gen(
+                    regex=regex,
+                    stop_regex=stop_regex,
+                    stop=stop,
+                    stop_capture=save_stop_name,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
             ]
             for i, tool in enumerate(tools):
                 # Infer a regex that will match the start of a tool call
@@ -129,7 +136,13 @@ def gen(
                     # anything shorter is probably far too ambiguous
                     raise ValueError(f"Could not infer unambiguous tool call prefix for tool {tool.name}")
                 options.append(
-                    grammar_gen(regex=regex, stop=tool_call_prefix, temperature=temperature, max_tokens=max_tokens, name=f"tool{i}"),
+                    grammar_gen(
+                        regex=regex,
+                        stop=tool_call_prefix,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        name=f"tool{i}",
+                    ),
                 )
 
             grm = with_temperature(select(options), temperature)
@@ -156,6 +169,7 @@ def gen(
                             lm += suffix
                         break
             return lm
+
         return tool_gen()
 
     return grammar_gen(
@@ -167,7 +181,7 @@ def gen(
         name=name,
         list_append=list_append,
         temperature=temperature,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
     )
 
 

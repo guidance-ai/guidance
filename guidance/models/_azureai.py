@@ -29,9 +29,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AzureOpenAIInterpreter(
-    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
-):
+class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     """A basic class for interacting with Azure OpenAI."""
 
     def __init__(
@@ -130,9 +128,7 @@ def create_azure_openai_model(
     interpreter_cls: type[AzureOpenAIInterpreter]
     if (model_name and "audio-preview" in model_name) or has_audio_support:
         interpreter_cls = AzureOpenAIAudioInterpreter
-    elif (
-        model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))
-    ) or has_image_support:
+    elif (model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))) or has_image_support:
         interpreter_cls = AzureOpenAIImageInterpreter
     else:
         interpreter_cls = AzureOpenAIInterpreter
@@ -182,9 +178,8 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
             request,
         )
 
-class AzureInferenceInterpreter(
-    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
-):
+
+class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     def __init__(
         self,
         *,
@@ -203,7 +198,6 @@ class AzureInferenceInterpreter(
             credential=credential,
         )
         super().__init__(model=model_name, client=AzureAIClientWrapper(client))
-
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(

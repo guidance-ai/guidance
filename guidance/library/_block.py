@@ -4,8 +4,11 @@ from .._ast import ASTNode, Function
 from ..models._base._model import _active_blocks
 from .._guidance import _in_stateless_context
 
+
 class Block:
-    def __init__(self, name: Optional[str], opener: Union[str, Function, ASTNode], closer: Union[str, Function, ASTNode]):
+    def __init__(
+        self, name: Optional[str], opener: Union[str, Function, ASTNode], closer: Union[str, Function, ASTNode]
+    ):
         self.name = name
         self.opener = opener
         self.closer = closer

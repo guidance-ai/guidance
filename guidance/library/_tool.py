@@ -4,6 +4,7 @@ from ._optional import optional
 from ._sequences import zero_or_more
 from ._subgrammar import lexeme, subgrammar
 
+
 class Tool:
     def __init__(self, call_grammar=None, tool_call=None, callable=None):
         # call_grammar specifies how the tool can be called. Crucially, it has to capture the args in variable 'tool_args'
@@ -14,9 +15,7 @@ class Tool:
         second_option = callable is not None
         # either both are true or both false
         if first_option == second_option:
-            raise Exception(
-                "Must pass either (call_grammar, tool call) or callable, but not both or neither"
-            )
+            raise Exception("Must pass either (call_grammar, tool call) or callable, but not both or neither")
         if second_option:
             call_grammar, tool_call = fn_to_grammar_call(callable)
         self.call_grammar = call_grammar
@@ -33,13 +32,15 @@ def basic_func_grammar(name):
     obj += subgrammar(
         name="tool_args",
         body=optional(
-            select([
-                args,
-                kwargs,
-                args + "," + kwargs,
-            ])
+            select(
+                [
+                    args,
+                    kwargs,
+                    args + "," + kwargs,
+                ]
+            )
         ),
-        skip_regex=r" *"
+        skip_regex=r" *",
     )
     obj += ")"
     return obj

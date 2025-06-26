@@ -15,6 +15,7 @@ MISSING_VALUE = 0
 
 logger = logging.getLogger(__name__)
 
+
 class PeriodicMetricsGenerator:
     def __init__(self, monitor: "Monitor", sleep_sec=0.5):
         self._monitor = monitor
@@ -25,6 +26,7 @@ class PeriodicMetricsGenerator:
 
     def start(self):
         from ..registry import get_bg_async
+
         bg = get_bg_async()
         self._task = bg.run_async_coroutine(bg.async_task(self._emit())).result()
 
@@ -94,12 +96,14 @@ class PeriodicMetricsGenerator:
 
         logger.debug("METRICGEN:exiting")
 
+
 class MonitoringMetric(str, Enum):
     CPU_USAGE = "cpu_usage"
     MEM_USAGE = "mem_usage"
     GPU_USAGE = "gpu_usage"
     GPU_USED_MEM = "gpu_used_mem"
     GPU_TOTAL_MEM = "gpu_total_mem"
+
 
 class Monitor:
     """Monitoring service to collect necessary metrics for visualization"""
@@ -126,6 +130,7 @@ class Monitor:
         has_gpustat = False
         try:
             import gpustat
+
             has_gpustat = True
         except:
             logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
@@ -147,7 +152,7 @@ class Monitor:
                 average_cpu_utilization = average_cpu_percent / 100.0
                 memory_usage = psutil.virtual_memory()
                 memory_usage_gb = memory_usage.used / (1024**3)
-    
+
                 self.metrics_dict[MonitoringMetric.CPU_USAGE].append(average_cpu_utilization)
                 self.metrics_dict[MonitoringMetric.MEM_USAGE].append(memory_usage_gb)
                 if to_collect_gpu_stats:
@@ -164,7 +169,7 @@ class Monitor:
                 # Trim lists to max_size
                 for metrics in self.metrics_dict.values():
                     if len(metrics) > self.max_size:
-                        metrics = metrics[-self.max_size:]
+                        metrics = metrics[-self.max_size :]
 
                 lat = time.time() - t0
                 sleep_time = self.interval_ms / 1000.0 - lat
@@ -177,6 +182,7 @@ class Monitor:
 
     def start(self):
         from ..registry import get_bg_async
+
         bg = get_bg_async()
         self.stop_flag = False
         self.task = bg.run_async_coroutine(bg.async_task(self._monitor_fn())).result()
@@ -198,16 +204,14 @@ class Monitor:
 
     def get_metrics(
         self,
-        metrics: Sequence[MonitoringMetric]=(),
+        metrics: Sequence[MonitoringMetric] = (),
     ) -> dict[MonitoringMetric, Any]:
         if not metrics:
             metrics = MonitoringMetric.__members__.values()
         result = {}
         for metric in metrics:
             if metric in MonitoringMetric.__members__.values():
-                result[metric] = (
-                    self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
-                )
+                result[metric] = self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
             else:
                 raise ValueError(f"Unknown monitoring metric: {metric}")
         return result
@@ -215,21 +219,20 @@ class Monitor:
     def get_metric(self, metric: MonitoringMetric) -> Any:
         return self.get_metrics([metric])[metric]
 
+
 def emit_usage(usage: TokenUsage) -> None:
     from ..registry import get_exchange
+
     exchange = get_exchange()
 
-    exchange.publish(MetricMessage(
-        name="token reduction",
-        value=usage.token_savings * 100,  # display as percentage
-    ), topic=METRICS_TOPIC)
+    exchange.publish(
+        MetricMessage(
+            name="token reduction",
+            value=usage.token_savings * 100,  # display as percentage
+        ),
+        topic=METRICS_TOPIC,
+    )
 
-    exchange.publish(MetricMessage(
-        name="consumed",
-        value=usage.forward_passes
-    ), topic=METRICS_TOPIC)
+    exchange.publish(MetricMessage(name="consumed", value=usage.forward_passes), topic=METRICS_TOPIC)
 
-    exchange.publish(MetricMessage(
-        name="avg latency",
-        value=usage.avg_latency_ms
-    ), topic=METRICS_TOPIC)
+    exchange.publish(MetricMessage(name="avg latency", value=usage.avg_latency_ms), topic=METRICS_TOPIC)

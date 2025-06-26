@@ -3,6 +3,7 @@ from .._grammar import subgrammar, regex
 
 __all__ = ["subgrammar", "regex", "as_regular_grammar", "lexeme"]
 
+
 def as_regular_grammar(node: GrammarNode, lexeme=False):
     # TODO: Remove this assertion-only check?
     if isinstance(node, RuleNode):
@@ -11,6 +12,7 @@ def as_regular_grammar(node: GrammarNode, lexeme=False):
         rule = RuleNode("dummy", node)
     assert rule.is_allowed_in_lark_terminal
     return node
+
 
 def lexeme(body_regex: str, json_string: bool = False):
     if json_string:

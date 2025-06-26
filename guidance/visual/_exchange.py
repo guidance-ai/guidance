@@ -1,4 +1,4 @@
-""" Poor man's exchanges for routing messages. """
+"""Poor man's exchanges for routing messages."""
 
 from collections import defaultdict
 from typing import Callable
@@ -13,18 +13,18 @@ WILDCARD_PATTERN = r".*"
 
 
 class TopicExchange:
-    """ Queue-less topic exchange for routing messages.
+    """Queue-less topic exchange for routing messages.
 
     This is not as comprehensive as a full distributed topic exchange.
     It is specific to a single process, with no queues and less generalized routing keys.
     """
 
     def __init__(self):
-        """ Initializes."""
+        """Initializes."""
         self._observers = defaultdict(list)
 
     def subscribe(self, callback: Callable[[GuidanceMessage], None], topic_pat: str = WILDCARD_PATTERN) -> None:
-        """ Subscribes to incoming messages.
+        """Subscribes to incoming messages.
 
         Args:
             callback: Callback to handle incoming messages.
@@ -35,7 +35,7 @@ class TopicExchange:
         logger.debug(f"EXCHANGE:post_subscribe:{self._observers[topic_pat]}")
 
     def unsubscribe(self, callback: Callable[[GuidanceMessage], None], topic_pat: str = WILDCARD_PATTERN) -> None:
-        """ Unsubscribes from incoming messages.
+        """Unsubscribes from incoming messages.
 
         Args:
             callback: Callback to remove.
@@ -53,7 +53,7 @@ class TopicExchange:
             del self._observers[topic_pat]
 
     def publish(self, message: GuidanceMessage, topic: str = DEFAULT_TOPIC):
-        """ Notifies all subscribers to topic pattern of an incoming message.
+        """Notifies all subscribers to topic pattern of an incoming message.
 
         Args:
             message: Incoming message.

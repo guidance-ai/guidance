@@ -69,17 +69,10 @@ class LlamaCppTokenizer(Tokenizer):
 
         # Chat Template logic
         if chat_template is None:
-            if (
-                hasattr(self._model_obj, "metadata")
-                and "tokenizer.chat_template" in self._model_obj.metadata
-            ):
+            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
-        super().__init__(
-            ll_tokenizer=ll_tokenizer,
-            chat_template=chat_template,
-            bos_token_id=model_obj.token_bos()
-        )
+        super().__init__(ll_tokenizer=ll_tokenizer, chat_template=chat_template, bos_token_id=model_obj.token_bos())
 
 
 class LlamaCppEngine(Engine):
@@ -142,9 +135,14 @@ class LlamaCppEngine(Engine):
         self._cached_token_ids = []
         self._cached_logits = None
 
-        super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
-                         compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+        super().__init__(
+            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
+        )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """Computes the logits for the given token state.
@@ -209,10 +207,7 @@ class LlamaCppEngine(Engine):
         self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
         if include_all_uncached_tokens:
-            logits = np.concatenate(
-                logits_for_each_batch,
-                axis=0
-            )
+            logits = np.concatenate(logits_for_each_batch, axis=0)
             assert logits.shape[0] == len(token_ids) - num_cached
         else:
             logits = self._cached_logits
@@ -222,6 +217,7 @@ class LlamaCppEngine(Engine):
             "n_tokens": len(token_ids),
             "n_cached": num_cached,
         }
+
 
 class LlamaCpp(Model):
     def __init__(
@@ -235,7 +231,7 @@ class LlamaCpp(Model):
         enable_ff_tokens=True,
         enable_monitoring=True,
         default_sampling_params: Optional[SamplingParams] = None,
-        **llama_cpp_kwargs
+        **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 

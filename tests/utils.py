@@ -13,6 +13,7 @@ from guidance._parser import ByteParserException
 
 opanai_model_cache = {}
 
+
 def slowdown():
     """Limit test execution rate
 
@@ -36,6 +37,7 @@ def env_or_fail(var_name: str) -> str:
     assert env_value is not None, f"Env '{var_name}' not found."
 
     return env_value
+
 
 def env_or_skip(var_name: str) -> str:
     env_value = os.getenv(var_name, None)
@@ -63,9 +65,7 @@ def get_openai_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in opanai_model_cache:
-        opanai_model_cache[key] = guidance.models.OpenAI(
-            model_name, caching=caching, **kwargs
-        )
+        opanai_model_cache[key] = guidance.models.OpenAI(model_name, caching=caching, **kwargs)
     lm = opanai_model_cache[key]
 
     return lm
@@ -81,9 +81,7 @@ def get_transformers_model(model_name, caching=False, **kwargs):
     # load it over and over again
     key = model_name + "_" + str(caching) + "_" + str(kwargs)
     if key not in transformers_model_cache:
-        transformers_model_cache[key] = guidance.models.Transformers(
-            model_name, **kwargs
-        )
+        transformers_model_cache[key] = guidance.models.Transformers(model_name, **kwargs)
 
     return transformers_model_cache[key]
 
@@ -95,11 +93,7 @@ llama_cpp_defaults = {"n_batch": 248}
 def get_llama_cpp_model(model_name, caching=False, **kwargs):
     """Get a llama.cpp LLM with model reuse."""
 
-    if (
-        model_name is None
-        or isinstance(model_name, str)
-        and len(model_name.strip()) == 0
-    ):
+    if model_name is None or isinstance(model_name, str) and len(model_name.strip()) == 0:
         model_name = os.environ.get("LLAMA_CPP_MODEL", "")
         if len(model_name.strip()) == 0:
             pytest.skip("No llama_cpp model found.")
@@ -153,6 +147,7 @@ def check_match_failure(
     if allowed_bytes is not None:
         assert pe.value.allowed_bytes == allowed_bytes
 
+
 class GrammarNodeCallable(Protocol):
     """
     Protocol for a callable that returns a GrammarNode and accepts
@@ -166,7 +161,7 @@ def generate_and_check(
     grammar_callable: GrammarNodeCallable,
     test_string: str,
     capture_key="my_capture",
-    eos_token = "<s>",
+    eos_token="<s>",
 ) -> models.Mock:
     # First, validate that the grammar actually accepts the test string
     grammar = grammar_callable(name=capture_key)
@@ -202,16 +197,9 @@ def check_run_with_temperature(lm: models.Model, desired_temperature: float):
     if desired_temperature is not None:
         assert len(lm.engine.called_temperatures) > 0
         # Make sure that at least one temperature matches exactly
-        temperature_matches = [
-            x == desired_temperature for x in lm.engine.called_temperatures
-        ]
+        temperature_matches = [x == desired_temperature for x in lm.engine.called_temperatures]
         assert any(temperature_matches)
         # Check that all temperatures were 0 or the desired temperature
         # If there has been a forced byte, then get_logits() is
         # called with a temperature of zero
-        assert all(
-            [
-                (x == desired_temperature or x == 0)
-                for x in lm.engine.called_temperatures
-            ]
-        )
+        assert all([(x == desired_temperature or x == 0) for x in lm.engine.called_temperatures])

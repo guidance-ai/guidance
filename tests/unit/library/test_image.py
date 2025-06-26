@@ -14,6 +14,7 @@ from ...utils import remote_image_url
 # what was tested, for reference, in case we want to reproduct it in the new system
 #################################################################################
 
+
 def test_local_image():
     # 1. Create a mock model
     # 2. Add an image from the local filesystem to the model's prompt
@@ -37,7 +38,7 @@ def test_remote_image():
 
 def test_remote_image_not_found():
     # 1. Create a mock model
-    # 2. Try to add a non-existing remote image 
+    # 2. Try to add a non-existing remote image
     # 3. Catch an HTTPError or URLError from the model trying to fetch the image, which should result in a 404
     pass
 

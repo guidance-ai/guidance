@@ -31,7 +31,7 @@ def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
     lm = (
         lm
         + f"""Tweak this proverb to apply to model instructions instead.
-    {gen('verse', max_tokens=2)}
+    {gen("verse", max_tokens=2)}
     """
     )
     assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
@@ -39,7 +39,7 @@ def test_llama_cpp_recursion_error(llamacpp_model: guidance.models.Model):
 
 def test_llama_cpp_select2(llamacpp_model: guidance.models.Model):
     lm = llamacpp_model
-    lm += f'this is a test1 {select(["item1", "item2"])} and test2 {select(["item3", "item4"])}'
+    lm += f"this is a test1 {select(['item1', 'item2'])} and test2 {select(['item3', 'item4'])}"
     assert str(lm) in [
         "this is a test1 item1 and test2 item3",
         "this is a test1 item1 and test2 item4",
@@ -113,11 +113,7 @@ def test_repeat_calls(llamacpp_model: guidance.models.Model, selected_model_name
         a = []
         lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, temperature=0)
         a.append(lm["test"])
-        lm = (
-            llama2
-            + "How much is 2 + 2? "
-            + gen(name="test", max_tokens=10, regex=r"\d+", temperature=0)
-        )
+        lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, regex=r"\d+", temperature=0)
         a.append(lm["test"])
         lm = llama2 + "How much is 2 + 2? " + gen(name="test", max_tokens=10, temperature=0)
         a.append(lm["test"])
@@ -199,7 +195,7 @@ def test_llama_with_temp(llamacpp_model: guidance.models.Model):
     lm = llamacpp_model
     lm += "Here is a cute 5-line poem about cats and dogs:\n"
     for i in range(5):
-        lm += f"LINE {i+1}: " + gen(temperature=0.8, suffix="\n")
+        lm += f"LINE {i + 1}: " + gen(temperature=0.8, suffix="\n")
     # we just want to make sure we don't crash the numpy sampler
 
 
@@ -215,9 +211,7 @@ def test_max_tokens(llamacpp_model: guidance.models.Model):
     lm += "Who won the last Kentucky derby and by how much?"
     lm += "\n\n<<The last Kentucky Derby was held"
     lm += gen(max_tokens=2)
-    assert (
-        str(lm)[-1] != "<"
-    )  # the output should not end with "<" because that is coming from the stop sequence...
+    assert str(lm)[-1] != "<"  # the output should not end with "<" because that is coming from the stop sequence...
 
 
 class TestLlamaCppTokenizers:

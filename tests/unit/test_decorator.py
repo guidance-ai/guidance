@@ -6,14 +6,16 @@ import inspect
 import guidance
 from guidance import gen, role
 
+
 def test_dedent_basic():
     """Test that dedent functionality in f-strings works across Python versions."""
+
     @guidance(stateless=True, dedent=True)
     def character_maker(lm):
         lm += f"""\
         {{
-            "name": "{1+1}",
-            "age": "{gen('name', stop='"', max_tokens=1)}",
+            "name": "{1 + 1}",
+            "age": "{gen("name", stop='"', max_tokens=1)}",
         }}"""
         return lm
 
@@ -24,11 +26,12 @@ def test_dedent_basic():
 
 def test_basic_multiline_fstring():
     """Test a simple multiline f-string."""
+
     @guidance(stateless=True, dedent=True)
     def character_maker(lm):
         lm += f"""\
         {{
-            "name": "{'har' + 'sha'}",
+            "name": "{"har" + "sha"}",
             "age": "{314}",
         }}"""
         return lm
@@ -37,14 +40,16 @@ def test_basic_multiline_fstring():
     result = lm + character_maker()
     assert str(result) == '{\n    "name": "harsha",\n    "age": "314",\n}'
 
+
 def test_mixed_content():
     """Test mixed f-strings and regular strings."""
+
     @guidance(stateless=True, dedent=True)
     def mixed_content(lm):
         s = "Regular string\n"
         s += f"""\
         {{
-            "name": "{'har' + 'sha'}",
+            "name": "{"har" + "sha"}",
             "age": "{314}",
         }}"""
         lm += s
@@ -54,8 +59,10 @@ def test_mixed_content():
     result = lm + mixed_content()
     assert str(result) == 'Regular string\n{\n    "name": "harsha",\n    "age": "314",\n}'
 
+
 def test_non_fstring_multiline():
     """Test multiline strings that are not f-strings."""
+
     @guidance(stateless=True, dedent=True)
     def non_fstring_multiline(lm):
         s = """\
@@ -68,10 +75,12 @@ def test_non_fstring_multiline():
 
     lm = guidance.models.Mock()
     result = lm + non_fstring_multiline()
-    assert str(result) == 'Line 1\nLine 2\nLine 3\n'
+    assert str(result) == "Line 1\nLine 2\nLine 3\n"
+
 
 def test_empty_strings():
     """Test empty strings."""
+
     @guidance(stateless=True, dedent=True)
     def empty_string(lm):
         s = f"""\
@@ -81,24 +90,27 @@ def test_empty_strings():
 
     lm = guidance.models.Mock()
     result = lm + empty_string()
-    assert str(result) == ''
+    assert str(result) == ""
+
 
 def test_inconsistent_indentation():
     """Test strings with inconsistent indentation."""
+
     @guidance(stateless=True, dedent=True)
     def inconsistent_indentation(lm):
         s = f"""\
         {{
-        "name": "{'har' + 'sha'}",
+        "name": "{"har" + "sha"}",
           "age": "{314}",
-        "weapon": "{'sword'}"
+        "weapon": "{"sword"}"
         }}"""
         lm += s
         return lm
-    
+
     lm = guidance.models.Mock()
     result = lm + inconsistent_indentation()
     assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
+
 
 # NOTE [HN]: The following two tests currently don't work, but they're fairly special/rare cases.
 # Some implementation thoughts for the future:
@@ -126,7 +138,7 @@ def test_inconsistent_indentation():
 #     @guidance(stateless=True, dedent=True)
 #     def outer_function(lm):
 #         outer_var = "outer_value"
-        
+
 #         def inner_function():
 #             inner_var = f"""\
 #             Inner function variable:
@@ -140,10 +152,12 @@ def test_inconsistent_indentation():
 #     result = lm + outer_function()
 #     assert result == "Inner function variable:\nouter_var: outer_value\n"
 
+
 def test_exception_on_repeat_calls():
     @guidance(stateless=True, dedent=False)
     def raises(lm):
         assert False
+
     with pytest.raises(AssertionError):
         raises()
     with pytest.raises(AssertionError):
@@ -185,8 +199,7 @@ class TestGuidanceMethodCache:
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
-            str(lm + grammar1)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+            str(lm + grammar1) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
         assert (
             str(lm + grammar2)
@@ -201,13 +214,9 @@ class TestGuidanceMethodCache:
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
-            str(lm + grammar1)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+            str(lm + grammar1) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
-        assert (
-            str(lm + grammar2)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThanks!"
-        )
+        assert str(lm + grammar2) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThanks!"
 
     def test_hit_cache_when_instance_hash_does_not_change(self):
         """
@@ -221,13 +230,11 @@ class TestGuidanceMethodCache:
         assert grammar1 is grammar2
         lm = guidance.models.Mock()
         assert (
-            str(lm + grammar1)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+            str(lm + grammar1) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
         # Note that the delimiter is still the same as the first call since the hash didn't change
         assert (
-            str(lm + grammar2)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+            str(lm + grammar2) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
 
     def test_guidance_method_no_cache(self):
@@ -246,13 +253,11 @@ class TestGuidanceMethodCache:
         assert grammar1 is not grammar2
         lm = guidance.models.Mock()
         assert (
-            str(lm + grammar1)
-            == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
+            str(lm + grammar1) == "You are a helpful AI. Do what the user asks:\nComputer, tell me a joke.\nThank you."
         )
         # Note that the delimiter actually changes because the instance changed and we're not calling the cached method
         assert (
-            str(lm + grammar2)
-            == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
+            str(lm + grammar2) == "You are a helpful AI. Do what the user asks:\tComputer, tell me a joke.\tThank you."
         )
 
 
@@ -263,8 +268,8 @@ class TestGuidanceMethodDedent:
             def dedent_method(self, lm):
                 lm += f"""\
                 {{
-                    "name": "{1+1}",
-                    "age": "{gen('name', stop='"', max_tokens=1)}",
+                    "name": "{1 + 1}",
+                    "age": "{gen("name", stop='"', max_tokens=1)}",
                 }}"""
                 return lm
 
@@ -280,7 +285,7 @@ class TestGuidanceMethodDedent:
             def dedent_method(self, lm):
                 lm += f"""\
                 {{
-                    "name": "{'har' + 'sha'}",
+                    "name": "{"har" + "sha"}",
                     "age": "{314}",
                 }}"""
                 return lm
@@ -298,7 +303,7 @@ class TestGuidanceMethodDedent:
                 s = "Regular string\n"
                 s += f"""\
                 {{
-                    "name": "{'har' + 'sha'}",
+                    "name": "{"har" + "sha"}",
                     "age": "{314}",
                 }}"""
                 lm += s
@@ -349,9 +354,9 @@ class TestGuidanceMethodDedent:
             def dedent_method(self, lm):
                 s = f"""\
                 {{
-                "name": "{'har' + 'sha'}",
+                "name": "{"har" + "sha"}",
                   "age": "{314}",
-                "weapon": "{'sword'}"
+                "weapon": "{"sword"}"
                 }}"""
                 lm += s
                 return lm
@@ -361,6 +366,7 @@ class TestGuidanceMethodDedent:
         lm = guidance.models.Mock()
         result = lm + grammar
         assert str(result) == '{\n"name": "harsha",\n  "age": "314",\n"weapon": "sword"\n}'
+
 
 class TestGuidanceRecursion:
     class MyClass:
@@ -377,6 +383,7 @@ class TestGuidanceRecursion:
             return lm + guidance.select(["a", recursive()])
 
         assert recursive() is not None
+
 
 class TestMethodGarbageCollection:
     class MyClass:
@@ -407,7 +414,6 @@ class TestMethodGarbageCollection:
         # Check if the object was garbage collected
         assert obj_ref() is None
 
-
     def test_garbage_collection_uncached_method(self):
         obj = self.MyClass()
         # Create a weak reference to the object
@@ -420,7 +426,6 @@ class TestMethodGarbageCollection:
         gc.collect()
         # Check if the object was garbage collected
         assert obj_ref() is None
-
 
     def test_deleting_instance_lets_method_be_garbage_collected(self):
         obj = self.MyClass()
@@ -438,7 +443,6 @@ class TestMethodGarbageCollection:
         # Check if the object was garbage collected
         assert meth_ref() is None
 
-
     def test_deleting_instance_does_not_break_method(self):
         # Reference to method but not instance
         method = self.MyClass().cached_method
@@ -451,20 +455,25 @@ class TestSignature:
     def test_function_signature(self):
         def func(a, b=1, *, c, d=2):
             pass
+
         @guidance(stateless=True)
         def guidance_func(lm, a, b=1, *, c, d=2):
             return lm
+
         assert inspect.signature(guidance_func) == inspect.signature(func)
 
     def test_method_signature(self):
         class MyClass:
             def method(self, a, b=1, *, c, d=2):
                 pass
+
             @guidance(stateless=True)
             def guidance_method(self, lm, a, b=1, *, c, d=2):
                 pass
+
         obj = MyClass()
         assert inspect.signature(obj.guidance_method) == inspect.signature(obj.method)
+
 
 def test_roles_in_stateless():
     """Test that roles are not allowed in stateless mode."""

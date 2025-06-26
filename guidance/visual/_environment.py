@@ -1,4 +1,4 @@
-""" Rendering environment detection.
+"""Rendering environment detection.
 
 Detection logic is inspired from both plotly and interpretml environment detection.
 - https://github.com/plotly/plotly.py
@@ -18,10 +18,10 @@ class EnvFlags(BaseModel):
 
 
 class Environment:
-    """ Capabilities based environment detection."""
+    """Capabilities based environment detection."""
 
     def __init__(self):
-        """ Initializes.
+        """Initializes.
 
         This will immediately check for which environments are detected.
         """
@@ -37,19 +37,17 @@ class Environment:
                 envs.append(name)
         self._detected_envs = envs
 
-
     @property
     def detected_envs(self) -> list[str]:
-        """ Detected environments (i.e. vscode, ipython-zmq).
+        """Detected environments (i.e. vscode, ipython-zmq).
 
         Returns:
             Detected environment names.
         """
         return self._detected_envs
 
-
     def is_notebook(self) -> bool:
-        """ Determines if the python process is in a notebook.
+        """Determines if the python process is in a notebook.
 
         Returns:
             True if in notebook.
@@ -57,7 +55,7 @@ class Environment:
         return self._flags.is_notebook
 
     def is_cloud(self) -> bool:
-        """ Determines if the python process is in a cloud provider.
+        """Determines if the python process is in a cloud provider.
 
         Returns:
             True if in notebook.
@@ -65,7 +63,7 @@ class Environment:
         return self._flags.is_cloud
 
     def is_terminal(self) -> bool:
-        """ Determines if the python process not in a notebook (we assume terminal).
+        """Determines if the python process not in a notebook (we assume terminal).
 
         Returns:
             True if in terminal.
@@ -101,6 +99,7 @@ def _detect_ipython(flags: EnvFlags) -> bool:
     found = False
     try:
         from IPython import get_ipython
+
         found = get_ipython() is not None
     except (NameError, ImportError):  # pragma: no cover
         pass

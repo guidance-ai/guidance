@@ -12,8 +12,8 @@ def test_repeat_simple_model():
     for i in range(2):
         set_renderer(JupyterWidgetRenderer(trace_handler))
 
-        lm = Transformers('gpt2')
-        lm += 'Hi hi hi'
+        lm = Transformers("gpt2")
+        lm += "Hi hi hi"
         lm += gen(max_tokens=5)
 
         set_renderer(original_renderer)
@@ -29,6 +29,6 @@ def test_roles():
     with system():
         m1 = m0 + "You are responsible for writing an epic poem."
     with user():
-        m2 = m1 + "Roses are red and " + gen(name="suffix", regex=r'[\w\s]{20,30}', max_tokens=30)
+        m2 = m1 + "Roses are red and " + gen(name="suffix", regex=r"[\w\s]{20,30}", max_tokens=30)
 
     assert m2 is not None

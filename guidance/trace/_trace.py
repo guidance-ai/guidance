@@ -15,11 +15,12 @@ class NodeAttr(BaseModel):
     """Attributes of a trace node."""
 
     _subclasses: ClassVar[set[type["NodeAttr"]]] = set()
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls._subclasses.add(cls)
 
-    @computed_field # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def class_name(self) -> str:
         """Class name of the message."""
@@ -28,29 +29,25 @@ class NodeAttr(BaseModel):
     @model_validator(mode="before")
     def validate_class_name(cls, data):
         if isinstance(data, dict):
-            if 'class_name' in data and data['class_name'] != cls.__name__:
+            if "class_name" in data and data["class_name"] != cls.__name__:
                 raise ValueError(f"mismatched class name: {data['class_name']}, expected: {cls.__name__}")
         return data
 
     @classmethod
     def as_discriminated_union(cls) -> type["NodeAttr"]:
         return Annotated[
-            Union[
-                tuple(
-                    Annotated[tp, Tag(tp.__name__)]
-                    for tp in cls._subclasses
-                )
-            ],
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
-            )
-        ] # type: ignore[return-value]
+            ),
+        ]  # type: ignore[return-value]
 
     def __repr__(self):
         return pydantic_no_default_repr(self)
 
     def __str__(self):
         return pydantic_no_default_str(self)
+
 
 class InputAttr(NodeAttr):
     """Input for a guidance program (i.e. literal or guidance grammar)."""
@@ -99,12 +96,14 @@ class ImageInput(InputAttr):
 
 class AudioInput(InputAttr):
     """Audio input."""
+
     value: Base64Bytes
     format: str = "wav"
 
 
 class VideoInput(InputAttr):
     """Video input."""
+
     value: Base64Bytes
     format: str = "mp4"
 
@@ -138,6 +137,7 @@ class RoleCloserInput(InputAttr):
 
 class AudioOutput(OutputAttr):
     """Audio output."""
+
     value: Base64Bytes
     format: str = "wav"
     is_input: bool = False
@@ -145,6 +145,7 @@ class AudioOutput(OutputAttr):
 
 class VideoOutput(OutputAttr):
     """Video output."""
+
     value: Base64Bytes
     format: str = "mp4"
     is_input: bool = False
@@ -170,19 +171,23 @@ class TextOutput(OutputAttr):
     def __str__(self):
         return self.value
 
+
 class Token(BaseModel):
     token: str
     bytes: Base64Bytes
     prob: float = float("nan")
     masked: bool = False
 
+
 class TokenOutput(TextOutput):
     token: Token
     top_k: Optional[list[Token]] = None
 
+
 class Backtrack(OutputAttr):
     n_tokens: int
     bytes: Base64Bytes
+
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.
@@ -348,9 +353,7 @@ class TraceHandler(BaseModel):
     def __hash__(self):
         return hash(id(self))
 
-    def update_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
-    ) -> TraceNode:
+    def update_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None) -> TraceNode:
         """Update the trace node with the given identifier.
 
         If the trace node does not exist, it will be created.

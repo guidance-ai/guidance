@@ -12,12 +12,8 @@ from ._utils import strip_multiline_string_indents
 
 # This makes the guidance module callable
 class _Guidance(types.ModuleType):
-    def __call__(
-        self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model
-    ):
-        return guidance(
-            f, stateless=stateless, cache=cache, dedent=dedent, model=model
-        )
+    def __call__(self, f=None, *, stateless=False, cache=None, dedent=True, model=models.Model):
+        return guidance(f, stateless=stateless, cache=cache, dedent=dedent, model=model)
 
 
 sys.modules[__name__].__class__ = _Guidance
