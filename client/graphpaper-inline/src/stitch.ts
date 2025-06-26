@@ -105,6 +105,10 @@ export interface OutputRequestMessage extends GuidanceMessage {
     class_name: 'OutputRequestMessage'
 }
 
+export interface ExecutionCompletedAckMessage extends GuidanceMessage {
+    class_name: 'ExecutionCompletedAckMessage'
+}
+
 export interface MetricMessage extends GuidanceMessage {
     class_name: 'MetricMessage',
     name: string,

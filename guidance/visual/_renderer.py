@@ -8,6 +8,7 @@ Our main focus is on jupyter notebooks and later terminal.
 import asyncio
 import logging
 import weakref
+import threading
 from typing import Optional, Callable, TYPE_CHECKING
 from asyncio import Queue
 from functools import partial, lru_cache
@@ -20,7 +21,7 @@ from ._message import ExecutionCompletedMessage, \
     deserialize_message, serialize_message, ClientReadyAckMessage, ExecutionStartedMessage, OutputRequestMessage
 from .._utils import log_cleanup
 from ..trace import TraceHandler
-from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
+from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage, ExecutionCompletedAckMessage
 from warnings import warn
 
 try:
@@ -43,6 +44,17 @@ if TYPE_CHECKING:
     from stitch import StitchWidget
 
 logger = logging.getLogger(__name__)
+
+# Uncomment the following lines to enable file logging
+import datetime
+log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
+file_handler = logging.FileHandler(log_filename)
+file_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s', 
+                             datefmt='%H:%M:%S')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+logger.setLevel(logging.DEBUG)
 
 DEFAULT_TOPIC = "default"
 
@@ -158,6 +170,13 @@ async def _handle_recv_messages(renderer_weakref: weakref.ReferenceType["Jupyter
                 get_bg_async().call_soon_threadsafe(renderer.send_queue.put_nowait, ClientReadyAckMessage())
             elif isinstance(message, OutputRequestMessage):
                 logger.debug("RECV:outputrequest")
+            elif isinstance(message, ExecutionCompletedAckMessage):
+                logger.debug(f"RECV:ExecutionCompletedAck (id={message.message_id})")
+                if renderer._ack_received_event is not None:
+                    logger.debug(f"RECV:setting ack received event, event={id(renderer._ack_received_event)}")
+                    renderer._ack_received_event.set()
+                else:
+                    logger.debug(f"RECV:ack received but no event to set")
 
             get_exchange().publish(message, topic=f"{DEFAULT_TOPIC}")
             renderer.recv_queue.task_done()
@@ -231,6 +250,9 @@ class JupyterWidgetRenderer(Renderer):
         # Debug tracking
         self._debug_enabled = False
         self._debug_messages: list[GuidanceMessage] = []
+        
+        # For waiting on execution completion acknowledgment
+        self._ack_received_event = None
 
         # Create queue and wait for instantiation
         self.send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
@@ -346,15 +368,24 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            get_exchange().publish(message)
-
+            
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
             else:
                 out_messages.append(MetricMessage(name="status", value="Done"))
+            
+            # Set up event for waiting on acknowledgment BEFORE sending the message
+            self._ack_received_event = threading.Event()
+            logger.debug(f"RENDERER:setup ack event for ExecutionCompletedMessage, event={id(self._ack_received_event)}")
         elif not self._running and isinstance(message, TraceMessage):
             # Execution started
-            logger.debug("RENDERER:execution start")
+            logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
+            
+            # Clear any pending ack event from previous execution
+            if self._ack_received_event is not None:
+                logger.debug("RENDERER:clearing previous ack event")
+                self._ack_received_event = None
+            
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value='Running'))
@@ -373,9 +404,10 @@ class JupyterWidgetRenderer(Renderer):
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
         if diverged:
-            logger.debug("RENDERER:diverged")
+            logger.debug(f"RENDERER:diverged, keeping {shared_ancestor_idx} messages out of {len(self._messages)}")
             out_messages.append(ResetDisplayMessage())
             out_messages[len(out_messages):] = self._messages[:shared_ancestor_idx]
+            logger.debug(f"RENDERER:cleared {len(self._messages)} messages, keeping {len(self._messages[:shared_ancestor_idx])}")
             self._messages.clear()
         
         # Check if requested to reset and replay
@@ -418,6 +450,7 @@ class JupyterWidgetRenderer(Renderer):
 
         # Append current message to outgoing
         out_messages.append(message)
+        logger.debug(f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages")
 
         # Send outgoing messages to client
         for out_message in out_messages:
@@ -432,6 +465,21 @@ class JupyterWidgetRenderer(Renderer):
                 self._debug_messages.append(out_message)
             
             get_bg_async().call_soon_threadsafe(self.send_queue.put_nowait, out_message)
+
+        # Wait for ExecutionCompletedAck if we set up an event
+        if self._ack_received_event is not None:
+            logger.debug("RENDERER:waiting for ExecutionCompletedAck...")
+            
+            # Wait up to 2 seconds for acknowledgment
+            ack_received = self._ack_received_event.wait(timeout=2.0)
+            
+            if ack_received:
+                logger.debug("RENDERER:ExecutionCompletedAck received - continuing")
+                # Clear the event since we got the ack
+                self._ack_received_event = None
+            else:
+                logger.warning("RENDERER:ExecutionCompletedAck timeout - continuing anyway")
+                # Don't clear the event - let it stay for late acks
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
