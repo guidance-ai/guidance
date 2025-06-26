@@ -3,12 +3,12 @@
 from collections import defaultdict
 from typing import Callable
 from ..visual import GuidanceMessage
+from .._topics import DEFAULT_TOPIC
 import re
 import logging
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TOPIC = "/default"
 WILDCARD_PATTERN = r".*"
 
 

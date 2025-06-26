@@ -4,10 +4,8 @@ from typing import Optional, Sequence
 import numpy as np
 
 from .._schema import EngineOutput, SamplingParams
-from ..trace import TraceHandler
-from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer, LogitsOutput
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
@@ -114,7 +112,7 @@ class MockEngine(Engine):
             logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
         )
 
-    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """Pretends to compute the logits for the given token state."""
         if len(token_ids) == 0:
             raise ValueError("token_ids must not be empty")
@@ -142,7 +140,13 @@ class MockEngine(Engine):
                         logits[i] += bias
                         bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
-        return logits.reshape(1, -1)
+        return {
+            "logits": logits.reshape(1, -1),
+            "n_tokens": len(token_ids),
+            # TODO: add caching support and report this number accurately?
+            # This might help mock some tests that make assertions about caching.
+            "n_cached": 0,
+        }
 
     def _get_next_tokens(self, byte_string):
         special_tokens = [

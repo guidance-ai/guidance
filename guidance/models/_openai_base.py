@@ -11,6 +11,7 @@ from typing_extensions import Annotated, assert_never
 
 from guidance._schema import SamplingParams
 
+from .._schema import TokenUsage
 from .._ast import (
     ASTNode,
     GenAudio,
@@ -192,6 +193,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
             logprobs=log_probs,
             stream=True,
+            stream_options={"include_usage": True},
             **kwargs,
         )
 
@@ -269,13 +271,24 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             yield from self._handle_stream(chunks)
 
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
+        _t0 = time.time()
+        t0 = _t0
         audio: Optional[AssistantAudio] = None
-        t0 = time.time()
+        # We made another call to the OpenAI API, so we count it as a round trip.
+        usage = TokenUsage(round_trips=1)
         for chunk in chunks:
             t1 = time.time()
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
+            if chunk.usage is not None:
+                # Update token usage
+                usage.input_tokens += chunk.usage.prompt_tokens
+                # Estimate forward passes as number of completion tokens
+                usage.forward_passes += chunk.usage.completion_tokens
+                if chunk.usage.prompt_tokens_details is not None:
+                    if chunk.usage.prompt_tokens_details.cached_tokens is not None:
+                        usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -357,8 +370,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
-            if choice.finish_reason is not None:
-                break
+            if choice.finish_reason is not None and choice.finish_reason != "stop":
+                # TODO: handle "bad" finish reasons
+                pass
 
         if audio is not None:
             assert self.state.audio is None
@@ -374,6 +388,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
+
+        usage.total_latency_ms += (time.time() - _t0) * 1000
+        self.state.add_usage(usage)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure client is not copied."""

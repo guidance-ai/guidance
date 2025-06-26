@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
@@ -32,6 +31,7 @@ from ...trace import (
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
+from ..._schema import TokenUsage
 from ._interpreter import Interpreter
 from ._state import State
 
@@ -68,9 +68,12 @@ class Model:
         echo: bool = True,
     ) -> None:
         self.echo = echo
+        if self.echo:  # NOTE(nopdive): User requests renderer, lazy instantiate.
+            from ...registry import get_renderer
+            _ = get_renderer()
+
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
-        self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -81,18 +84,20 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        from ...registry import get_trace_handler, get_renderer
+        from ...registry import get_trace_handler, get_exchange
+        from ..._topics import TRACE_TOPIC
 
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
         if self.echo:
-            get_renderer().update(
+            get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
                     node_attr=node_attr,
                 ),
+                topic=TRACE_TOPIC,
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
@@ -133,9 +138,6 @@ class Model:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += 1
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -307,6 +309,10 @@ class Model:
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
+    def _get_usage(self) -> TokenUsage:
+        """Get the token usage for this model."""
+        # TODO(hudson): make this public API once we stabilize the data structure
+        return self._interpreter.state.get_usage()
 
 class ModelStream:
     def __init__(

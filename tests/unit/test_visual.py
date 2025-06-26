@@ -10,7 +10,7 @@ from guidance.visual._environment import Environment
 import asyncio
 from base64 import b64encode
 
-from guidance.visual._exchange import DEFAULT_TOPIC
+from guidance._topics import DEFAULT_TOPIC
 
 
 @pytest.mark.parametrize(
@@ -62,7 +62,13 @@ def test_str_method_smoke():
 
     assert trace_node_to_html(child_node) != ""
     assert trace_node_to_str(child_node) != ""
-    assert display_trace_tree(trace_handler) is None
+
+    try:
+        assert display_trace_tree(trace_handler) is None
+    except ImportError:  # NOTE(nopdive): anytree not installed
+        pass
+    except Exception as e:
+        raise e
 
 
 def test_environment():

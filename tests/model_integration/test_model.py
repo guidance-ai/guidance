@@ -24,9 +24,9 @@ def test_fstring_custom(selected_model):
 
 def test_token_count(selected_model):
     lm = selected_model
-    lm2 = lm + " 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9)
+    lm2 = lm + (" 1 1 1 1 1" + gen(max_tokens=9) + gen(max_tokens=9))
     assert (
-        18 <= lm2.token_count <= 20
+        18 <= lm2._get_usage().output_tokens <= 20
     )  # note we allow ourselves to be off by one because it is hard to know when we are continuing vs starting a new token in the parser
 
 
