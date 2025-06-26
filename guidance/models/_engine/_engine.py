@@ -231,17 +231,20 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
+                ff_tokens = ff_tokens[ff_start_index:]
+
                 # Just update ff tokens here -- usage for engine_output has already been
                 # handled where we got logits above
-                usage.ff_tokens += len(ff_tokens[ff_start_index:])
-                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
+                usage.ff_tokens += len(ff_tokens)
+
+                for i, token_id in enumerate(ff_tokens, start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
                             # amortize latency
-                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
+                            latency_ms=ff_lat_ms/len(ff_tokens),
                             is_force_forwarded=True,
                         )
                     )
