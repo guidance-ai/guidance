@@ -44,9 +44,7 @@ for v in extras_requires.values():
 
 # See
 # https://github.com/guidance-ai/guidance/issues/1222
-sentencepiece_dependency = (
-    "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
-)
+sentencepiece_dependency = "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
 
 # Required for builds etc.
 doc_requires = [
@@ -86,6 +84,9 @@ test_requires = [
     "mypy==1.9.0",
 ] + unittest_requires
 
+dev_requires = ["ruff==0.11.11", "mypy"]
+
+
 def read(*parts):
     with codecs.open(os.path.join(here, *parts), "r") as fp:
         return fp.read()
@@ -118,6 +119,7 @@ setup(
         "transformers": transformers_requires,
         "test": test_requires,
         "docs": doc_requires,
+        "dev": dev_requires,
         **extras_requires,
     },
 )

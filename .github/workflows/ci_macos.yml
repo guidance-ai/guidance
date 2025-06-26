@@ -41,5 +41,6 @@ jobs:
       os: "macos-latest"
       python-version: ${{ matrix.python-version }}
       model: ${{ matrix.model }}
+      codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}

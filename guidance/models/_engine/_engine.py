@@ -2,9 +2,8 @@
 
 import logging
 import time
-import weakref
 from abc import ABC, abstractmethod
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterator, Optional, Generator, TypedDict, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,19 +13,11 @@ from ..._schema import (
     EngineOutput,
     EngineResponse,
     GenToken,
-    GuidanceEngineMetrics,
-    SamplingParams,
+    TokenUsage,
+    SamplingParams
 )
 
-from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax, apply_top_k_and_top_p_filter
-from ...visual import (
-    ExecutionCompletedMessage,
-    ExecutionStartedMessage,
-    GuidanceMessage,
-    OutputRequestMessage,
-    MetricMessage,
-)
+from ..._utils import log_init, softmax, apply_top_k_and_top_p_filter
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
@@ -34,38 +25,10 @@ logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
 
-def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
-    get_exchange().unsubscribe(msg_recv)
-    log_cleanup(log_msg)
-
-
-def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
-    def closure(message):
-        return _msg_recv(engine_weak_ref, message)
-
-    return closure
-
-
-def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
-    # NOTE(nopdive): This is run on a background thread.
-
-    engine = engine_weakref()
-    if engine is None:
-        return
-
-    if isinstance(message, MetricMessage):
-        return
-
-    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
-    if isinstance(message, ExecutionStartedMessage):
-        pass
-    elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
-        pass
-    elif isinstance(message, ExecutionCompletedMessage):
-        pass
-    elif isinstance(message, OutputRequestMessage):
-        pass
-
+class LogitsOutput(TypedDict):
+    logits: NDArray
+    n_tokens: int
+    n_cached: int
 
 class Engine(ABC):
     """The engine owns the inference computation and is used/created by the Model class.
@@ -86,22 +49,10 @@ class Engine(ABC):
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
 
-        # TODO(nopdive): Remove on refactor.
-        self.metrics = GuidanceEngineMetrics()
-
         if self._enable_monitoring:
             # Idempotent start
             _ = get_monitor()
 
-        msg_recv = _wrapped_msg_recv(weakref.ref(self))
-        get_exchange().subscribe(msg_recv)
-
-        weakref.finalize(
-            self,
-            _engine_cleanup,
-            msg_recv,
-            f"engine({id(self)})",
-        )
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
@@ -124,9 +75,6 @@ class Engine(ABC):
             self.tokenizer.chat_template()
         )  # Instantiate the class before returning to client for now
 
-    def reset_metrics(self):
-        self.metrics = GuidanceEngineMetrics()
-
     def __call__(
         self,
         state: EngineState,
@@ -134,8 +82,7 @@ class Engine(ABC):
         ensure_bos_token: bool = True,
         echo: bool = True,
         sampling_params: Optional[SamplingParams] = None,
-        **kwargs: Optional[dict],
-    ) -> Iterator[EngineResponse]:
+    ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -154,6 +101,10 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
+        # Note: t0 will get reset further down in the loop, just after the break condition
+        _t0 = time.time()
+        t0 = _t0
+
         # TODO: Pass these to get_logits
         # images = state.images
         # audio = state.audio
@@ -170,9 +121,9 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
-        while not parser.done():
-            t0 = time.time()
+        usage = TokenUsage(round_trips=1, ff_tokens=0)
 
+        while not parser.done():
             recode = False
             if engine_output is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -217,19 +168,20 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits = logits_output["logits"]
+                usage.input_tokens += logits_output["n_tokens"]
+                usage.cached_input_tokens += logits_output["n_cached"]
+                if logits_output["n_tokens"] > logits_output["n_cached"]:
+                    usage.forward_passes += 1
+                else:
+                    usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
-
-            ff_lat_ms = (time.time() - t0) * 1000
-            if not ll_response.stop:
-                # Logit latency will go into the NEXT token
-                # if it exists
-                ff_lat_ms -= logits_lat_ms
 
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
@@ -256,15 +208,21 @@ class Engine(ABC):
                 # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
 
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # If we're not stopping, the logit latency will go into the next generated token
+                ff_lat_ms -= logits_lat_ms
+
             gen_tokens = []
             if engine_output is None:
+                # Note: intentionally not counting ff_tokens here, as we're counting these
+                # all just as input tokens
                 for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
                             latency_ms=ff_lat_ms/len(ff_tokens),
                             is_input=True,
                         )
@@ -276,14 +234,18 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
-                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
+                ff_tokens = ff_tokens[ff_start_index:]
+
+                # Just update ff tokens here -- usage for engine_output has already been
+                # handled where we got logits above
+                usage.ff_tokens += len(ff_tokens)
+                for i, token_id in enumerate(ff_tokens, start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
-                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
+                            latency_ms=ff_lat_ms/len(ff_tokens),
                             is_force_forwarded=True,
                         )
                     )
@@ -308,6 +270,9 @@ class Engine(ABC):
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
+            # Reset time down here instead of at the top of the loop in order to make sure
+            # we take sampling time into account
+            t0 = time.time()
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert logits is not None
@@ -344,6 +309,9 @@ class Engine(ABC):
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
+
+        usage.total_latency_ms += (time.time() - _t0) * 1000
+        return usage
 
     def get_next_token_with_top_k(
         self,
@@ -467,7 +435,7 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> NDArray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """
         Get the logits for the given token ids.
         If include_all_uncached_tokens is True:

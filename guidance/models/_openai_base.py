@@ -12,6 +12,7 @@ from typing_extensions import Annotated, assert_never
 
 from guidance._schema import SamplingParams
 
+from .._schema import TokenUsage
 from .._ast import (
     ASTNode,
     GenAudio,
@@ -223,6 +224,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
             logprobs=log_probs,
             stream=True,
+            stream_options={"include_usage": True},
             **kwargs,
         )
 
@@ -320,14 +322,25 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         chunks: Iterator["ChatCompletionChunk"],
         tools: Optional[dict[str, ToolDefinition]],
     ) -> Iterator[OutputAttr]:
+        _t0 = time.time()
+        t0 = _t0
         audio: Optional[AssistantAudio] = None
         final_tool_calls: dict[int, ToolCall] = {}
-        t0 = time.time()
+        # We made another call to the OpenAI API, so we count it as a round trip.
+        usage = TokenUsage(round_trips=1)
         for chunk in chunks:
             t1 = time.time()
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
+            if chunk.usage is not None:
+                # Update token usage
+                usage.input_tokens += chunk.usage.prompt_tokens
+                # Estimate forward passes as number of completion tokens
+                usage.forward_passes += chunk.usage.completion_tokens
+                if chunk.usage.prompt_tokens_details is not None:
+                    if chunk.usage.prompt_tokens_details.cached_tokens is not None:
+                        usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             try:
                 choice = chunk.choices[0]
             except IndexError:
@@ -427,8 +440,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
-            if choice.finish_reason is not None:
-                break
+            if choice.finish_reason is not None and choice.finish_reason != "stop":
+                # TODO: handle "bad" finish reasons
+                pass
 
         if audio is not None:
             assert self.state.audio is None
@@ -472,6 +486,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 yield TextOutput(
                     value=f"<function_result={tool_call.function.name}>{result_str}</function_result>",
                 )
+
+        usage.total_latency_ms += (time.time() - _t0) * 1000
+        self.state.add_usage(usage)
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
