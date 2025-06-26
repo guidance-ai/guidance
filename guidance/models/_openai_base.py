@@ -204,10 +204,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self,
         model: str,
         client: BaseOpenAIClientWrapper,
-        default_sampling_params: Optional[SamplingParams] = None,
         **kwargs
     ):
-        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
+        super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
 
@@ -255,10 +254,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
-            
-        # only process kwargs that are supported by the OpenAI API
-        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
-            kwargs["top_p"] = self.default_sampling_params["top_p"]
+                    
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params:
+            # only process kwargs that are supported by the OpenAI API
+            if "top_p" not in kwargs:
+                kwargs["top_p"] = sampling_params.get("top_p", None)
 
         with self.client.streaming_chat_completions(
             model=self.model,

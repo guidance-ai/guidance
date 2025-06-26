@@ -31,9 +31,8 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
+    def __init__(self, state: S):
         self.state = state
-        self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)

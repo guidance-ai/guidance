@@ -15,7 +15,6 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
-        default_sampling_params: Optional[SamplingParams],
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         **kwargs,
@@ -28,7 +27,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
             )
         
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client), default_sampling_params=default_sampling_params, **kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
@@ -73,10 +72,14 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
             
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params is None:
+            return kwargs
+        
+        kwargs["top_p"] = sampling_params.pop("top_p", None)
+        
         # top_k must be put in extra_body
-        top_k = kwargs.pop("top_k", None)
-        if top_k is None:
-            top_k = self.default_sampling_params.get("top_k", None)
+        top_k = sampling_params.pop("top_k", None)
         if top_k is not None:
             kwargs["extra_body"]["top_k"] = top_k
             
@@ -84,8 +87,9 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
 
 
 class VLLMModel(Model):
-    def __init__(self, model: str, default_sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
+    def __init__(self, model: str, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
         super().__init__(
-            interpreter=VLLMInterpreter(model=model, default_sampling_params=default_sampling_params, **kwargs),
+            interpreter=VLLMInterpreter(model=model,**kwargs),
+            sampling_params=sampling_params,
             echo=echo,
         )

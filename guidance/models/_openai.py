@@ -19,7 +19,6 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
     def __init__(
         self,
         model: str,        
-        default_sampling_params: Optional[SamplingParams],
         api_key: Optional[str] = None,
         **kwargs,
     ):
@@ -31,14 +30,14 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
             )
                     
         client = openai.OpenAI(api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client), default_sampling_params=default_sampling_params)
+        super().__init__(model=model, client=OpenAIClientWrapper(client))
 
 
 class OpenAI(Model):
     def __init__(
         self,
         model: str,
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,        
         *,
         api_key: Optional[str] = None,
@@ -71,4 +70,4 @@ class OpenAI(Model):
         else:
             interpreter_cls = OpenAIInterpreter
 
-        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, default_sampling_params=default_sampling_params, **kwargs), echo=echo)
+        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), sampling_params=sampling_params, echo=echo)

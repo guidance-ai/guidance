@@ -64,13 +64,14 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,
     ) -> None:
         self.echo = echo
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
         self.token_count: int = 0
+        self.sampling_params: Optional[SamplingParams] = sampling_params
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -132,7 +133,7 @@ class Model:
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
-        for i, output_attr in enumerate(self._interpreter.run(node)):
+        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params)):
             if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
                 # TODO: put this elsewhere (inside state?)
                 self.token_count += 1
@@ -300,6 +301,12 @@ class Model:
             return [c["log_prob"] for c in captures]
         else:
             return captures["log_prob"]
+        
+    def with_sampling_params(self, sampling_params: SamplingParams) -> Self:
+        """Return a new model with the given sampling parameters set."""
+        self = self.copy()
+        self.sampling_params = sampling_params
+        return self
 
     def __getattribute__(self, name):
         if name == "engine":
