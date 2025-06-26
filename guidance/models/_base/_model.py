@@ -74,7 +74,6 @@ class Model:
 
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
-        self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -139,9 +138,6 @@ class Model:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += 1
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
