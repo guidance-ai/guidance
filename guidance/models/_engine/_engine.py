@@ -213,6 +213,9 @@ class Engine(ABC):
 
             gen_tokens = []
             if engine_output is None:
+                # Note: intentionally not counting ff_tokens here, as we're counting these
+                # all just as input tokens
+                # TODO: do we need to add a latency here? Are we counting pre-fill time right?
                 for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
@@ -225,7 +228,11 @@ class Engine(ABC):
                         )
                     )
             else:
+                # Add usage data for the issued token
                 gen_tokens.append(engine_output.issued_token)
+                usage.latency.token_count += 1
+                usage.latency.total_ms += engine_output.issued_token.latency_ms
+
                 if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
                     engine_output.issued_token.is_backtracked = True
                     ff_start_index = 0
@@ -236,6 +243,8 @@ class Engine(ABC):
                 # Just update ff tokens here -- usage for engine_output has already been
                 # handled where we got logits above
                 usage.ff_tokens += len(ff_tokens)
+                usage.latency.total_ms += ff_lat_ms
+                usage.latency.token_count += len(ff_tokens)
 
                 for i, token_id in enumerate(ff_tokens, start=ff_start_index):
                     gen_tokens.append(

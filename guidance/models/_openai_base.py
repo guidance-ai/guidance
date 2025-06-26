@@ -310,6 +310,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     and len(choice.logprobs.content) > 0
                 ):
                     tokens = choice.logprobs.content
+                    self.state.token_usage.latency.token_count += len(tokens)
+                    self.state.token_usage.latency.total_ms += latency_ms
                     for token in tokens:
                         yield TokenOutput(
                             value=token.token,
@@ -331,6 +333,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                             ]
                         )
                 else:
+                    self.state.token_usage.latency.token_count += 1 # *shrug*
+                    self.state.token_usage.latency.total_ms += latency_ms
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
             elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
