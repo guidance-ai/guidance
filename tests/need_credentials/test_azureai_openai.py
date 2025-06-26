@@ -28,9 +28,7 @@ def azureai_chat_model():
     print(f"{azureai_deployment=}")
     print(f"{model_name=}")
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = create_azure_openai_model(
         model_name=model_name,
@@ -58,9 +56,7 @@ def azureai_audio_model():
     print(f"{azureai_deployment=}")
     print(f"{model_name=}")
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = create_azure_openai_model(
         model_name=model_name,
@@ -89,9 +85,7 @@ def azureai_image_model():
     print(f"{azureai_deployment=}")
     print(f"{model_name=}")
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = create_azure_openai_model(
         model_name=model_name,
@@ -164,9 +158,7 @@ def test_azureai_openai_chat_alt_args():
     version = parsed_query["api-version"][0]
     min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = models.AzureOpenAI(
         model=model,
@@ -189,9 +181,7 @@ def test_azureai_openai_completion_smoke():
     print(f"endpoint: {' '.join(azureai_endpoint)}")
     print(f"model: {' '.join(model)}")
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = models.AzureOpenAI(
         model=model,
@@ -221,9 +211,7 @@ def test_azureai_openai_completion_alt_args():
     version = parsed_query["api-version"][0]
     min_azureai_endpoint = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-    )
+    token_provider = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
     lm = models.AzureOpenAI(
         model=model,
@@ -247,9 +235,7 @@ def test_azureai_openai_chat_loop(azureai_chat_model):
     for i in range(2):
         print(f"Iteration: {i}")
         with system():
-            generation = (
-                azureai_chat_model + "You will just return whatever number I give you"
-            )
+            generation = azureai_chat_model + "You will just return whatever number I give you"
 
         with user():
             generation += f"The number is: {i}"
