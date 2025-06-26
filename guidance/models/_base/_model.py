@@ -316,7 +316,7 @@ class Model:
     def _get_usage(self) -> TokenUsage:
         """Get the token usage for this model."""
         # TODO(hudson): make this public API once we stabilize the data structure
-        return self._interpreter.state.token_usage
+        return self._interpreter.state.get_usage()
 
 class ModelStream:
     def __init__(
