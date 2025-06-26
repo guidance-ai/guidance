@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Iterator, TYPE_CHECKING, Optional
 from copy import deepcopy
 import re
+import warnings
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode, ToolCallNode
 from ..._utils import to_utf8_or_bytes_string
@@ -145,13 +146,21 @@ class EngineInterpreter(Interpreter[EngineState]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         if self.tool_call_handler_cls is None:
-            raise ValueError("No tool call handler set for this interpreter")
+            from ...tools import LegacyToolCallHandler
+            tool_call_handler_cls = LegacyToolCallHandler
+            warnings.warn(
+                "Tool calling without a ToolCallHandler is deprecated and will be removed in a future version." \
+                "Please specify a ToolCallHandler subclass in the model's constructor via the `tool_call_handler` argument.",
+                DeprecationWarning
+            )
+        else:
+            tool_call_handler_cls = self.tool_call_handler_cls
 
         from uuid import uuid4
         from guidance import capture
         from guidance._ast import LiteralNode
         capture_id = f"_tool_call_{uuid4().hex}"
-        handler = self.tool_call_handler_cls(tools=node.tools)
+        handler = tool_call_handler_cls(tools=node.tools)
         grm = handler.build_grammar()
 
         yield from self.run(capture(grm, name=capture_id))

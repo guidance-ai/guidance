@@ -1,6 +1,7 @@
-from uuid import uuid4
 from json import loads, dumps
-from typing import Union
+import ast
+import inspect
+from typing import Union, cast
 import re
 
 from abc import ABC, abstractmethod
@@ -8,8 +9,8 @@ from typing import Any
 from pydantic import BaseModel, Json
 
 from ._ast import ToolDefinition, SpecialToken, RuleNode, GrammarNode
-from .library import json, select, string, capture
-from ._guidance import guidance
+from .library import json, select, string, optional, zero_or_more
+from .library._subgrammar import subgrammar, lexeme
 
 
 class RawToolCall(BaseModel):
@@ -124,3 +125,60 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
 
     def format_return_value(self, value: Any) -> str:
         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
+
+class LegacyToolCallHandler(ToolCallHandler):
+    expr = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*\(.*\)$")
+
+    def build_grammar(self) -> GrammarNode:
+        arg = lexeme(r"[^,=)]+")
+        kwarg = arg + "=" + arg
+        args = arg + zero_or_more("," + arg)
+        kwargs = kwarg + zero_or_more("," + kwarg)
+        return select([
+            RuleNode(lazy=True, value=string(f"{name}("))
+            + subgrammar(
+                name="tool_args",
+                body=optional(
+                    select([
+                        args,
+                        kwargs,
+                        args + "," + kwargs,
+                    ])
+                ),
+                skip_regex=r"\s+"
+            )
+            + ")"
+            for name in self.tools.keys()
+        ])
+
+    def parse_tool_call(self, text: str) -> RawToolCall:
+        match = self.expr.match(text)
+        if not match:
+            raise ValueError(f"Invalid tool call format: {text}")
+
+        # Parse the ast to get the args and kwargs
+        module = ast.parse(match.group())
+        if not len(module.body) == 1 or not isinstance(module.body[0], ast.Expr) or not isinstance(module.body[0].value, ast.Call):
+            raise ValueError(f"Invalid tool call format: {text}")
+        call = module.body[0].value
+        if not isinstance(call.func, ast.Name):
+            raise ValueError(f"Tool call must be a function call: {text}")
+        args = [
+            ast.literal_eval(arg) for arg in call.args
+        ]
+        kwargs = {
+            kw.arg: ast.literal_eval(kw.value) for kw in call.keywords
+        }
+
+        # Inspect the tool signature so we can bind the args correctly
+        try:
+            tool = self.tools[call.func.id]
+        except KeyError:
+            raise ValueError(f"Unknown tool: {call.func.id}")
+        signature = inspect.signature(tool.callable)
+        bound_args = signature.bind(*args, **kwargs)
+
+        return RawToolCall(name=call.func.id, args=cast(dict[str, Any], bound_args.arguments))
+
+    def format_return_value(self, value: Any) -> str:
+        return f" = {dumps(value)}"
