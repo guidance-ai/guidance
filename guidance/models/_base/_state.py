@@ -3,7 +3,7 @@ from typing import Optional, TypedDict, Union
 
 from ...trace import CaptureOutput
 from ..._schema import TokenUsage
-
+from ...metrics import emit_usage
 
 class CaptureVar(TypedDict):
     value: str
@@ -18,27 +18,9 @@ class State(ABC):
 
     def add_usage(self, usage: TokenUsage) -> None:
         """Add token usage to the current state."""
-        from ...registry import get_exchange
-        from ...metrics import METRICS_TOPIC
-        from ...visual import MetricMessage
-
-        exchange = get_exchange()
         self._token_usage += usage
-
-        exchange.publish(MetricMessage(
-            name="token reduction",
-            value=usage.token_savings * 100,  # display as percentage
-        ), topic=METRICS_TOPIC)
-
-        exchange.publish(MetricMessage(
-            name="consumed",
-            value=usage.forward_passes
-        ), topic=METRICS_TOPIC)
-
-        exchange.publish(MetricMessage(
-            name="avg latency",
-            value=usage.avg_latency_ms
-        ), topic=METRICS_TOPIC)
+        # TODO: need to do this conditionally? Or is this essentially zero-cost?
+        emit_usage(self._token_usage)
 
     def get_usage(self) -> TokenUsage:
         """Get the current token usage."""

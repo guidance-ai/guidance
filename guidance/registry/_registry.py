@@ -2,7 +2,6 @@
 
 import threading
 
-from .._schema import GuidanceEngineMetrics
 from ..metrics import Monitor, PeriodicMetricsGenerator
 from ..trace import TraceHandler
 from ..visual import AutoRenderer, Renderer, TopicExchange
@@ -32,7 +31,7 @@ def get_monitor() -> Monitor:
 
     with _monitor_lock:
         if _monitor is None:
-            _monitor = Monitor(GuidanceEngineMetrics())
+            _monitor = Monitor()
             _monitor.start()
             _periodic_metrics_gen = PeriodicMetricsGenerator(_monitor)
             _periodic_metrics_gen.start()
