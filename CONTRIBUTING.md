@@ -18,13 +18,13 @@ conda activate guidancedev
 
 Install guidance (without CUDA):
 ```bash
-python -m pip install -e .[all,test,bench,llamacpp,transformers]
+python -m pip install -e .[all,test,llamacpp,transformers]
 ```
 
 Alternatively, install guidance with CUDA support. There are various ways to do this. We recommend:
 ```bash
 conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
-CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[all,test,bench,llamacpp,transformers]
+CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[all,test,llamacpp,transformers]
 ```
 
 ## Running Tests

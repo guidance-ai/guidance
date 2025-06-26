@@ -3,12 +3,11 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput, GenToken, GenTokenExtra
-from .._utils import softmax
+from .._schema import EngineOutput, SamplingParams
 from ..trace import TraceHandler
 from ..visual._renderer import DoNothingRenderer
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, EngineState, Tokenizer
+from ._engine import Engine, EngineInterpreter, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)
@@ -34,10 +33,12 @@ class MockTokenizer(Tokenizer):
             bos_token_id=0,
         )
 
-    def encode(self, byte_string: bytes) -> list[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> list[int]:
         """Simple greedy tokenizer
         TODO: could be a method on ByteTrie if we want to reuse it
         """
+        if not parse_special:
+            raise ValueError("parse_special=False is not supported in MockTokenizer")
         pos = 0
         tokens = []
         while pos < len(byte_string):
@@ -69,9 +70,8 @@ class MockTokenizer(Tokenizer):
 
 
 class MockEngine(Engine):
-    def __init__(self, tokenizer, byte_patterns, compute_log_probs, force):
-        renderer = DoNothingRenderer(trace_handler=TraceHandler())
-        super().__init__(tokenizer, compute_log_probs=compute_log_probs)
+    def __init__(self, tokenizer, byte_patterns, force):
+        super().__init__(tokenizer)
 
         self._valid_mask = np.zeros(len(tokenizer.tokens))
         for i, t in enumerate(tokenizer.tokens):
@@ -97,10 +97,6 @@ class MockEngine(Engine):
         # seed the random number generator
         self._rand_generator = np.random.default_rng(seed=42)
 
-    def sample_with_temperature(self, logits, mask, temperature):
-        self.called_temperatures.append(temperature)
-        return super().sample_with_temperature(logits, mask, temperature)
-
     def get_next_token_with_top_k(
         self,
         logits: Optional[np.ndarray],
@@ -110,14 +106,19 @@ class MockEngine(Engine):
         temperature: float,
         k: int = 1,
         force_return_unmasked_probs: bool = False,
+        sampling_params: Optional[SamplingParams] = None,
+        
     ) -> EngineOutput:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
-            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs
+            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
         )
 
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
         """Pretends to compute the logits for the given token state."""
+        if len(token_ids) == 0:
+            raise ValueError("token_ids must not be empty")
+
         # build the byte strings
         byte_string = b"".join(self.tokenizer.tokens[i] for i in token_ids)
 
@@ -139,71 +140,9 @@ class MockEngine(Engine):
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
                         logits[i] += bias
-                    bias /= 2  # if we have multiple matches then they apply with decreasing bias
+                        bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
-        return logits
-
-    def get_per_token_topk_probs(
-        self, token_ids: list[int], top_k: int = 5
-    ) -> list[GenTokenExtra]:
-        result_list = []
-        if len(token_ids) == 0:
-            return result_list
-
-        added_bos = False
-        if self.tokenizer.bos_token is not None and token_ids[0] != self.tokenizer.bos_token_id:
-            token_ids = [self.tokenizer.bos_token_id] + token_ids
-            added_bos = True
-
-        # assume the first token has probability 1.0 because it is the input token
-        result_list.append(
-            GenTokenExtra(
-                token_id=token_ids[0],
-                prob=1.0,
-                text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
-                top_k=[
-                    GenToken(
-                        token_id=token_ids[0],
-                        prob=1.0,
-                        text=self.tokenizer.decode([token_ids[0]]).decode("utf8"),
-                    )
-                ],
-            )
-        )
-
-        for i in range(1, len(token_ids)):
-            token_id = token_ids[i]
-            _logits = self.get_logits(token_ids[:i])
-            _probs = softmax(_logits)
-            top_k_indices = np.argsort(_logits)[-top_k:][::-1]
-
-            top_k_indices = top_k_indices.tolist()
-            if token_ids[i] not in top_k_indices:
-                top_k_indices.append(token_id)
-
-            top_k_result = []
-            for token_id in top_k_indices:
-                top_k_result.append(
-                    GenToken(
-                        token_id=token_id,
-                        prob=_probs[token_id],
-                        text=self.tokenizer.decode([token_id]).decode("utf8"),
-                    )
-                )
-
-            result_list.append(
-                GenTokenExtra(
-                    token_id=token_id,
-                    prob=_probs[token_id],
-                    text=self.tokenizer.decode([token_id]).decode("utf-8"),
-                    top_k=top_k_result,
-                )
-            )
-
-        if added_bos:
-            result_list = result_list[1:]
-
-        return result_list
+        return logits.reshape(1, -1)
 
     def _get_next_tokens(self, byte_string):
         special_tokens = [
@@ -224,8 +163,8 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo=False,
-        compute_log_probs=False,
         force=False,
         **kwargs,
     ):
@@ -239,7 +178,7 @@ class Mock(Model):
         tokens = [b"<s>"] + all_lc_pairs + all_bytes
 
         tokenizer = MockTokenizer(tokens, special_token_ids=[0])
-        engine = MockEngine(tokenizer, byte_patterns, compute_log_probs, force)
+        engine = MockEngine(tokenizer, byte_patterns, force)
 
         super().__init__(
             interpreter=EngineInterpreter(engine),

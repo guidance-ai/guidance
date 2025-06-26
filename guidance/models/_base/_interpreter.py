@@ -1,5 +1,7 @@
 import base64
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterator, TypeVar, Optional
+
+from guidance._schema import SamplingParams
 
 from ..._ast import (
     ASTNode,
@@ -29,8 +31,9 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S):
+    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
         self.state = state
+        self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)
@@ -63,8 +66,7 @@ class Interpreter(Generic[S]):
 
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
         image_bytes = bytes_from(node.url, allow_local=False)
-        base64_string = base64.b64encode(image_bytes).decode("utf-8")
-        return self.image_blob(ImageBlob(data=base64_string), **kwargs)
+        return self.image_blob(ImageBlob(data=base64.b64encode(image_bytes)), **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)

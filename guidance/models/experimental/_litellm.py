@@ -1,5 +1,7 @@
-from typing import Iterator, ContextManager, TYPE_CHECKING
+from typing import Optional, Iterator, ContextManager, TYPE_CHECKING
 from pydantic import TypeAdapter
+
+from guidance._schema import SamplingParams
 
 from ..._ast import GrammarNode, RuleNode, RegexNode, JsonNode, LarkNode
 from ...trace import OutputAttr, TextOutput
@@ -61,7 +63,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
     SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm"]
 
-    def __init__(self, model_description: dict, **kwargs):
+    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams], **kwargs):
         try:
             import litellm
         except ImportError:
@@ -79,7 +81,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         # Otherwise, generation will fail for some endpoints.
         self.log_probs = False
 
-        super().__init__(model=self.model, client=self.client, **kwargs)
+        super().__init__(model=self.model, client=self.client, default_sampling_params=default_sampling_params, **kwargs)
 
     def _check_model(self, model_desc: dict) -> str:
         """Check if the model description is valid."""        
@@ -92,6 +94,8 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                         "Supported endpoints are: " + ", ".join(self.SUPPORTED_ENDPOINT_TYPES))
 
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
+        kwargs = self._process_kwargs(**kwargs)
+        
         # Disable this check for now as all the supported endpoints have 'stop' support.
         # if node.stop and self.ep_type not in ["hosted_vllm", "azure", "azure_ai", "gemini", "openai", "xai", "anthropic"]:
         #     raise ValueError(f"stop condition not yet supported for {self.ep_type} endpoint")
@@ -130,6 +134,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
             yield from chunks
 
     def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
+        kwargs = self._process_kwargs(**kwargs)
         if node.regex is not None and self.ep_type not in ["hosted_vllm"]:
             raise ValueError(f"Regex is not yet supported for ep {self.ep_type}")
         
@@ -141,18 +146,24 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
     
     def _regex_vllm(self, node: RegexNode, **kwargs):
         """Run the regex node using vLLM."""
-        buffer: str = ""
-        for attr in self._run(
-            extra_body=dict(
+        if "extra_body" not in kwargs:
+            kwargs["extra_body"] = {}
+            
+        kwargs["extra_body"].update(
+            dict(
                 guided_decoding_backend="guidance",
                 guided_regex=node.regex
             )
-        ):
+        )
+        
+        buffer: str = ""
+        for attr in self._run(**kwargs):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
     
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
+        kwargs = self._process_kwargs(**kwargs)
         if self.ep_type in ["openai"] and \
             (self.model in ["gpt-3.5-turbo"] or self.model.startswith("gpt-4-")) and \
             node.schema is not None:
@@ -181,6 +192,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         )
     
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+        kwargs = self._process_kwargs(**kwargs)
         if self.ep_type == "hosted_vllm":
             return self._grammar_vllm(node, **kwargs)
         
@@ -188,13 +200,18 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
     
     def _grammar_vllm(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         """Run the grammar node using vLLM."""
-        buffer: str = ""
-        for attr in self._run(
-            extra_body=dict(
+        if "extra_body" not in kwargs:
+            kwargs["extra_body"] = {}
+            
+        kwargs["extra_body"].update(
+            dict(
                 guided_decoding_backend="guidance",
                 guided_grammar=node.ll_grammar()
             )
-        ):
+        )
+        
+        buffer: str = ""
+        for attr in self._run(**kwargs):
             if isinstance(attr, TextOutput):
                 buffer += attr.value
             yield attr
@@ -222,10 +239,16 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(
                         name=name, value=value, log_prob=log_probs, is_append=False
                     )
+                    
+    def _process_kwargs(self, **kwargs):
+        if "top_k" not in kwargs and "top_k" in self.default_sampling_params:
+            kwargs["top_k"] = self.default_sampling_params["top_k"]
+            
+        return kwargs
 
 class LiteLLM(Model):
-    def __init__(self, model_description: dict, echo=True, **kwargs):
-        interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
+    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
+        interpreter = LiteLLMInterpreter(model_description=model_description, default_sampling_params=default_sampling_params, **kwargs)
         super().__init__(
             interpreter=interpreter,
             echo=echo,
