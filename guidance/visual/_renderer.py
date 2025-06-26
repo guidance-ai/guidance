@@ -7,10 +7,9 @@ Our main focus is on jupyter notebooks and later terminal.
 
 import asyncio
 import logging
+import threading
 import traceback
 import weakref
-import threading
-from typing import Optional, Callable, TYPE_CHECKING
 from asyncio import Queue
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Callable, Optional
@@ -19,31 +18,26 @@ from warnings import warn
 from .._topics import DEFAULT_TOPIC
 from .._utils import log_cleanup
 from ..trace import TraceHandler
-from ..visual import ClientReadyMessage, GuidanceMessage, ResetDisplayMessage, TraceMessage
+from ..visual import (
+    ClientReadyMessage,
+    ExecutionCompletedAckMessage,
+    GuidanceMessage,
+    ResetDisplayMessage,
+    TraceMessage,
+)
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
 from ._message import (
-    ExecutionCompletedMessage,
-    deserialize_message,
-    serialize_message,
     ClientReadyAckMessage,
+    ExecutionCompletedMessage,
     ExecutionStartedMessage,
     OutputRequestMessage,
+    deserialize_message,
+    serialize_message,
 )
-from .._utils import log_cleanup
-from ..trace import TraceHandler
-from ..visual import (
-    GuidanceMessage,
-    TraceMessage,
-    ResetDisplayMessage,
-    ClientReadyMessage,
-    ExecutionCompletedAckMessage,
-)
-from warnings import warn
 
 try:
-    from IPython.display import clear_output, display, HTML
     from IPython import get_ipython
     from IPython.display import HTML, clear_output, display
 
