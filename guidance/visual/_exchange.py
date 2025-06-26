@@ -6,7 +6,7 @@ from collections import defaultdict
 from typing import Callable
 
 from .._topics import DEFAULT_TOPIC
-from ..visual import GuidanceMessage
+from ._message import GuidanceMessage
 
 logger = logging.getLogger(__name__)
 
