@@ -118,9 +118,9 @@ class Engine(ABC):
         last_temperature = 1.0
         engine_output = None
         usage = TokenUsage(round_trips=1, ff_tokens=0)
+        # Note: t0 will get reset further down in the loop, just after the break condition
+        t0 = time.time()
         while not parser.done():
-            t0 = time.time()
-
             recode = False
             if engine_output is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -278,6 +278,9 @@ class Engine(ABC):
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
+            # Reset time down here instead of at the top of the loop in order to make sure
+            # we take sampling time into account
+            t0 = time.time()
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert logits is not None
