@@ -180,12 +180,6 @@ class Engine(ABC):
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            ff_lat_ms = (time.time() - t0) * 1000
-            if not ll_response.stop:
-                # Logit latency will go into the NEXT token
-                # if it exists
-                ff_lat_ms -= logits_lat_ms
-
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
                 ff_logits = logits[-len(ff_tokens)-1:-1]
@@ -210,6 +204,12 @@ class Engine(ABC):
             else:
                 # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
+
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # Logit latency will go into the NEXT token
+                # if it exists
+                ff_lat_ms -= logits_lat_ms
 
             gen_tokens = []
             if engine_output is None:
