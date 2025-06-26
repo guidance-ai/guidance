@@ -3,20 +3,23 @@
 import logging
 import time
 import weakref
-from abc import ABC
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Optional, Sequence
+from abc import ABC, abstractmethod
+from typing import Callable, Iterator, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..._parser import TokenParser
 from ..._schema import (
-    EngineCallResponse,
     EngineOutput,
+    EngineResponse,
     GenToken,
     GuidanceEngineMetrics,
+    SamplingParams,
 )
+
 from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax, to_utf8_or_bytes_string
+from ..._utils import log_cleanup, log_init, softmax, apply_top_k_and_top_p_filter
 from ...visual import (
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
@@ -27,11 +30,9 @@ from ...visual import (
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
-if TYPE_CHECKING:
-    from .._base._model import Model
-
 logger = logging.getLogger(__name__)
 
+_TEMPERATURE_EPSILON = 0.0001
 
 def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
     get_exchange().unsubscribe(msg_recv)
@@ -75,12 +76,11 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, compute_log_probs=False, enable_backtrack=True, enable_ff_tokens=True,
+    def __init__(self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True,
                  enable_monitoring=True, **kwargs):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
-        self.compute_log_probs = compute_log_probs
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
@@ -133,7 +133,9 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineCallResponse]:
+        sampling_params: Optional[SamplingParams] = None,
+        **kwargs: Optional[dict],
+    ) -> Iterator[EngineResponse]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -149,177 +151,151 @@ class Engine(ABC):
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
+        sampling_params: Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
         """
         # TODO: Pass these to get_logits
         # images = state.images
         # audio = state.audio
         # videos = state.videos
 
+        tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
+
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
-            prompt=state.prompt.encode("utf-8"),
-            ensure_bos_token=ensure_bos_token,
             enable_backtrack=self.enable_backtrack,
             enable_ff_tokens=self.enable_ff_tokens,
         )
 
-        has_get_logits = True
+        last_temperature = 1.0
         engine_output = None
-        logits_lat_ms = 0
-        delayed_bytes = b""
-        delayed_engine_outputs: list[EngineOutput] = []
         while not parser.done():
             t0 = time.time()
 
-            tokens, mask_fut, backtrack = parser.advance(engine_output)
-
-            # Note that has_pending_stop implies that the response is a stop response,
-            # but the converse is not true. We can therefore avoid some (but not all)
-            # unnecessary calls to get_logits on the final iteration.
-            has_pending_stop = parser.has_pending_stop()
-
-            if has_get_logits and not has_pending_stop:
-                try:
-                    t0 = time.time()
-                    logits = self.get_logits(token_ids=tokens)
-                    logits_lat_ms = (time.time() - t0) * 1000
-                except NotImplementedError:
-                    # Permanently fall-back to get_next_token if get_logits is not implemented
-                    has_get_logits = False
-                    logits = None
-                    logits_lat_ms = 0
+            recode = False
+            if engine_output is None:
+                prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
+                    prompt_tokens=tokens,
+                    ensure_bos_token=ensure_bos_token,
+                )
+                if prefix_tokens:
+                    tokens = prefix_tokens + tokens
+                    recode = True
             else:
+                backtrack, ff_tokens, mask_fut = parser.advance(
+                    token_id=engine_output.issued_token.token_id
+                )
+
+            if backtrack:
+                backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
+                tokens = tokens[:-backtrack]
+            else:
+                backtracked_bytes = b""
+            tokens += ff_tokens
+
+            if recode:
+                # Only necessary when we add a prefix (bos token), which can only happen once
+                # per loop. Needs to happen after adding ff_tokens to maintain associativity of
+                # (model + prompt) + grammar == model + (prompt + grammar)
+                tokens = self.tokenizer.recode(tokens)
+
+            # We can avoid a final get_logits call in the case that:
+            # 1. The parser has a pending stop
+            # 2. There are no ff_tokens (except for our last generated token)
+            # TODO: allow avoiding final forward pass if metrics are disabled
+            # and we have a pending stop
+            if parser.has_pending_stop() and (
+                (not ff_tokens)
+                or (
+                    len(ff_tokens) == 1
+                    and engine_output is not None
+                    and ff_tokens[0] == engine_output.issued_token.token_id
+                )
+            ):
                 logits = None
+                logits_lat_ms = 0.0
+            else:
+                t1 = time.time()
+                logits = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
             mask, ll_response = mask_fut.result()
+            legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            engine_response = ll_response.progress.to_engine_call_response()
-            engine_response.backtrack = backtrack
-            if engine_output:
-                engine_response.engine_outputs.append(engine_output)
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # Logit latency will go into the NEXT token
+                # if it exists
+                ff_lat_ms -= logits_lat_ms
 
-            # NOTE (loc): Temporary solution to quickly check which segments are generated and which are force-forwarded to animate visualizations on the UI
-            # These tokens in chunk will not be used for final visualization
-            # TODO: This should be handled by the interpreter
-            if echo and engine_response.new_bytes:
-                try:
-                    _new_bytes = delayed_bytes + engine_response.new_bytes
-                    _tokens = parser.tokenizer.encode(_new_bytes)
-                    delayed_bytes = b""
-                except UnicodeDecodeError:
-                    # similar to what we did in _run_stateless function, if we could not decode current bytes
-                    # we will delay until we can decode them
-                    delayed_bytes += engine_response.new_bytes
-                    if engine_output:
-                        engine_response.engine_outputs.pop()
-                        delayed_engine_outputs.append(engine_output)
+            if logits is not None:
+                # Not the last one -- that's for the *next* token.
+                ff_logits = logits[-len(ff_tokens)-1:-1]
+                ff_probs = (
+                    softmax(ff_logits)
+                    if last_temperature < _TEMPERATURE_EPSILON
+                    else softmax(ff_logits / last_temperature)
+                )
 
-                if not delayed_bytes:
-                    ff_token_start_idx = 1
-                    if engine_output is None and len(delayed_engine_outputs) == 0:
-                        ff_token_start_idx = 0
-                    elif (
-                        engine_output.issued_token.token_id == _tokens[0]
-                        and len(delayed_engine_outputs) == 0
-                    ):
-                        # this is generated
-                        engine_response.generated_bytes = parser.tokenizer.decode([_tokens[0]])
-                        engine_output.issued_token.is_generated = True
-                        engine_response.generated_tokens.append(engine_output.issued_token)
-                    else:
-                        # handle delayed bytes
-                        engine_outputs = (
-                            delayed_engine_outputs + [engine_output] if engine_output else []
+                if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
+                    # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
+                    ff_probs = np.pad(
+                        ff_probs, [(1, 0), (0, 0)], mode='constant', constant_values=1.0
+                    )
+                elif ff_probs.shape[0] < len(ff_tokens):
+                    # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
+                    # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
+                    ff_probs = np.pad(
+                        ff_probs, [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
+                        mode='constant', constant_values=np.nan
+                    )
+            else:
+                # really just for mypy -- we shouldn't need this
+                ff_probs = np.empty(shape=())
+
+            gen_tokens = []
+            if engine_output is None:
+                for i, token_id in enumerate(ff_tokens):
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens),
+                            is_input=True,
                         )
-                        engine_output_tokens = [e.issued_token.token_id for e in engine_outputs]
-
-                        generated = to_utf8_or_bytes_string(
-                            parser.tokenizer.decode(engine_output_tokens)
+                    )
+            else:
+                gen_tokens.append(engine_output.issued_token)
+                if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
+                    engine_output.issued_token.is_backtracked = True
+                    ff_start_index = 0
+                else:
+                    ff_start_index = 1
+                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
+                    gen_tokens.append(
+                        GenToken(
+                            token_id=token_id,
+                            bytes=self.tokenizer.decode([token_id]),
+                            prob=ff_probs[i, token_id],
+                            # amortize latency
+                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
+                            is_force_forwarded=True,
                         )
-                        force_forwarded = _new_bytes.decode("utf-8")
+                    )
 
-                        if force_forwarded.startswith(generated):
-                            engine_output_tokens = np.array(engine_output_tokens)
-                            ff_tokens = np.array(_tokens)
-
-                            # check if engine_output_tokens in ff_tokens
-                            _idx = -1
-                            for _i in range(0, len(ff_tokens) - len(engine_output_tokens) + 1):
-                                if np.array_equal(
-                                    engine_output_tokens,
-                                    ff_tokens[_i : _i + len(engine_output_tokens)],
-                                ):
-                                    _idx = _i + len(engine_output_tokens)
-                                    break
-
-                            if _idx < 0:
-                                ff_token_start_idx = 0
-                            else:
-                                # all previous tokens before _idx are generated
-                                engine_response.generated_bytes = parser.tokenizer.decode(
-                                    ff_tokens[:_idx]
-                                )
-                                idx_in_engine_output_tokens = 0
-                                for _i in range(_idx):
-                                    matching_engine_output = None
-                                    if (
-                                        _tokens[_i]
-                                        == engine_output_tokens[idx_in_engine_output_tokens]
-                                    ):
-                                        matching_engine_output = engine_outputs[
-                                            idx_in_engine_output_tokens
-                                        ]
-                                        idx_in_engine_output_tokens += 1
-                                    engine_response.generated_tokens.append(
-                                        GenToken(
-                                            token_id=_tokens[_i],
-                                            prob=(
-                                                1.0
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.prob
-                                            ),
-                                            text=(
-                                                parser.tokenizer.decode([_tokens[_i]])
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.text
-                                            ),
-                                            latency_ms=(
-                                                0.0
-                                                if not matching_engine_output
-                                                else matching_engine_output.issued_token.latency_ms
-                                            ),
-                                            is_generated=True,
-                                        )
-                                    )
-                                ff_token_start_idx = _idx
-                        else:
-                            ff_token_start_idx = 0
-
-                    if len(_tokens[ff_token_start_idx:]):
-                        engine_response.force_forwarded_bytes = parser.tokenizer.decode(
-                            _tokens[ff_token_start_idx:]
-                        )
-                        for _token in _tokens[ff_token_start_idx:]:
-                            engine_response.force_forwarded_tokens.append(
-                                GenToken(
-                                    token_id=_token,
-                                    prob=1.0,
-                                    text=to_utf8_or_bytes_string(
-                                        parser.tokenizer.decode([_token])
-                                    ),
-                                    latency_ms=0,
-                                    is_force_forwarded=True,
-                                )
-                            )
-
-                    delayed_engine_outputs = []
-            elif not echo and engine_response.new_bytes:
-                # do not collect tokens-metrics if echo is disabled
-                engine_response.generated_bytes = engine_response.new_bytes
-                engine_response.generated_tokens.clear()
+            engine_response = EngineResponse(
+                new_bytes=legacy_engine_response.new_bytes,
+                backtrack_bytes=backtracked_bytes,
+                capture_groups=legacy_engine_response.capture_groups,
+                capture_group_log_probs=legacy_engine_response.capture_group_log_probs,
+                backtrack=backtrack,
+                tokens=gen_tokens,
+            )
 
             # process engine_response
             # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
@@ -333,10 +309,8 @@ class Engine(ABC):
                 # Ensure we break AFTER yielding the final response
                 break
 
-            # If there was a pending stop, we should have broken out of the loop
-            assert not has_pending_stop
-
             # Help the type checker: assert that everything we need to get the next token is not None
+            assert logits is not None
             assert mask is not None
             assert ll_response.temperature is not None
 
@@ -355,14 +329,16 @@ class Engine(ABC):
                 mask_for_sampling = mask
 
             engine_output = self.get_next_token_with_top_k(
-                logits=logits,
+                logits=logits[-1, :],
                 logits_lat_ms=logits_lat_ms,
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
+                sampling_params=sampling_params,
             )
+            last_temperature = ll_response.temperature
 
             if can_finish_early and not mask[engine_output.issued_token.token_id]:
                 # Type checker needs some help
@@ -371,19 +347,20 @@ class Engine(ABC):
 
     def get_next_token_with_top_k(
         self,
-        logits: Optional[np.ndarray],
-        logits_lat_ms: Optional[float],
+        logits: NDArray,
+        logits_lat_ms: float,
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
         k: int = 5,
         force_return_unmasked_probs: bool = False,
+        sampling_params: Optional[SamplingParams] = None,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
         Parameters
         -------
-        logits : Optional[np.ndarray]
+        logits : Optional[NDArray]
             The logits for the current token ids in the sequence.
             If None, the model will call get_logits to get the logits.
         logits_lat_ms: Optional[float]
@@ -399,6 +376,8 @@ class Engine(ABC):
             The number of top-k tokens to return.
         force_return_unmasked_probs: bool
             If True, the top-k unmasked probabilities will be returned.
+        sampling_params : Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
 
         Returns
         -------
@@ -406,58 +385,32 @@ class Engine(ABC):
             The output from the model.
         """
 
-        if logits is None:
-            t0 = time.time()
-            try:
-                logits = self.get_logits(token_ids)
-            except NotImplementedError:
-                # fallback to orignal get_next_token method
-                _t0 = time.time()
-                token_id = self.get_next_token(
-                    token_ids=token_ids,
-                    mask=mask,
-                    temperature=temperature,
-                )
-                _lat = (time.time() - _t0) * 1000
-
-                _issued_token = GenToken(
-                    token_id=token_id,
-                    prob=1.0,
-                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token_id])),
-                    latency_ms=_lat,
-                    is_generated=True,
-                )
-
-                return EngineOutput(
-                    issued_token=_issued_token,
-                    top_k=[_issued_token],
-                    masked_top_k=[_issued_token] if mask is not None else None,
-                )
-            lat_ms = (time.time() - t0) * 1000
-        else:
-            lat_ms = logits_lat_ms
-
-        def get_top_k(_probs: np.ndarray, _k: int = 5) -> list[GenToken]:
-            top_k_indices = np.argsort(_probs)[::-1][:_k]
+        def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
+            top_k_indices = _probs.argpartition(-_k)[-_k:]
             top_k_probs = _probs[top_k_indices]
 
-            return [
+            top_k_tokens = [
                 GenToken(
                     token_id=token,
                     prob=prob,
-                    text=to_utf8_or_bytes_string(self.tokenizer.decode([token])),
-                    latency_ms=lat_ms,
+                    bytes=self.tokenizer.decode([token]),
+                    latency_ms=logits_lat_ms,
                     is_generated=True,
                 )
                 for token, prob in zip(top_k_indices, top_k_probs)
                 if prob > 0
             ]
+            # Sort by probability in descending order, as above argpartition
+            # does not guarantee order. Sorting the smaller array is faster.
+            return sorted(
+                top_k_tokens, key=lambda x: x.prob, reverse=True
+            )
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(logits))
-            if temperature < 0.0001
-            else softmax(np.array(logits) / temperature)
+            softmax(apply_top_k_and_top_p_filter(np.array(logits), sampling_params))
+            if temperature < _TEMPERATURE_EPSILON
+            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, sampling_params))
         )
 
         top_k: list[GenToken] = []
@@ -467,16 +420,20 @@ class Engine(ABC):
         # compute top-k with masking
         masked_top_k: list[GenToken] = []
         if mask is not None:
-            # shift logits to [0 - max] range first and apply mask
-            masked_logits = (logits - np.min(logits)) * np.frombuffer(mask, dtype=np.uint8)
-            masked_probs = (
-                softmax(masked_logits)
-                if temperature < 0.0001
-                else softmax(masked_logits / temperature)
-            )
+            mask = np.frombuffer(mask, dtype=np.uint8)
+            masked_logits = np.where(mask != 0, logits, -np.inf)
+            
+            if temperature < _TEMPERATURE_EPSILON:
+                masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
+            else:
+                masked_logits /= temperature
+
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, sampling_params)
+
+            masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
 
-        if temperature < 0.0001:
+        if temperature < _TEMPERATURE_EPSILON:
             if len(masked_top_k) > 0:
                 issued_token = masked_top_k[0]
             else:
@@ -495,8 +452,8 @@ class Engine(ABC):
             issued_token = GenToken(
                 token_id=sampled_index,
                 prob=sampled_prob,
-                text=to_utf8_or_bytes_string(self.tokenizer.decode([sampled_index])),
-                latency_ms=lat_ms,
+                bytes=self.tokenizer.decode([sampled_index]),
+                latency_ms=logits_lat_ms,
                 is_generated=True,
             )
 
@@ -509,45 +466,15 @@ class Engine(ABC):
 
         return output
 
-    def get_next_token(
-        self, token_ids: list[int], mask: Optional[bytes], temperature: float
-    ) -> int:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
-
-    def get_logits(self, token_ids: list[int]) -> np.ndarray:
-        # Prefer to implement get_logits over get_next_token as it allows for concurrent mask computation
-        raise NotImplementedError
-
-    def get_per_token_topk_probs(self, token_ids: list[int], top_k: int = 5) -> list[GenToken]:
-        """Get the top-k probabilities for each token in the sequence."""
-        raise NotImplementedError
-
-    def sample_with_temperature(
-        self, logits: np.ndarray, mask: Optional[bytes], temperature: float
-    ) -> int:
-        if mask is not None:
-            logits += np.frombuffer(mask, dtype=np.uint8)
-        if temperature < 0.0001:
-            return int(np.argmax(logits))
-        # Get probabilities from softmax
-        probabilities = softmax(logits / temperature)
-        # Sample an index based on the probabilities
-        sampled_index = np.random.choice(len(logits), p=probabilities)
-        return sampled_index
-
-    def _report_failed_match(self, prompt):
-        """Note that this can be overridden by subclasses that have more likely reasons than a bug in the token set (like remote models)."""
-        return Exception(
-            "We can't consume any more tokens, but we are not yet done! Perhaps your model's token set is incomplete? This happened after the prompt:"
-            + str(prompt[-40:])
-        )
-
-
-class ConstraintException(Exception):
-    def __init__(self, *args, **kwargs):
-        self.prompt = kwargs.pop("prompt", None)
-        self.data = kwargs.pop("data", None)
-        super().__init__(*args, **kwargs)
-
-
+    @abstractmethod
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> NDArray:
+        """
+        Get the logits for the given token ids.
+        If include_all_uncached_tokens is True:
+            logits for all uncached tokens will be returned, i.e.
+            the return value's shape will be `(len(tokens)-num_cached, vocab_size)`.
+        If include_all_uncached_tokens is False:
+            logits for the last token will be returned, i.e.
+            the return value's shape will be `(1, vocab_size)`.
+        """
+        pass
