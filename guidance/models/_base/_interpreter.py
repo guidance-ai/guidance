@@ -1,5 +1,5 @@
 import base64
-from typing import Generic, Iterator, TypeVar, Optional
+from typing import Generic, Iterator, Optional, TypeVar
 
 from guidance._schema import SamplingParams
 
@@ -41,9 +41,7 @@ class Interpreter(Generic[S]):
 
     def _role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is not None:
-            raise ValueError(
-                f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open."
-            )
+            raise ValueError(f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open.")
         return self.role_start(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
@@ -107,6 +105,7 @@ class Interpreter(Generic[S]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
+
 
 class UnsupportedNodeError(ValueError):
     def __init__(self, interpreter: Interpreter, node: ASTNode):

@@ -1,5 +1,7 @@
 import re
+
 import pytest
+
 from guidance import gen, models, select
 
 
@@ -54,9 +56,7 @@ def test_metrics_smoke(selected_model: models.Model):
     # Can't be sure of exact count due to token healing:
     # either one after the prompt, or a backtrack causing two
     usage = lm._get_usage()
-    assert (
-        1 <= usage.forward_passes <= 2
-    )
+    assert 1 <= usage.forward_passes <= 2
 
     lm += " f g"
     lm += gen("second", max_tokens=1)
@@ -65,9 +65,7 @@ def test_metrics_smoke(selected_model: models.Model):
     # plus one for the new text
     # plus one or two for the healing
     new_usage = lm._get_usage()
-    assert (
-        2 <= new_usage.forward_passes <= 5
-    )
+    assert 2 <= new_usage.forward_passes <= 5
 
     assert new_usage.input_tokens > usage.input_tokens
     assert new_usage.forward_passes > usage.forward_passes
@@ -118,9 +116,7 @@ def test_unicode2(selected_model: models.Model):
     assert usage.input_tokens > 1
     # Due to token healing, we can't be sure of the
     # precise output count
-    assert (
-        10 <= usage.forward_passes <= 11
-    )
+    assert 10 <= usage.forward_passes <= 11
 
 
 def test_pattern_kleene(selected_model: models.Model):

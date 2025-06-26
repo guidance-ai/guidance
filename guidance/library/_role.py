@@ -1,4 +1,5 @@
 from contextlib import AbstractContextManager
+
 from .._ast import RoleEnd, RoleStart
 from ._block import block
 

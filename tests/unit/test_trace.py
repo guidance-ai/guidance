@@ -1,8 +1,16 @@
 import pytest
 
-from guidance.trace._trace import WeakRefList, TraceHandler, LiteralInput, TextOutput, RoleCloserInput
-from guidance.trace import TraceNode, StatelessGuidanceInput, StatefulGuidanceInput, ImageInput, EmbeddedInput, \
-    RoleOpenerInput, ImageOutput, CaptureOutput
+from guidance.trace import (
+    CaptureOutput,
+    EmbeddedInput,
+    ImageInput,
+    ImageOutput,
+    RoleOpenerInput,
+    StatefulGuidanceInput,
+    StatelessGuidanceInput,
+    TraceNode,
+)
+from guidance.trace._trace import LiteralInput, RoleCloserInput, TextOutput, TraceHandler, WeakRefList
 
 
 def test_weak_ref_list():
@@ -66,9 +74,8 @@ def test_trace_handler():
     assert child1 not in child2.path()
 
 
-
 @pytest.mark.parametrize(
-    'node',
+    "node",
     [
         StatelessGuidanceInput(value=None),
         StatefulGuidanceInput(value=None),
@@ -80,7 +87,7 @@ def test_trace_handler():
         TextOutput(value=""),
         ImageOutput(value=b""),
         CaptureOutput(name=""),
-    ]
+    ],
 )
 def test_node_format_smoke(node):
     node.__repr__()

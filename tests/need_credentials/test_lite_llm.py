@@ -38,9 +38,7 @@ def test_lite_llm_select():
     except:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Pick a number: "
-    lm += select(
-        ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
-    )
+    lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number")
     assert str(lm)[-1] in "123"
 
 

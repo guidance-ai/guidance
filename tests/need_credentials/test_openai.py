@@ -88,6 +88,7 @@ def test_openai_tools_smoke(openai_model: Model):
     lm = openai_model
 
     called = False
+
     def lookup_capital_of_france() -> str:
         nonlocal called
         called = True

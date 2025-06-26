@@ -1,12 +1,12 @@
+import base64
 import importlib.resources
 import pathlib
-import typing
-import base64
 import re
+import typing
 
+from .._ast import ImageBlob, ImageUrl
 from .._guidance import guidance
 from .._utils import bytes_from
-from .._ast import ImageBlob, ImageUrl
 from ..trace._trace import ImageOutput
 
 

@@ -1,16 +1,15 @@
-from json import loads, dumps
 import ast
 import inspect
-from typing import Union, cast
 import re
-
 from abc import ABC, abstractmethod
-from typing import Any
+from json import dumps, loads
+from typing import Any, Union, cast
+
 from pydantic import BaseModel, Json
 
-from ._ast import ToolDefinition, SpecialToken, RuleNode, GrammarNode
-from .library import json, select, string, optional, zero_or_more
-from .library._subgrammar import subgrammar, lexeme
+from ._ast import GrammarNode, RuleNode, SpecialToken, ToolDefinition
+from .library import json, optional, select, string, zero_or_more
+from .library._subgrammar import lexeme, subgrammar
 
 
 class RawToolCall(BaseModel):
@@ -58,23 +57,19 @@ class ToolCallHandler(ABC):
         args = tool_def.args.model_validate(tool_call.args).model_dump()
         return tool_def.callable(**args)
 
+
 class Llama3FunctionToolCallHandler(ToolCallHandler):
-    expr = re.compile(
-        r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eot_id\|>$"
-    )
+    expr = re.compile(r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eot_id\|>$")
 
     def build_grammar(self) -> GrammarNode:
         # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-6
         return (
             RuleNode(name="trigger", lazy=True, value=string("<function="))
             + select(
-                [
-                    f"{name}>" + json(schema=defn.args.model_json_schema())
-                    for name, defn in self.tools.items()
-                ],
+                [f"{name}>" + json(schema=defn.args.model_json_schema()) for name, defn in self.tools.items()],
             )
             + "</function>"
-            + SpecialToken("eot_id") # eom / eot depends on "environment"?
+            + SpecialToken("eot_id")  # eom / eot depends on "environment"?
             + "\n"
         )
 
@@ -112,7 +107,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
                     ]
                 }
             )
-            + SpecialToken("eom_id") # eom / eot depends on "environment"?
+            + SpecialToken("eom_id")  # eom / eot depends on "environment"?
             + "\n"
         )
 
@@ -126,6 +121,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
     def format_return_value(self, value: Any) -> str:
         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
+
 class LegacyToolCallHandler(ToolCallHandler):
     expr = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*\(.*\)$")
 
@@ -134,22 +130,26 @@ class LegacyToolCallHandler(ToolCallHandler):
         kwarg = arg + "=" + arg
         args = arg + zero_or_more("," + arg)
         kwargs = kwarg + zero_or_more("," + kwarg)
-        return select([
-            RuleNode(lazy=True, value=string(f"{name}("))
-            + subgrammar(
-                name="tool_args",
-                body=optional(
-                    select([
-                        args,
-                        kwargs,
-                        args + "," + kwargs,
-                    ])
-                ),
-                skip_regex=r"\s+"
-            )
-            + ")"
-            for name in self.tools.keys()
-        ])
+        return select(
+            [
+                RuleNode(lazy=True, value=string(f"{name}("))
+                + subgrammar(
+                    name="tool_args",
+                    body=optional(
+                        select(
+                            [
+                                args,
+                                kwargs,
+                                args + "," + kwargs,
+                            ]
+                        )
+                    ),
+                    skip_regex=r"\s+",
+                )
+                + ")"
+                for name in self.tools.keys()
+            ]
+        )
 
     def parse_tool_call(self, text: str) -> RawToolCall:
         match = self.expr.match(text)
@@ -158,17 +158,17 @@ class LegacyToolCallHandler(ToolCallHandler):
 
         # Parse the ast to get the args and kwargs
         module = ast.parse(match.group())
-        if not len(module.body) == 1 or not isinstance(module.body[0], ast.Expr) or not isinstance(module.body[0].value, ast.Call):
+        if (
+            not len(module.body) == 1
+            or not isinstance(module.body[0], ast.Expr)
+            or not isinstance(module.body[0].value, ast.Call)
+        ):
             raise ValueError(f"Invalid tool call format: {text}")
         call = module.body[0].value
         if not isinstance(call.func, ast.Name):
             raise ValueError(f"Tool call must be a function call: {text}")
-        args = [
-            ast.literal_eval(arg) for arg in call.args
-        ]
-        kwargs = {
-            kw.arg: ast.literal_eval(kw.value) for kw in call.keywords
-        }
+        args = [ast.literal_eval(arg) for arg in call.args]
+        kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
 
         # Inspect the tool signature so we can bind the args correctly
         try:

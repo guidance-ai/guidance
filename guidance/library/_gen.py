@@ -1,11 +1,15 @@
-from typing import Union, Optional
 import logging
-from .._guidance import guidance
+from typing import Optional, Union
+
 from .._ast import ToolCallNode
-from .._grammar import regex as regex_node, select, quote_regex, capture, with_temperature, gen as grammar_gen
+from .._grammar import capture, quote_regex, select, with_temperature
+from .._grammar import gen as grammar_gen
+from .._grammar import regex as regex_node
+from .._guidance import guidance
 from ._block import block
 
 logger = logging.getLogger(__name__)
+
 
 def gen(
     name=None,
@@ -102,7 +106,7 @@ def gen(
         if temperature is not None:
             raise NotImplementedError("`temperature` is not supported with `tools` yet")
         if max_tokens is not None:
-            raise NotImplementedError("`max_tokens` is not supported with `tools` yet") 
+            raise NotImplementedError("`max_tokens` is not supported with `tools` yet")
         if name is not None:
             raise NotImplementedError("`name` is not supported with `tools` yet")
 
@@ -112,9 +116,7 @@ def gen(
             parallel_tool_calls=False,  # TODO: support parallel tool calls
         )
 
-    assert (
-        n == 1
-    ), "We still need to add support for n>1! Consider putting your gen call in a loop for now."
+    assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
     assert top_p == 1, "We still need to add support for top_p != 1!"
 
     logger.debug(f'start gen(name="{name}")')
@@ -144,8 +146,9 @@ def gen(
         name=name,
         list_append=list_append,
         temperature=temperature,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
     )
+
 
 @guidance(stateless=True)
 def regex(lm, pattern, *, name=None):

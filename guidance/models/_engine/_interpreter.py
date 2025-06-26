@@ -1,17 +1,17 @@
-from base64 import b64decode, b64encode
-from io import BytesIO
-from typing import Iterator, TYPE_CHECKING, Optional
-from copy import deepcopy
 import re
 import warnings
+from base64 import b64decode, b64encode
+from copy import deepcopy
+from io import BytesIO
+from typing import TYPE_CHECKING, Iterator, Optional
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode, ToolCallNode
+from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
+from ..._schema import GenTokenExtra, SamplingParams, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
-from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
+from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
-from ..._schema import GenTokenExtra, TokenUsage, SamplingParams
 
 if TYPE_CHECKING:
     from ...tools import ToolCallHandler
@@ -22,13 +22,13 @@ class EngineInterpreter(Interpreter[EngineState]):
         self,
         engine: Engine,
         default_sampling_params: Optional[SamplingParams] = None,
-        tool_call_handler: Optional[type["ToolCallHandler"]] = None
+        tool_call_handler: Optional[type["ToolCallHandler"]] = None,
     ):
         super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
         self.engine = engine
         self.tool_call_handler_cls = tool_call_handler
         self.chat_template = self.engine.get_chat_template()
-        
+
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
         cls = self.__class__
@@ -58,9 +58,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         # TODO: it's probably somewhat wasteful to trigger engine calls here,
         # so we can maybe add this as "pending text" to the state instead,
         # accumulating it until the next engine call..?
-        yield from self.run(
-            text_to_grammar(self.engine.tokenizer, text)
-        )
+        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = None
@@ -68,9 +66,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         # TODO: it's probably somewhat wasteful to trigger engine calls here,
         # so we can maybe add this as "pending text" to the state instead,
         # accumulating it until the next engine call..?
-        yield from self.run(
-            text_to_grammar(self.engine.tokenizer, text)
-        )
+        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self.grammar(node, **kwargs)
@@ -81,7 +77,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
-            sampling_params=self.default_sampling_params # NOTE: passing default sampling params for now
+            sampling_params=self.default_sampling_params,  # NOTE: passing default sampling params for now
         )
         delayed_bytes = b""
         while True:
@@ -122,9 +118,9 @@ class EngineInterpreter(Interpreter[EngineState]):
                     value=token_value,
                     token=Token(token=token_value, bytes=b64encode(token.bytes), prob=token.prob),
                     latency_ms=token.latency_ms,
-                    is_input = token.is_input,
-                    is_generated = token.is_generated,
-                    is_force_forwarded = token.is_force_forwarded,
+                    is_input=token.is_input,
+                    is_generated=token.is_generated,
+                    is_force_forwarded=token.is_force_forwarded,
                     top_k=top_k,
                 )
                 if token.is_backtracked:
@@ -140,14 +136,10 @@ class EngineInterpreter(Interpreter[EngineState]):
                     assert isinstance(log_probs, list)
                     assert len(values) == len(log_probs)
                     for value, log_prob in zip(values, log_probs):
-                        yield self.state.apply_capture(
-                            name, value.decode("utf-8"), log_prob=log_prob, is_append=True
-                        )
+                        yield self.state.apply_capture(name, value.decode("utf-8"), log_prob=log_prob, is_append=True)
                 else:
                     assert isinstance(log_probs, float)
-                    yield self.state.apply_capture(
-                        name, values.decode("utf-8"), log_prob=log_probs, is_append=False
-                    )
+                    yield self.state.apply_capture(name, values.decode("utf-8"), log_prob=log_probs, is_append=False)
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
@@ -155,18 +147,21 @@ class EngineInterpreter(Interpreter[EngineState]):
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         if self.tool_call_handler_cls is None:
             from ...tools import LegacyToolCallHandler
+
             tool_call_handler_cls = LegacyToolCallHandler
             warnings.warn(
-                "Tool calling without a ToolCallHandler is deprecated and will be removed in a future version." \
+                "Tool calling without a ToolCallHandler is deprecated and will be removed in a future version."
                 "Please specify a ToolCallHandler subclass in the model's constructor via the `tool_call_handler` argument.",
-                DeprecationWarning
+                DeprecationWarning,
             )
         else:
             tool_call_handler_cls = self.tool_call_handler_cls
 
         from uuid import uuid4
+
         from guidance import capture
         from guidance._ast import LiteralNode
+
         capture_id = f"_tool_call_{uuid4().hex}"
         handler = tool_call_handler_cls(tools=node.tools)
         grm = handler.build_grammar()
@@ -177,9 +172,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         tool_call = handler.parse_tool_call(tool_call_text)
         response = handler.invoke_tool(tool_call)
 
-        yield from self.run(
-            LiteralNode(handler.format_return_value(response))
-        )
+        yield from self.run(LiteralNode(handler.format_return_value(response)))
 
 
 class Llama3VisionInterpreter(EngineInterpreter):
@@ -229,13 +222,14 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
 
-LLG_SPECIAL_TOKEN_PAT = re.compile(br"\xff\[([0-9]+)\]")
+
+LLG_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
+
+
 def recode_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
     """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
-    return LLG_SPECIAL_TOKEN_PAT.sub(
-        lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]),
-        data
-    )
+    return LLG_SPECIAL_TOKEN_PAT.sub(lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]), data)
+
 
 def text_to_grammar(tokenizer: Tokenizer, text: str) -> GrammarNode:
     """

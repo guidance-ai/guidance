@@ -1,10 +1,11 @@
-from typing import Any, Optional, Sequence, Union, Callable
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any, Callable, Optional, Sequence, Union
 
+import llguidance
 
 from ...chat import ChatTemplate, load_template_class
-import llguidance
+
 
 @dataclass
 class TokenizerWrappable:
@@ -19,9 +20,8 @@ class TokenizerWrappable:
 
     def as_ll_tokenizer(self) -> "llguidance.LLTokenizer":
         """Returns an LLTokenizer that can be used by llguidance."""
-        return llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(self)
-        )
+        return llguidance.LLTokenizer(llguidance.TokenizerWrapper(self))
+
 
 class Tokenizer:
     """This is the standardized tokenizer interface used by guidance models.

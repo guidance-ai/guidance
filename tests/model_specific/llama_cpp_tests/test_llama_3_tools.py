@@ -1,9 +1,12 @@
-import pytest
-import guidance
 from typing import Optional
-from guidance import user, assistant, system, gen
+
+import pytest
+
+import guidance
+from guidance import assistant, gen, system, user
 from guidance._ast import ToolDefinition
-from guidance.tools import Llama3IPythonToolCallHandler, Llama3FunctionToolCallHandler
+from guidance.tools import Llama3FunctionToolCallHandler, Llama3IPythonToolCallHandler
+
 
 @pytest.fixture(scope="module")
 def llama3_point_2(selected_model, selected_model_name):
@@ -12,18 +15,16 @@ def llama3_point_2(selected_model, selected_model_name):
     else:
         pytest.skip("Requires Llama3.2")
 
+
 def test_llama_cpp_python_tool(llama3_point_2: guidance.models.Model):
     lm = llama3_point_2
     lm._interpreter.tool_call_handler_cls = Llama3IPythonToolCallHandler
     called = False
+
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
         nonlocal called
         called = True
-        return [
-            "Song 1",
-            "Song 2",
-            "Song 3"
-        ]
+        return ["Song 1", "Song 2", "Song 3"]
 
     with system():
         lm += """\
@@ -78,14 +79,11 @@ def test_llama_cpp_function(llama3_point_2: guidance.models.Model):
     lm = llama3_point_2
     lm._interpreter.tool_call_handler_cls = Llama3FunctionToolCallHandler
     called = False
+
     def trending_songs(n: int, genre: Optional[str] = None) -> list[str]:
         nonlocal called
         called = True
-        return [
-            "Song 1",
-            "Song 2",
-            "Song 3"
-        ]
+        return ["Song 1", "Song 2", "Song 3"]
 
     with system():
         lm += """\

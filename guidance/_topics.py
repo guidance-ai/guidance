@@ -15,6 +15,6 @@ TRACE_TOPIC = "/trace"
 
 __all__ = [
     "DEFAULT_TOPIC",
-    "METRICS_TOPIC", 
+    "METRICS_TOPIC",
     "TRACE_TOPIC",
 ]

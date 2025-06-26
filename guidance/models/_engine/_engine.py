@@ -3,21 +3,14 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Iterator, Optional, Generator, TypedDict, Union
+from typing import Callable, Generator, Iterator, Optional, TypedDict, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import (
-    EngineOutput,
-    EngineResponse,
-    GenToken,
-    TokenUsage,
-    SamplingParams
-)
-
-from ..._utils import log_init, softmax, apply_top_k_and_top_p_filter
+from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
+from ..._utils import apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
@@ -25,10 +18,12 @@ logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
 
+
 class LogitsOutput(TypedDict):
     logits: NDArray
     n_tokens: int
     n_cached: int
+
 
 class Engine(ABC):
     """The engine owns the inference computation and is used/created by the Model class.
@@ -39,8 +34,9 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True,
-                 enable_monitoring=True, **kwargs):
+    def __init__(
+        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+    ):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
@@ -71,9 +67,7 @@ class Engine(ABC):
     def get_chat_template(
         self,
     ):  # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
-        return (
-            self.tokenizer.chat_template()
-        )  # Instantiate the class before returning to client for now
+        return self.tokenizer.chat_template()  # Instantiate the class before returning to client for now
 
     def __call__(
         self,
@@ -134,9 +128,7 @@ class Engine(ABC):
                     tokens = prefix_tokens + tokens
                     recode = True
             else:
-                backtrack, ff_tokens, mask_fut = parser.advance(
-                    token_id=engine_output.issued_token.token_id
-                )
+                backtrack, ff_tokens, mask_fut = parser.advance(token_id=engine_output.issued_token.token_id)
 
             if backtrack:
                 backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
@@ -185,7 +177,7 @@ class Engine(ABC):
 
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
-                ff_logits = logits[-len(ff_tokens)-1:-1]
+                ff_logits = logits[-len(ff_tokens) - 1 : -1]
                 ff_probs = (
                     softmax(ff_logits)
                     if last_temperature < _TEMPERATURE_EPSILON
@@ -194,15 +186,15 @@ class Engine(ABC):
 
                 if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
                     # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                    ff_probs = np.pad(
-                        ff_probs, [(1, 0), (0, 0)], mode='constant', constant_values=1.0
-                    )
+                    ff_probs = np.pad(ff_probs, [(1, 0), (0, 0)], mode="constant", constant_values=1.0)
                 elif ff_probs.shape[0] < len(ff_tokens):
                     # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
                     # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
                     ff_probs = np.pad(
-                        ff_probs, [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
-                        mode='constant', constant_values=np.nan
+                        ff_probs,
+                        [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
+                        mode="constant",
+                        constant_values=np.nan,
                     )
             else:
                 # really just for mypy -- we shouldn't need this
@@ -223,7 +215,7 @@ class Engine(ABC):
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            latency_ms=ff_lat_ms/len(ff_tokens),
+                            latency_ms=ff_lat_ms / len(ff_tokens),
                             is_input=True,
                         )
                     )
@@ -245,7 +237,7 @@ class Engine(ABC):
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            latency_ms=ff_lat_ms/len(ff_tokens),
+                            latency_ms=ff_lat_ms / len(ff_tokens),
                             is_force_forwarded=True,
                         )
                     )
@@ -370,9 +362,7 @@ class Engine(ABC):
             ]
             # Sort by probability in descending order, as above argpartition
             # does not guarantee order. Sorting the smaller array is faster.
-            return sorted(
-                top_k_tokens, key=lambda x: x.prob, reverse=True
-            )
+            return sorted(top_k_tokens, key=lambda x: x.prob, reverse=True)
 
         # compute top-k without masking
         probs = (
@@ -390,7 +380,7 @@ class Engine(ABC):
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
-            
+
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
