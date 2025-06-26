@@ -76,10 +76,10 @@ class Model:
         self._parent_id: Optional[int] = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
-        self._update_trace_node(self._id, self._parent_id, None)
+        self._update_trace_node(self._id, self._parent_id, None, False)
 
     def _update_trace_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None, echo=False
     ) -> None:
         from ..._topics import TRACE_TOPIC
         from ...registry import get_exchange, get_trace_handler
@@ -87,7 +87,7 @@ class Model:
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
-        if self.echo:
+        if echo:
             get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
@@ -117,20 +117,22 @@ class Model:
         # Input side of trace handler.
         # TODO: StatefulGuidanceInput up in __add__?
         if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role), self.echo)
         elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role), self.echo)
         elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value), self.echo)
         elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data), self.echo)
         elif isinstance(node, ImageUrl):
             # TODO -- let's avoid downloading it here
             pass
         elif isinstance(node, GenAudio):
-            self._update_trace_node(self._id, self._parent_id, AudioInput(value=b""))  # TODO -- what goes here?
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value=b""), self.echo
+            )  # TODO -- what goes here?
         else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node), self.echo)
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
             if i != 0:
@@ -140,7 +142,7 @@ class Model:
                 # node into multiple input nodes to be handled sequentially?
                 self._parent_id = self._id
                 self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
+            self._update_trace_node(self._id, self._parent_id, output_attr, self.echo)
             # Stream current model state
             self._send_to_event_queue()
         return self
