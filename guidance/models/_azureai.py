@@ -1,29 +1,28 @@
 import logging
-
-from typing import Callable, Iterator, Optional, Union, TYPE_CHECKING, ContextManager, cast
+from typing import TYPE_CHECKING, Callable, ContextManager, Iterator, Optional, Union, cast
 
 from pydantic import TypeAdapter
 
 from .._ast import (
     JsonNode,
 )
+from ..trace import OutputAttr
 from ._base import Model
 from ._openai_base import (
-    BaseOpenAIInterpreter,
     BaseOpenAIClientWrapper,
-    OpenAIClientWrapper,
+    BaseOpenAIInterpreter,
+    Message,
     OpenAIAudioMixin,
+    OpenAIClientWrapper,
     OpenAIImageMixin,
-    OpenAIRuleMixin,
     OpenAIJSONMixin,
     OpenAIRegexMixin,
-    Message,
+    OpenAIRuleMixin,
 )
-from ..trace import OutputAttr
 
 if TYPE_CHECKING:
-    from azure.core.credentials import AzureKeyCredential, TokenCredential
     import azure.ai.inference
+    from azure.core.credentials import AzureKeyCredential, TokenCredential
     from openai.types.chat import ChatCompletionChunk
 
 logger = logging.getLogger(__name__)

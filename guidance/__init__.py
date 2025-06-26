@@ -4,9 +4,8 @@ import sys
 import types
 
 from . import models
+from ._ast import Function, GrammarNode
 from ._guidance import guidance
-
-from ._ast import GrammarNode, Function
 from ._utils import strip_multiline_string_indents
 
 
@@ -19,7 +18,6 @@ class _Guidance(types.ModuleType):
 sys.modules[__name__].__class__ = _Guidance
 
 # we expose all the library functions at the top level of the module
-from .library import *
-
 # widget debug utilities
-from .debug import enable_widget_debug, dump_widget_debug, clear_widget_debug, widget_debug_info
+from .debug import clear_widget_debug, dump_widget_debug, enable_widget_debug, widget_debug_info
+from .library import *

@@ -4,8 +4,8 @@
 # Copyright (c) Guidance Contributors.
 # Distributed under the terms of the Modified BSD License.
 
-from .stitch import StitchWidget
 from ._version import __version__, version_info
+from .stitch import StitchWidget
 
 
 def _jupyter_labextension_paths():

@@ -1,4 +1,5 @@
 import sys
+from contextvars import ContextVar
 from typing import (
     Any,
     Callable,
@@ -7,14 +8,13 @@ from typing import (
     Union,
     overload,
 )
-from contextvars import ContextVar
 
 if sys.version_info >= (3, 10):
-    from typing import ParamSpec, TypeAlias, Concatenate
+    from typing import Concatenate, ParamSpec, TypeAlias
 else:
-    from typing_extensions import ParamSpec, TypeAlias, Concatenate
+    from typing_extensions import Concatenate, ParamSpec, TypeAlias
 
-from ._ast import RuleNode, Function
+from ._ast import Function, RuleNode
 from .models import Model
 
 _in_stateless_context: ContextVar[bool]

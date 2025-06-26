@@ -1,22 +1,23 @@
-from typing import List
-import llguidance
 import json
 import textwrap
-import guidance
+from typing import List
+
+import llguidance
 import pytest
 from huggingface_hub import hf_hub_download
+
+import guidance
 from guidance import (
-    gen,
-    select,
-    optional,
-    one_or_more,
     GrammarNode,
-    string,
     capture,
+    gen,
+    one_or_more,
+    optional,
     regex,
+    select,
+    string,
 )
-from guidance.library._subgrammar import as_regular_grammar
-from guidance.library._subgrammar import subgrammar, lexeme
+from guidance.library._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 log_level = 10
 

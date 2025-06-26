@@ -1,5 +1,6 @@
 import pytest
-from guidance.library._subgrammar import subgrammar, lexeme
+
+from guidance.library._subgrammar import lexeme, subgrammar
 
 
 class TestEndingLexemeAmbiguous:

@@ -1,5 +1,6 @@
-from guidance import regex, block, models
 import pytest
+
+from guidance import block, models, regex
 
 
 def test_text_opener():

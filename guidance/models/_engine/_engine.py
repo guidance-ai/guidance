@@ -3,15 +3,14 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Iterator, Optional, Generator, TypedDict, Union
+from typing import Callable, Generator, Iterator, Optional, TypedDict, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import EngineOutput, EngineResponse, GenToken, TokenUsage, SamplingParams
-
-from ..._utils import log_init, softmax, apply_top_k_and_top_p_filter
+from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
+from ..._utils import apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 

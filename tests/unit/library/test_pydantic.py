@@ -1,14 +1,17 @@
 import inspect
-from json import dumps as original_json_dumps
 from functools import partial
-from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
+from json import dumps as original_json_dumps
+from typing import Any, Dict, Generic, List, Literal, Set, Tuple, Type, TypeVar, Union
 
 import pydantic
 import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
-from guidance import models, json as gen_json
-from ...utils import check_match_failure as _check_match_failure, generate_and_check as _generate_and_check
+from guidance import json as gen_json
+from guidance import models
+
+from ...utils import check_match_failure as _check_match_failure
+from ...utils import generate_and_check as _generate_and_check
 
 
 def json_dumps(target: Any) -> str:

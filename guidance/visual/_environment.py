@@ -7,6 +7,7 @@ Detection logic is inspired from both plotly and interpretml environment detecti
 # TODO(nopdive): Major cloud providers implemented and manually verified.
 
 import os
+
 from pydantic import BaseModel
 
 

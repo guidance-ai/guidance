@@ -1,15 +1,14 @@
+import dataclasses
 import functools
 import inspect
 import threading
-from typing import Any
 import weakref
-import dataclasses
 from contextvars import ContextVar
+from typing import Any
 
+from ._ast import Function, RuleNode, RuleRefNode
 from ._grammar import string
-
-from ._ast import Function, RuleRefNode, RuleNode
-from ._utils import strip_multiline_string_indents, make_weak_bound_method, signature_pop
+from ._utils import make_weak_bound_method, signature_pop, strip_multiline_string_indents
 from .models import Model
 
 _in_stateless_context: ContextVar[bool] = ContextVar("in_stateless_context", default=False)

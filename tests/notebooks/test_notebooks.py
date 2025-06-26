@@ -2,7 +2,7 @@ import logging
 import os
 import pathlib
 from typing import Any, Dict, Optional
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 import papermill as pm
 import pytest

@@ -1,15 +1,15 @@
+import asyncio
+import logging
 import time
 from asyncio import CancelledError
 from enum import Enum
 from typing import Any, Sequence
-import logging
-import asyncio
+
 import psutil
 
 from .._schema import TokenUsage
-from ..visual import MetricMessage
 from .._topics import METRICS_TOPIC
-
+from ..visual import MetricMessage
 
 MISSING_VALUE = 0
 
@@ -54,6 +54,7 @@ class PeriodicMetricsGenerator:
     async def _emit(self):
         import asyncio
         import time
+
         from ..registry import get_exchange
 
         while not self._cancelled:

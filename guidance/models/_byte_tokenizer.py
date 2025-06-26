@@ -1,8 +1,10 @@
+from typing import List
+
 import numpy as np
+
+from ..chat import load_template_class
 from ._engine import Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
-from ..chat import load_template_class
-from typing import List
 
 
 class ByteTokenizer(Tokenizer):

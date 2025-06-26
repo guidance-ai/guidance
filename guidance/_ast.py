@@ -1,9 +1,11 @@
+import copy
 import json
 import re
 import textwrap
-import copy
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -11,16 +13,15 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
+    TypedDict,
     TypeVar,
     Union,
-    TypedDict,
     cast,
 )
+
+from llguidance import LLMatcher
 from pydantic import Base64Bytes
 from typing_extensions import assert_never
-from functools import cached_property
-from llguidance import LLMatcher
-import warnings
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr

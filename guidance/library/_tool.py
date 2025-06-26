@@ -1,5 +1,5 @@
-from .._guidance import guidance
 from .._grammar import select
+from .._guidance import guidance
 from ._optional import optional
 from ._sequences import zero_or_more
 from ._subgrammar import lexeme, subgrammar

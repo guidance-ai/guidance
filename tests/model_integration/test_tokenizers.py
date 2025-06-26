@@ -1,4 +1,5 @@
 import pytest
+
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS, BaseTestTransformerTokenizers
 
 # These are not _strictly_ unit tests, since they refer

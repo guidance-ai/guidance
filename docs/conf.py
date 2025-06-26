@@ -19,8 +19,9 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import sys
 import shutil
+import sys
+
 import sphinx_rtd_theme
 
 print(os.path.abspath("./guidance"))

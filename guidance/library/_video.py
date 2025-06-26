@@ -1,8 +1,7 @@
+import base64
 import importlib.resources
 import pathlib
 import typing
-import base64
-
 
 from .._guidance import guidance
 from .._utils import bytes_from

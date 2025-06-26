@@ -1,10 +1,10 @@
-from typing import Any, Optional, Sequence, Union, Callable
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any, Callable, Optional, Sequence, Union
 
+import llguidance
 
 from ...chat import ChatTemplate, load_template_class
-import llguidance
 
 
 @dataclass

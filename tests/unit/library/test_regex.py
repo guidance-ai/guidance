@@ -1,5 +1,6 @@
-import pytest
 from functools import partial
+
+import pytest
 
 from guidance.library._gen import regex
 

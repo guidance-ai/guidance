@@ -19,6 +19,7 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
+from ..._schema import SamplingParams, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -31,11 +32,8 @@ from ...trace import (
 )
 from ...trace._trace import AudioInput
 from ...visual import TraceMessage
-from ..._schema import TokenUsage
 from ._interpreter import Interpreter
 from ._state import State
-
-from ..._schema import SamplingParams
 
 if TYPE_CHECKING:
     from ...library._block import Block
@@ -83,8 +81,8 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        from ...registry import get_trace_handler, get_exchange
         from ..._topics import TRACE_TOPIC
+        from ...registry import get_exchange, get_trace_handler
 
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)

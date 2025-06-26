@@ -1,21 +1,20 @@
 import base64
+import time
 import wave
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-import time
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
+from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, Union, cast
 
-from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
 from guidance._schema import SamplingParams
 
-from .._schema import TokenUsage
 from .._ast import (
     ASTNode,
-    GenAudio,
     AudioBlob,
+    GenAudio,
     ImageBlob,
     ImageUrl,
     JsonNode,
@@ -25,15 +24,16 @@ from .._ast import (
     RoleStart,
     RuleNode,
 )
+from .._schema import TokenUsage
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput, Token
+from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
+    from openai import OpenAI
     from openai.types.chat import ChatCompletionChunk
     from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
-    from openai import OpenAI
 
 
 def get_role_start(role: str) -> str:

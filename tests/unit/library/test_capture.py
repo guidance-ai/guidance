@@ -1,4 +1,4 @@
-from guidance import capture, models, one_or_more, select, guidance
+from guidance import capture, guidance, models, one_or_more, select
 
 
 def test_capture():

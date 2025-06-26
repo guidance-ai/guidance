@@ -1,7 +1,8 @@
-import pytest
-import weakref
 import gc
 import inspect
+import weakref
+
+import pytest
 
 import guidance
 from guidance import gen, role

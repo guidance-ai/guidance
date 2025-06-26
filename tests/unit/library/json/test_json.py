@@ -1,7 +1,7 @@
 import json
 import re
-from json import dumps as json_dumps
 import warnings
+from json import dumps as json_dumps
 
 import pytest
 from jsonschema import ValidationError, validate

@@ -1,16 +1,16 @@
 import pytest
 
-from guidance.trace._trace import WeakRefList, TraceHandler, LiteralInput, TextOutput, RoleCloserInput
 from guidance.trace import (
-    TraceNode,
-    StatelessGuidanceInput,
-    StatefulGuidanceInput,
-    ImageInput,
-    EmbeddedInput,
-    RoleOpenerInput,
-    ImageOutput,
     CaptureOutput,
+    EmbeddedInput,
+    ImageInput,
+    ImageOutput,
+    RoleOpenerInput,
+    StatefulGuidanceInput,
+    StatelessGuidanceInput,
+    TraceNode,
 )
+from guidance.trace._trace import LiteralInput, RoleCloserInput, TextOutput, TraceHandler, WeakRefList
 
 
 def test_weak_ref_list():

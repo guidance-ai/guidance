@@ -1,7 +1,7 @@
-import pytest
 import jinja2
+import pytest
 
-from guidance import gen, select, models, assistant, system, user, guidance
+from guidance import assistant, gen, guidance, models, select, system, user
 
 from ..utils import get_model
 
@@ -110,7 +110,7 @@ w) 10"""
 @pytest.mark.skip("Don't overload the build machines")
 def test_phi3_transformers_orig():
     import torch
-    from transformers import AutoModelForCausalLM, pipeline, AutoTokenizer
+    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
     torch.random.manual_seed(0)
     model = AutoModelForCausalLM.from_pretrained(
@@ -241,10 +241,11 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
 
 
 def test_top_p_top_k_filtering():
-    import torch
     import numpy as np
-    from guidance._utils import apply_top_k_and_top_p_filter
+    import torch
     from transformers.generation.logits_process import TopKLogitsWarper, TopPLogitsWarper
+
+    from guidance._utils import apply_top_k_and_top_p_filter
 
     torch.random.manual_seed(0)
     logits = torch.randn((1, 1000))

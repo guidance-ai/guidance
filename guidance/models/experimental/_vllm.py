@@ -4,8 +4,8 @@ from guidance._schema import SamplingParams
 
 from ..._ast import GrammarNode
 from ...trace import OutputAttr, TextOutput
-from .._openai_base import BaseOpenAIInterpreter, OpenAIClientWrapper
 from .._base import Model
+from .._openai_base import BaseOpenAIInterpreter, OpenAIClientWrapper
 
 
 class VLLMInterpreter(BaseOpenAIInterpreter):

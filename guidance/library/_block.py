@@ -1,8 +1,9 @@
 from contextlib import contextmanager
 from typing import Optional, Union
+
 from .._ast import ASTNode, Function
-from ..models._base._model import _active_blocks
 from .._guidance import _in_stateless_context
+from ..models._base._model import _active_blocks
 
 
 class Block:

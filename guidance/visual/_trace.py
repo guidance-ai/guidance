@@ -1,19 +1,18 @@
 """Visualization related to trace."""
 
+import html
 import json
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from ..trace import (
+    ImageOutput,
+    RoleCloserInput,
+    RoleOpenerInput,
     TextOutput,
     TokenOutput,
-    TraceNode,
     TraceHandler,
-    RoleOpenerInput,
-    RoleCloserInput,
-    ImageOutput,
-    TokenOutput,
+    TraceNode,
 )
-import html
 
 
 def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:

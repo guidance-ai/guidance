@@ -1,9 +1,15 @@
+# from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
+# from ._cohere import Cohere, CohereCompletion, CohereInstruct
+# from ._anthropic import Anthropic
+# from ._googleai import GoogleAI, GoogleAIChat
+# from ._togetherai import (
+#     TogetherAI,
+#     TogetherAIChat,
+#     TogetherAIInstruct,
+#     TogetherAICompletion,
+# )
+from . import experimental
 from ._base import Model
-
-# from ._engine import Instruct, Chat
-
-# local models
-from ._transformers import Transformers, TransformersTokenizer
 from ._llama_cpp import LlamaCpp
 from ._mock import Mock  # , MockChat
 
@@ -19,14 +25,6 @@ from ._mock import Mock  # , MockChat
 # from ._azureai_studio import AzureAIStudioChat
 from ._openai import OpenAI
 
-# from ._lite_llm import LiteLLM, LiteLLMChat, LiteLLMInstruct, LiteLLMCompletion
-# from ._cohere import Cohere, CohereCompletion, CohereInstruct
-# from ._anthropic import Anthropic
-# from ._googleai import GoogleAI, GoogleAIChat
-# from ._togetherai import (
-#     TogetherAI,
-#     TogetherAIChat,
-#     TogetherAIInstruct,
-#     TogetherAICompletion,
-# )
-from . import experimental
+# from ._engine import Instruct, Chat
+# local models
+from ._transformers import Transformers, TransformersTokenizer

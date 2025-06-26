@@ -2,9 +2,9 @@ from guidance.registry import get_renderer
 
 
 def test_repeat_simple_model():
-    from guidance.models import Transformers
     from guidance import gen
-    from guidance.registry import set_renderer, get_trace_handler
+    from guidance.models import Transformers
+    from guidance.registry import get_trace_handler, set_renderer
     from guidance.visual import JupyterWidgetRenderer
 
     trace_handler = get_trace_handler()
@@ -22,8 +22,8 @@ def test_repeat_simple_model():
 
 
 def test_roles():
+    from guidance import gen, system, user
     from guidance.models import Transformers
-    from guidance import gen, user, system
 
     m0 = Transformers("gpt2")
     with system():

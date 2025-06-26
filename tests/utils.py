@@ -1,8 +1,7 @@
 import os
 import random
 import time
-
-from typing import Set, Optional, Protocol
+from typing import Optional, Protocol, Set
 
 import pytest
 

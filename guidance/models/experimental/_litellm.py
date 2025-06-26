@@ -1,12 +1,13 @@
-from typing import Optional, Iterator, ContextManager, TYPE_CHECKING
+from typing import TYPE_CHECKING, ContextManager, Iterator, Optional
+
 from pydantic import TypeAdapter
 
 from guidance._schema import SamplingParams
 
-from ..._ast import GrammarNode, RuleNode, RegexNode, JsonNode, LarkNode
+from ..._ast import GrammarNode, JsonNode, LarkNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
-from .._openai_base import Message, BaseOpenAIInterpreter, BaseOpenAIClientWrapper
+from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter, Message
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk

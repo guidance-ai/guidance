@@ -1,4 +1,5 @@
 import pytest
+
 import guidance
 from guidance import gen, models, optional, select, string
 from guidance._parser import ByteParserException

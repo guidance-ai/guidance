@@ -1,10 +1,10 @@
 """Debug utilities for the guidance widget."""
 
-from typing import Optional
 import logging
+from typing import Optional
 
 from .registry import get_renderer
-from .visual._renderer import JupyterWidgetRenderer, AutoRenderer
+from .visual._renderer import AutoRenderer, JupyterWidgetRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +96,7 @@ def widget_debug_info() -> None:
     """
     import platform
     import sys
+
     from .visual._environment import Environment
 
     renderer = get_renderer()

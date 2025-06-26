@@ -1,6 +1,8 @@
 import sys
+
 import pytest
-from guidance import one_or_more, select, string, zero_or_more, regex, string
+
+from guidance import one_or_more, regex, select, string, zero_or_more
 from guidance._parser import ByteParser
 
 

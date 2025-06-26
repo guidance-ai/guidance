@@ -1,27 +1,28 @@
-import pytest
-from guidance.registry import get_bg_async
-from guidance.trace import TraceHandler, LiteralInput, TextOutput
-from guidance.visual import (
-    TraceMessage,
-    MetricMessage,
-    ExecutionCompletedMessage,
-    ResetDisplayMessage,
-    ClientReadyMessage,
-    OutputRequestMessage,
-    ClientReadyAckMessage,
-    trace_node_to_html,
-    display_trace_tree,
-    trace_node_to_str,
-    TopicExchange,
-    GuidanceMessage,
-)
-from guidance.trace import TokenOutput, Token, Backtrack
-from guidance.visual import serialize_message, deserialize_message
-from guidance.visual._environment import Environment
 import asyncio
 from base64 import b64encode
 
+import pytest
+
 from guidance._topics import DEFAULT_TOPIC
+from guidance.registry import get_bg_async
+from guidance.trace import Backtrack, LiteralInput, TextOutput, Token, TokenOutput, TraceHandler
+from guidance.visual import (
+    ClientReadyAckMessage,
+    ClientReadyMessage,
+    ExecutionCompletedMessage,
+    GuidanceMessage,
+    MetricMessage,
+    OutputRequestMessage,
+    ResetDisplayMessage,
+    TopicExchange,
+    TraceMessage,
+    deserialize_message,
+    display_trace_tree,
+    serialize_message,
+    trace_node_to_html,
+    trace_node_to_str,
+)
+from guidance.visual._environment import Environment
 
 
 @pytest.mark.parametrize(

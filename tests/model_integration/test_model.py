@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import patch
 
+import pytest
+
 import guidance
-from guidance import regex, gen, select, models
+from guidance import gen, models, regex, select
 
 
 def test_fstring(selected_model):

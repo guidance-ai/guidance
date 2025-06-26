@@ -2,7 +2,7 @@ from typing import Optional
 
 from llguidance.gbnf_to_lark import gbnf_to_lark as _gbnf_to_lark
 
-from .._ast import RuleNode, LarkNode, GrammarNode
+from .._ast import GrammarNode, LarkNode, RuleNode
 from .._grammar import capture, token_limit, with_temperature
 
 

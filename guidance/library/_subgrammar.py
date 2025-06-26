@@ -1,5 +1,5 @@
 from .._ast import GrammarNode, RuleNode
-from .._grammar import subgrammar, regex
+from .._grammar import regex, subgrammar
 
 __all__ = ["subgrammar", "regex", "as_regular_grammar", "lexeme"]
 

@@ -1,5 +1,7 @@
-import pytest
 from collections import defaultdict
+
+import pytest
+
 import guidance
 from guidance import gen, models
 

@@ -5,7 +5,7 @@ import numpy as np
 
 from .._schema import EngineOutput, SamplingParams
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer, LogitsOutput
+from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
 
 logger = logging.getLogger(__name__)

@@ -1,17 +1,18 @@
+import json
 import re
+
 import numpy as np
 import pytest
 from jsonschema import validate
-import json
 
 import guidance
 from guidance import (
     gen,
-    select,
-    optional,
     one_or_more,
+    optional,
+    select,
 )
-from guidance.library._subgrammar import subgrammar, lexeme
+from guidance.library._subgrammar import lexeme, subgrammar
 
 
 @guidance(stateless=True)

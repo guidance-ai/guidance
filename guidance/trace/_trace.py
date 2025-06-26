@@ -1,12 +1,13 @@
 # TODO(nopdive): Consider integrating token operations into trace nodes (handles token healing cleaner).
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
+import logging
 import weakref
 from itertools import count
-from typing import Any, Optional, Generator, Dict, Annotated, ClassVar, Union
-import logging
-from pydantic import BaseModel, Field, model_validator, computed_field, Tag, Discriminator, Base64Bytes
-from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
+from typing import Annotated, Any, ClassVar, Dict, Generator, Optional, Union
 
+from pydantic import Base64Bytes, BaseModel, Discriminator, Field, Tag, computed_field, model_validator
+
+from .._utils import log_cleanup, pydantic_no_default_repr, pydantic_no_default_str
 
 logger = logging.getLogger(__name__)
 

@@ -7,32 +7,32 @@ Our main focus is on jupyter notebooks and later terminal.
 
 import asyncio
 import logging
-import weakref
-from typing import Optional, Callable, TYPE_CHECKING
-from asyncio import Queue
-from functools import partial, lru_cache
 import traceback
+import weakref
+from asyncio import Queue
+from functools import lru_cache, partial
+from typing import TYPE_CHECKING, Callable, Optional
+from warnings import warn
 
+from .._topics import DEFAULT_TOPIC
+from .._utils import log_cleanup
+from ..trace import TraceHandler
+from ..visual import ClientReadyMessage, GuidanceMessage, ResetDisplayMessage, TraceMessage
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
 from ._message import (
-    ExecutionCompletedMessage,
-    deserialize_message,
-    serialize_message,
     ClientReadyAckMessage,
+    ExecutionCompletedMessage,
     ExecutionStartedMessage,
     OutputRequestMessage,
+    deserialize_message,
+    serialize_message,
 )
-from .._utils import log_cleanup
-from ..trace import TraceHandler
-from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
-from .._topics import DEFAULT_TOPIC
-from warnings import warn
 
 try:
-    from IPython.display import clear_output, display, HTML
     from IPython import get_ipython
+    from IPython.display import HTML, clear_output, display
 
     ipython_imported = True
 except ImportError:
@@ -72,6 +72,7 @@ class Renderer:
 def _get_src_doc_template() -> str:
     """Returns the source document template for the stitch widget."""
     import importlib.resources as resources
+
     import guidance
 
     path = resources.files(guidance) / "resources" / "graphpaper-inline.html"
@@ -137,8 +138,7 @@ async def _handle_recv_messages(
     renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
 ) -> None:
     logger.debug("RECV:init")
-    from ..registry import get_exchange
-    from ..registry import get_bg_async
+    from ..registry import get_bg_async, get_exchange
 
     while True:
         try:
@@ -338,8 +338,7 @@ class JupyterWidgetRenderer(Renderer):
                 return False, -1
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
-        from ..registry import get_exchange
-        from ..registry import get_bg_async
+        from ..registry import get_bg_async, get_exchange
 
         out_messages: list[GuidanceMessage] = []
 
@@ -460,8 +459,8 @@ class JupyterWidgetRenderer(Renderer):
         Returns:
             JSON string containing debug data, or None if no data available
         """
-        import json
         import datetime
+        import json
 
         if not self._debug_enabled:
             logger.warning("Debug mode not enabled - call enable_debug() first")

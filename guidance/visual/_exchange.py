@@ -1,11 +1,12 @@
 """Poor man's exchanges for routing messages."""
 
+import logging
+import re
 from collections import defaultdict
 from typing import Callable
-from ..visual import GuidanceMessage
+
 from .._topics import DEFAULT_TOPIC
-import re
-import logging
+from ..visual import GuidanceMessage
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,7 @@
 import pytest
+
 import guidance
-from guidance import gen, models, user, system
+from guidance import gen, models, system, user
 
 
 def test_call_embeddings():
@@ -42,7 +43,7 @@ def test_model_set():
 
 
 def test_trace():
-    from guidance import system, user, gen, models
+    from guidance import gen, models, system, user
 
     m0 = models.Mock()
 

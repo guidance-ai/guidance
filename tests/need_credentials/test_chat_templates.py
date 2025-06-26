@@ -2,7 +2,6 @@ import pytest
 import transformers
 
 import guidance
-
 from guidance.chat import CHAT_TEMPLATE_CACHE
 
 from ..utils import env_or_skip

@@ -1,11 +1,13 @@
-import pytest
-import uuid
-import requests
-import tempfile
 import pathlib
-
+import tempfile
+import uuid
 from urllib.error import HTTPError, URLError
-from guidance import models, image
+
+import pytest
+import requests
+
+from guidance import image, models
+
 from ...utils import remote_image_url
 
 #################################################################################

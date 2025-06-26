@@ -1,18 +1,19 @@
+import operator
 import os
 import re
 import textwrap
 import warnings
-import operator
-import numpy as np
 from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
+
+import numpy as np
 
 from guidance._schema import SamplingParams
 
 from ..chat import ChatTemplate
-from ._engine import Engine, Tokenizer, LogitsOutput, EngineInterpreter, Llama3VisionInterpreter, Phi3VisionInterpreter
-from ._engine._tokenizer import TokenizerWrappable
 from ._base import Model
+from ._engine import Engine, EngineInterpreter, Llama3VisionInterpreter, LogitsOutput, Phi3VisionInterpreter, Tokenizer
+from ._engine._tokenizer import TokenizerWrappable
 
 try:
     import torch

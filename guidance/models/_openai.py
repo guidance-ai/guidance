@@ -2,12 +2,11 @@ from typing import Optional
 
 from guidance._schema import SamplingParams
 
-
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    OpenAIClientWrapper,
     OpenAIAudioMixin,
+    OpenAIClientWrapper,
     OpenAIImageMixin,
     OpenAIJSONMixin,
     OpenAIRegexMixin,

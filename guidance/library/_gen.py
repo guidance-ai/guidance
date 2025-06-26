@@ -1,7 +1,10 @@
-from typing import Union, Optional
 import logging
+from typing import Optional, Union
+
+from .._grammar import capture, quote_regex, select, with_temperature
+from .._grammar import gen as grammar_gen
+from .._grammar import regex as regex_node
 from .._guidance import guidance
-from .._grammar import regex as regex_node, select, quote_regex, capture, with_temperature, gen as grammar_gen
 from ._block import block
 from ._tool import Tool
 

@@ -1,6 +1,6 @@
 import os
-from typing import Any, Generator, Optional, TYPE_CHECKING
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import TYPE_CHECKING, Any, Generator, Optional
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np

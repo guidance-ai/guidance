@@ -1,15 +1,13 @@
+import json
 import pathlib
-
 from urllib.parse import parse_qs, urlparse
 
-import json
 import pydantic
 import pytest
 import requests
-
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
-from guidance import assistant, gen, models, system, user, gen_audio, image
+from guidance import assistant, gen, gen_audio, image, models, system, user
 from guidance import json as gen_json
 from guidance.models._azureai import create_azure_openai_model
 

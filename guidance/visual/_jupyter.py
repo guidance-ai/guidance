@@ -1,7 +1,7 @@
 """Jupyter specific utilities."""
 
-from typing import Callable, Any, Tuple, Optional
 import logging
+from typing import Any, Callable, Optional, Tuple
 from uuid import uuid4
 
 try:

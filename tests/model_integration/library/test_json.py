@@ -1,4 +1,5 @@
-from guidance import models, json as gen_json
+from guidance import json as gen_json
+from guidance import models
 
 
 def test_json_usage_smoke(selected_model: models.Model):
