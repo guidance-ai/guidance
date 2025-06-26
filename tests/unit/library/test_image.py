@@ -1,11 +1,13 @@
-import pytest
-import uuid
-import requests
-import tempfile
 import pathlib
-
+import tempfile
+import uuid
 from urllib.error import HTTPError, URLError
-from guidance import models, image
+
+import pytest
+import requests
+
+from guidance import image, models
+
 from ...utils import remote_image_url
 
 #################################################################################
@@ -13,6 +15,7 @@ from ...utils import remote_image_url
 # A pseudocode description has been written in comments to preserve notes about
 # what was tested, for reference, in case we want to reproduct it in the new system
 #################################################################################
+
 
 def test_local_image():
     # 1. Create a mock model
@@ -37,7 +40,7 @@ def test_remote_image():
 
 def test_remote_image_not_found():
     # 1. Create a mock model
-    # 2. Try to add a non-existing remote image 
+    # 2. Try to add a non-existing remote image
     # 3. Catch an HTTPError or URLError from the model trying to fetch the image, which should result in a 404
     pass
 

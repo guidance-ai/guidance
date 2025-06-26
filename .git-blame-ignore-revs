@@ -3,3 +3,5 @@
 57da386795bc94a34275b333da586f171f96d7c8
 # Ran black on tests and other ancillary python files in code
 083fb9877b507ed27136441c683ce051edf37e81
+# Ran ruff on the codebase to standardize formatting
+95b1bbe75b049c9d3bdc0346d09116b76f736472

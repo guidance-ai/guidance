@@ -1,6 +1,8 @@
 import sys
+
 import pytest
-from guidance import one_or_more, select, string, zero_or_more, regex, string
+
+from guidance import one_or_more, regex, select, string, zero_or_more
 from guidance._parser import ByteParser
 
 
@@ -140,6 +142,6 @@ def test_string_utf8():
 def test_long_fast_forward():
     if sys.platform == "win32":
         pytest.skip("Skipping long fast forward test on Windows to avoid stack overflow")
-    s = "x"*10_000
+    s = "x" * 10_000
     g = string(s)
     assert g.match(s) is not None

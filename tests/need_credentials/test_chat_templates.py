@@ -2,7 +2,6 @@ import pytest
 import transformers
 
 import guidance
-
 from guidance.chat import CHAT_TEMPLATE_CACHE
 
 from ..utils import env_or_skip
@@ -28,9 +27,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
     # If this fails, the models have had their templates updated, and we need to fix the cache manually.
     hf_token = env_or_skip("HF_TOKEN")
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_id, token=hf_token, trust_remote_code=True
-    )
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id, token=hf_token, trust_remote_code=True)
     model_chat_template = tokenizer.chat_template
     if should_pass:
         assert model_chat_template in CHAT_TEMPLATE_CACHE
@@ -41,6 +38,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 
 # TODO: Expand testing to verify that tokenizer.apply_chat_template() produces same results as our ChatTemplate subclasses
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
+
 
 @pytest.mark.skip(reason="Is this supposed to work still? See issue 1196")
 @pytest.mark.parametrize(
@@ -58,9 +56,7 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 def test_chat_format_smoke(model_id: str):
     hf_token = env_or_skip("HF_TOKEN")
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_id, token=hf_token, trust_remote_code=True
-    )
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id, token=hf_token, trust_remote_code=True)
     model_chat_template = tokenizer.chat_template
 
     lm = guidance.models.Mock("")
@@ -100,9 +96,7 @@ def test_chat_format_smoke(model_id: str):
 def test_chat_format_smoke_with_system(model_id: str):
     hf_token = env_or_skip("HF_TOKEN")
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        model_id, token=hf_token, trust_remote_code=True
-    )
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_id, token=hf_token, trust_remote_code=True)
     model_chat_template = tokenizer.chat_template
 
     lm = guidance.models.Mock("")

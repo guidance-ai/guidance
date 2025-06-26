@@ -1,9 +1,11 @@
+import copy
 import json
 import re
 import textwrap
-import copy
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -11,16 +13,15 @@ from typing import (
     Iterator,
     Optional,
     Sequence,
+    TypedDict,
     TypeVar,
     Union,
-    TypedDict,
     cast,
 )
+
+from llguidance import LLMatcher
 from pydantic import Base64Bytes
 from typing_extensions import assert_never
-from functools import cached_property
-from llguidance import LLMatcher
-import warnings
 
 from ._parser import ByteParser, ByteParserException
 from .trace import OutputAttr
@@ -31,12 +32,8 @@ if TYPE_CHECKING:
 # to support the embedding of guidance functions inside Python f-strings we use tags with these delimiters
 tag_start = "{{G|"  # start of a call tag
 tag_end = "|G}}"  # end of a call tag
-_tag_pool: dict[str, Union["Function", "GrammarNode"]] = (
-    {}
-)  # the Functions or GrammarNodes associated with the tags
-_tag_pattern = re.compile(
-    re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end)
-)  # the pattern for matching call tags
+_tag_pool: dict[str, Union["Function", "GrammarNode"]] = {}  # the Functions or GrammarNodes associated with the tags
+_tag_pattern = re.compile(re.escape(tag_start) + r"([^\|]+)" + re.escape(tag_end))  # the pattern for matching call tags
 
 
 def _parse_tags(s: str) -> Union["GrammarNode", "Function"]:
@@ -84,13 +81,7 @@ class Match:
         return str(self.captures)
 
     def __repr__(self):
-        return (
-            "<guidance.Match object; captures="
-            + str(self.captures)
-            + "; partial="
-            + str(self.partial)
-            + ">"
-        )
+        return "<guidance.Match object; captures=" + str(self.captures) + "; partial=" + str(self.partial) + ">"
 
 
 class StatefulException(Exception):
@@ -214,7 +205,6 @@ class GenAudio(ASTNode):
 
 @dataclass(frozen=True)
 class GrammarNode(Tagged, ASTNode):
-
     @property
     def is_null(self) -> bool:
         """
@@ -484,29 +474,25 @@ class RuleNode(GrammarNode):
             or self.suffix is not None
             or self.stop_capture is not None
         ) and not self.value.is_allowed_in_lark_rule_with_attrs:
-            raise ValueError(
-                "RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition"
-            )
+            raise ValueError("RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition")
 
     @property
     def is_allowed_in_lark_terminal(self) -> bool:
         return (
-            (
-                self.capture is None
-                and self.temperature is None
-                and self.max_tokens is None
-                and self.stop is None
-                and self.suffix is None
-                and self.stop_capture is None
-            )
-            and super().is_allowed_in_lark_terminal
-        )
+            self.capture is None
+            and self.temperature is None
+            and self.max_tokens is None
+            and self.stop is None
+            and self.suffix is None
+            and self.stop_capture is None
+        ) and super().is_allowed_in_lark_terminal
 
     def children(self) -> tuple[GrammarNode]:
         return (self.value,)
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.rule(self, **kwargs)
+
 
 @dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
@@ -529,16 +515,19 @@ class RuleRefNode(GrammarNode):
             raise ValueError("RuleRefNode target not set")
         return interpreter.rule(self.target)
 
+
 @dataclass(frozen=True)
 class BaseSubgrammarNode(GrammarNode):
     @property
     def is_allowed_in_lark_terminal(self) -> bool:
         return False
+
     @property
     def is_allowed_in_lark_rule_with_attrs(self) -> bool:
         # Typically, not being allowed in terminal implies that a node is not allowed in a rule with attributes,
         # however this is notably false for subgrammars
         return True
+
 
 @dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
@@ -547,6 +536,7 @@ class SubgrammarNode(BaseSubgrammarNode):
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
+
 
 class LLGJsonCompileOptions(TypedDict):
     # defaults to ","
@@ -561,6 +551,7 @@ class LLGJsonCompileOptions(TypedDict):
     coerce_one_of: Optional[bool]
     # ignore unimplemented keywords; defaults to false
     lenient: Optional[bool]
+
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
@@ -586,7 +577,7 @@ class JsonNode(BaseSubgrammarNode):
             # (in case x-guidance was already set with some options)
             schema["x-guidance"] = self.llg_options
         return schema
-    
+
     def _llguidance_validate(self) -> None:
         """Validate the JSON schema with `llguidance` and warn about any issues."""
         grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
@@ -598,6 +589,7 @@ class JsonNode(BaseSubgrammarNode):
             for message in messages:
                 warnings.warn(message)
 
+
 @dataclass(frozen=True, eq=False)
 class LarkNode(BaseSubgrammarNode):
     lark_grammar: str
@@ -605,8 +597,8 @@ class LarkNode(BaseSubgrammarNode):
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.lark(self, **kwargs)
 
-class LarkSerializer:
 
+class LarkSerializer:
     def __init__(self, enforce_max_tokens: bool = True):
         self.enforce_max_tokens = enforce_max_tokens
         self.rules: dict[str, str] = {}
@@ -671,7 +663,7 @@ class LarkSerializer:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
-            
+
             res += ": "
             target = node.value
             if isinstance(target, JsonNode):
@@ -732,7 +724,7 @@ class LarkSerializer:
             return f"{inner}{{{node.min},{node.max}}}"
 
         if isinstance(node, SubstringNode):
-            return f'%regex {json.dumps({"substring_chunks": node.chunks}, indent=2)}'
+            return f"%regex {json.dumps({'substring_chunks': node.chunks}, indent=2)}"
 
         if isinstance(node, RuleRefNode):
             if node.target is None:

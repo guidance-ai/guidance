@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
@@ -20,6 +19,7 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
+from ..._schema import SamplingParams, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -39,9 +39,7 @@ if TYPE_CHECKING:
     from ...library._block import Block
 
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
-_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
-    "event_queues", default=()
-)
+_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar("event_queues", default=())
 _id_counter: int = 0
 
 
@@ -62,12 +60,17 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
+        default_sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,
     ) -> None:
         self.echo = echo
+        if self.echo:  # NOTE(nopdive): User requests renderer, lazy instantiate.
+            from ...registry import get_renderer
+
+            _ = get_renderer()
+
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
-        self.token_count: int = 0
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -78,18 +81,20 @@ class Model:
     def _update_trace_node(
         self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
     ) -> None:
-        from ...registry import get_trace_handler, get_renderer
+        from ..._topics import TRACE_TOPIC
+        from ...registry import get_exchange, get_trace_handler
 
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
         if self.echo:
-            get_renderer().update(
+            get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
                     node_attr=node_attr,
                 ),
+                topic=TRACE_TOPIC,
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
@@ -123,16 +128,11 @@ class Model:
             # TODO -- let's avoid downloading it here
             pass
         elif isinstance(node, GenAudio):
-            self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value=b"")
-            )  # TODO -- what goes here?
+            self._update_trace_node(self._id, self._parent_id, AudioInput(value=b""))  # TODO -- what goes here?
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
         for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += 1
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -166,9 +166,7 @@ class Model:
                     if isinstance(closer, str):
                         closer = _parse_tags(closer)
                     if isinstance(closer, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
+                        raise NotImplementedError("Stateful block opener/closer functions are not yet supported")
                     self = self._apply_node(closer)
             # Update capture regardless of whether or not it's been closed
             if block.name is not None:
@@ -183,9 +181,7 @@ class Model:
                     if isinstance(opener, str):
                         opener = _parse_tags(opener)
                     if isinstance(opener, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
+                        raise NotImplementedError("Stateful block opener/closer functions are not yet supported")
                     self = self._apply_node(opener)
         return self
 
@@ -277,9 +273,7 @@ class Model:
         self._interpreter.state.captures.pop(key)
         return self
 
-    def log_prob(
-        self, key: str, default: Optional[D] = None
-    ) -> Union[float, list[Union[float, None]], None, D]:
+    def log_prob(self, key: str, default: Optional[D] = None) -> Union[float, list[Union[float, None]], None, D]:
         """Return the log probability of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -303,6 +297,11 @@ class Model:
             # For legacy model.engine access (mostly for tests...)
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
+
+    def _get_usage(self) -> TokenUsage:
+        """Get the token usage for this model."""
+        # TODO(hudson): make this public API once we stabilize the data structure
+        return self._interpreter.state.get_usage()
 
 
 class ModelStream:
