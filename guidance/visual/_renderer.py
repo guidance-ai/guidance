@@ -21,6 +21,7 @@ from ._message import ExecutionCompletedMessage, \
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage
+from .._topics import DEFAULT_TOPIC
 from warnings import warn
 
 try:
@@ -43,8 +44,6 @@ if TYPE_CHECKING:
     from stitch import StitchWidget
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_TOPIC = "default"
 
 
 class Renderer:
@@ -248,11 +247,14 @@ class JupyterWidgetRenderer(Renderer):
 
 
     def _on_exchange(self, message: GuidanceMessage) -> None:
+        if not isinstance(message, MetricMessage):  # NOTE(nopdive): Metrics spam at fixed intervals.
+            logger.debug(f"ON_EXCHANGE:{message}")
+
         if isinstance(message, MetricMessage):
-            # logger.debug(f"ON_EXCHANGE:{message}")
             self.update(message)
         elif isinstance(message, OutputRequestMessage):
-            logger.debug(f"ON_EXCHANGE:{message}")
+            self.update(message)
+        elif isinstance(message, TraceMessage):
             self.update(message)
 
 

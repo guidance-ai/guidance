@@ -10,7 +10,7 @@ from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
-from ..._schema import GenTokenExtra, SamplingParams
+from ..._schema import GenTokenExtra, TokenUsage, SamplingParams
 
 
 class EngineInterpreter(Interpreter[EngineState]):
@@ -75,7 +75,15 @@ class EngineInterpreter(Interpreter[EngineState]):
         )
 
         delayed_bytes = b""
-        for chunk in engine_gen:
+        while True:
+            try:
+                chunk = next(engine_gen)
+            except StopIteration as e:
+                if not isinstance(e.value, TokenUsage):
+                    raise e
+                self.state.add_usage(e.value)
+                break
+
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text

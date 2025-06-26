@@ -1,21 +1,19 @@
 import time
 from asyncio import CancelledError
 from enum import Enum
-from typing import Union, Any
+from typing import Any, Sequence
 import logging
 import asyncio
 import psutil
 
-from .._schema import GuidanceEngineMetrics
-from ..models import Model
-
+from .._schema import TokenUsage
 from ..visual import MetricMessage
+from .._topics import METRICS_TOPIC
 
-METRICS_TOPIC = "/metrics"
+
 MISSING_VALUE = 0
 
 logger = logging.getLogger(__name__)
-
 
 class PeriodicMetricsGenerator:
     def __init__(self, monitor: "Monitor", sleep_sec=0.5):
@@ -96,66 +94,17 @@ class PeriodicMetricsGenerator:
 
         logger.debug("METRICGEN:exiting")
 
-
-# TODO(nopdive): @hudson-ai needs refactor into engine/class?
-class PostExecMetrics:
-    def __init__(self, monitor: "Monitor"):
-        self._monitor = monitor
-
-    def emit_messages(self, lm: "Model"):
-        from ..registry import get_exchange
-        exchange = get_exchange()
-
-        token_reduction = self._monitor.get_metric(MonitoringMetric.TOKEN_REDUCTION, lm)
-        if token_reduction is not None:
-            exchange.publish(MetricMessage(
-                name="token reduction",
-                value=token_reduction * 100,  # display as percentage
-            ), topic=METRICS_TOPIC)
-
-        output_tokens = self._monitor.get_metric(MonitoringMetric.OUTPUT_TOKENS, lm)
-        if output_tokens is not None:
-            exchange.publish(MetricMessage(name="consumed", value=output_tokens), topic=METRICS_TOPIC)
-
-        avg_latency = self._monitor.get_metric(MonitoringMetric.AVG_LATENCY, lm)
-        if avg_latency is not None:
-            exchange.publish(MetricMessage(name="avg latency", value=avg_latency), topic=METRICS_TOPIC)
-
-
 class MonitoringMetric(str, Enum):
     CPU_USAGE = "cpu_usage"
     MEM_USAGE = "mem_usage"
     GPU_USAGE = "gpu_usage"
     GPU_USED_MEM = "gpu_used_mem"
     GPU_TOTAL_MEM = "gpu_total_mem"
-    INPUT_TOKENS = "input_tokens"
-    OUTPUT_TOKENS = "output_tokens"
-    BACKTRACK_TOKENS = "backtrack_tokens"
-    TOKEN_COUNT = "token_count"
-    TOKEN_REDUCTION = "token_reduction"
-    AVG_LATENCY = "avg_latency"
-
-
-ALL_METRICS = [
-    MonitoringMetric.CPU_USAGE,
-    MonitoringMetric.MEM_USAGE,
-    MonitoringMetric.GPU_USAGE,
-    MonitoringMetric.GPU_USED_MEM,
-    MonitoringMetric.GPU_TOTAL_MEM,
-    MonitoringMetric.INPUT_TOKENS,
-    MonitoringMetric.OUTPUT_TOKENS,
-    MonitoringMetric.BACKTRACK_TOKENS,
-    MonitoringMetric.TOKEN_COUNT,
-    MonitoringMetric.TOKEN_REDUCTION,
-    MonitoringMetric.AVG_LATENCY,
-]
-
 
 class Monitor:
     """Monitoring service to collect necessary metrics for visualization"""
 
-    def __init__(self, engine_metrics: GuidanceEngineMetrics, interval_ms: int = 1000, **kwargs):
-        self.engine_metrics = engine_metrics
+    def __init__(self, interval_ms: int = 1000, **kwargs):
         self.max_size = kwargs.get("max_size", 100)
         self.stop_flag = False
         self.task = None
@@ -169,8 +118,6 @@ class Monitor:
             MonitoringMetric.GPU_USED_MEM: [],
             MonitoringMetric.GPU_TOTAL_MEM: [],
         }
-
-        self.per_token_metrics = []  # store metrics per token in token list
 
     async def _monitor_fn(self):
         import traceback
@@ -191,7 +138,6 @@ class Monitor:
             except:
                 logger.warning("Non-Nvidia GPU monitoring is not supported in this version.")
 
-        p = psutil.Process()
         while not self.stop_flag:
             try:
                 t0 = time.time()
@@ -251,40 +197,39 @@ class Monitor:
         logger.debug("MONITOR:reset")
 
     def get_metrics(
-            self, metrics=None, lm: Union["Model", None] = None
+        self,
+        metrics: Sequence[MonitoringMetric]=(),
     ) -> dict[MonitoringMetric, Any]:
-        if metrics is None:
-            metrics = ALL_METRICS
+        if not metrics:
+            metrics = MonitoringMetric.__members__.values()
         result = {}
-
         for metric in metrics:
-            if metric in [
-                MonitoringMetric.CPU_USAGE,
-                MonitoringMetric.MEM_USAGE,
-                MonitoringMetric.GPU_USAGE,
-                MonitoringMetric.GPU_USED_MEM,
-                MonitoringMetric.GPU_TOTAL_MEM,
-            ]:
+            if metric in MonitoringMetric.__members__.values():
                 result[metric] = (
                     self.metrics_dict[metric][-1] if len(self.metrics_dict[metric]) > 0 else None
                 )
-            elif metric == MonitoringMetric.INPUT_TOKENS:
-                result[metric] = self.engine_metrics.engine_input_tokens
-            elif metric == MonitoringMetric.OUTPUT_TOKENS:
-                result[metric] = self.engine_metrics.engine_output_tokens
-            elif metric == MonitoringMetric.BACKTRACK_TOKENS:
-                result[metric] = self.engine_metrics.engine_backtrack_tokens
-            elif metric == MonitoringMetric.TOKEN_COUNT:
-                result[metric] = lm.token_count if lm is not None else None
-            elif metric == MonitoringMetric.TOKEN_REDUCTION:
-                if lm is not None and lm.token_count > 0:
-                    result[metric] = 1 - min(1, (lm.metrics.engine_output_tokens / lm.token_count))
-                else:
-                    result[metric] = None
-            elif metric == MonitoringMetric.AVG_LATENCY:
-                # TODO(nopdive): Fix this for IR refactor.
-                result[metric] = None
+            else:
+                raise ValueError(f"Unknown monitoring metric: {metric}")
         return result
 
-    def get_metric(self, metric: MonitoringMetric, lm: Union["Model", None] = None) -> Any:
-        return self.get_metrics([metric], lm)[metric]
+    def get_metric(self, metric: MonitoringMetric) -> Any:
+        return self.get_metrics([metric])[metric]
+
+def emit_usage(usage: TokenUsage) -> None:
+    from ..registry import get_exchange
+    exchange = get_exchange()
+
+    exchange.publish(MetricMessage(
+        name="token reduction",
+        value=usage.token_savings * 100,  # display as percentage
+    ), topic=METRICS_TOPIC)
+
+    exchange.publish(MetricMessage(
+        name="consumed",
+        value=usage.forward_passes
+    ), topic=METRICS_TOPIC)
+
+    exchange.publish(MetricMessage(
+        name="avg latency",
+        value=usage.avg_latency_ms
+    ), topic=METRICS_TOPIC)
