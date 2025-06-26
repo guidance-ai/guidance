@@ -101,7 +101,9 @@ class OutputRequestMessage(GuidanceMessage):
 
 class ExecutionCompletedAckMessage(GuidanceMessage):
     """Fired when client acknowledges execution completion."""
+
     pass
+
 
 def serialize_message(message: GuidanceMessage) -> str:
     """Serializes guidance message.

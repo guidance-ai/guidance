@@ -23,11 +23,23 @@ from ..visual import ClientReadyMessage, GuidanceMessage, ResetDisplayMessage, T
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
-from ._message import ExecutionCompletedMessage, \
-    deserialize_message, serialize_message, ClientReadyAckMessage, ExecutionStartedMessage, OutputRequestMessage
+from ._message import (
+    ExecutionCompletedMessage,
+    deserialize_message,
+    serialize_message,
+    ClientReadyAckMessage,
+    ExecutionStartedMessage,
+    OutputRequestMessage,
+)
 from .._utils import log_cleanup
 from ..trace import TraceHandler
-from ..visual import GuidanceMessage, TraceMessage, ResetDisplayMessage, ClientReadyMessage, ExecutionCompletedAckMessage
+from ..visual import (
+    GuidanceMessage,
+    TraceMessage,
+    ResetDisplayMessage,
+    ClientReadyMessage,
+    ExecutionCompletedAckMessage,
+)
 from warnings import warn
 
 try:
@@ -54,11 +66,11 @@ logger = logging.getLogger(__name__)
 
 # Uncomment the following lines to enable file logging
 import datetime
+
 log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
 file_handler = logging.FileHandler(log_filename)
 file_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s', 
-                             datefmt='%H:%M:%S')
+formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.setLevel(logging.DEBUG)
@@ -262,7 +274,7 @@ class JupyterWidgetRenderer(Renderer):
         # Debug tracking
         self._debug_enabled = False
         self._debug_messages: list[GuidanceMessage] = []
-        
+
         # For waiting on execution completion acknowledgment
         self._ack_received_event = None
 
@@ -379,24 +391,26 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            
+
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
             else:
                 out_messages.append(MetricMessage(name="status", value="Done"))
-            
+
             # Set up event for waiting on acknowledgment BEFORE sending the message
             self._ack_received_event = threading.Event()
-            logger.debug(f"RENDERER:setup ack event for ExecutionCompletedMessage, event={id(self._ack_received_event)}")
+            logger.debug(
+                f"RENDERER:setup ack event for ExecutionCompletedMessage, event={id(self._ack_received_event)}"
+            )
         elif not self._running and isinstance(message, TraceMessage):
             # Execution started
             logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
-            
+
             # Clear any pending ack event from previous execution
             if self._ack_received_event is not None:
                 logger.debug("RENDERER:clearing previous ack event")
                 self._ack_received_event = None
-            
+
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value="Running"))
@@ -416,8 +430,10 @@ class JupyterWidgetRenderer(Renderer):
         if diverged:
             logger.debug(f"RENDERER:diverged, keeping {shared_ancestor_idx} messages out of {len(self._messages)}")
             out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages):] = self._messages[:shared_ancestor_idx]
-            logger.debug(f"RENDERER:cleared {len(self._messages)} messages, keeping {len(self._messages[:shared_ancestor_idx])}")
+            out_messages[len(out_messages) :] = self._messages[:shared_ancestor_idx]
+            logger.debug(
+                f"RENDERER:cleared {len(self._messages)} messages, keeping {len(self._messages[:shared_ancestor_idx])}"
+            )
             self._messages.clear()
 
         # Check if requested to reset and replay
@@ -460,7 +476,9 @@ class JupyterWidgetRenderer(Renderer):
 
         # Append current message to outgoing
         out_messages.append(message)
-        logger.debug(f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages")
+        logger.debug(
+            f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
+        )
 
         # Send outgoing messages to client
         for out_message in out_messages:
@@ -479,10 +497,10 @@ class JupyterWidgetRenderer(Renderer):
         # Wait for ExecutionCompletedAck if we set up an event
         if self._ack_received_event is not None:
             logger.debug("RENDERER:waiting for ExecutionCompletedAck...")
-            
+
             # Wait up to 2 seconds for acknowledgment
             ack_received = self._ack_received_event.wait(timeout=2.0)
-            
+
             if ack_received:
                 logger.debug("RENDERER:ExecutionCompletedAck received - continuing")
                 # Clear the event since we got the ack
