@@ -55,9 +55,7 @@ def test_togetherai_chat_without_roles():
 
 def test_togetherai_chat_loop():
     try:
-        model = guidance.models.TogetherAIChat(
-            "teknium/OpenHermes-2-Mistral-7B", echo=False
-        )
+        model = guidance.models.TogetherAIChat("teknium/OpenHermes-2-Mistral-7B", echo=False)
     except:
         pytest.skip("Skipping TogetherAI test because we can't load the model!")
 

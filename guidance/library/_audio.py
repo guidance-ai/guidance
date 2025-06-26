@@ -1,10 +1,10 @@
+import base64
 import pathlib
 import typing
-import base64
 
+from .._ast import AudioBlob, GenAudio
 from .._guidance import guidance
 from .._utils import bytes_from
-from .._ast import AudioBlob, GenAudio
 
 
 @guidance

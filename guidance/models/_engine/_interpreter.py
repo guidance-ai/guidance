@@ -1,16 +1,16 @@
+import re
 from base64 import b64decode, b64encode
+from copy import deepcopy
 from io import BytesIO
 from typing import Iterator, Optional
-from copy import deepcopy
-import re
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, SpecialToken, JoinNode
+from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken
+from ..._schema import GenTokenExtra, SamplingParams, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
-from ...trace import ImageOutput, OutputAttr, Backtrack, TokenOutput, Token
+from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
-from ..._schema import GenTokenExtra, SamplingParams
 
 
 class EngineInterpreter(Interpreter[EngineState]):
@@ -18,7 +18,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         super().__init__(state=EngineState())
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
-        
+
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
         cls = self.__class__
@@ -48,9 +48,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         # TODO: it's probably somewhat wasteful to trigger engine calls here,
         # so we can maybe add this as "pending text" to the state instead,
         # accumulating it until the next engine call..?
-        yield from self.run(
-            text_to_grammar(self.engine.tokenizer, text)
-        )
+        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
         self.state.active_role = None
@@ -58,9 +56,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         # TODO: it's probably somewhat wasteful to trigger engine calls here,
         # so we can maybe add this as "pending text" to the state instead,
         # accumulating it until the next engine call..?
-        yield from self.run(
-            text_to_grammar(self.engine.tokenizer, text)
-        )
+        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self.grammar(node, **kwargs)
@@ -75,7 +71,15 @@ class EngineInterpreter(Interpreter[EngineState]):
         )
 
         delayed_bytes = b""
-        for chunk in engine_gen:
+        while True:
+            try:
+                chunk = next(engine_gen)
+            except StopIteration as e:
+                if not isinstance(e.value, TokenUsage):
+                    raise e
+                self.state.add_usage(e.value)
+                break
+
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
             self.state.prompt += new_text
@@ -105,9 +109,9 @@ class EngineInterpreter(Interpreter[EngineState]):
                     value=token_value,
                     token=Token(token=token_value, bytes=b64encode(token.bytes), prob=token.prob),
                     latency_ms=token.latency_ms,
-                    is_input = token.is_input,
-                    is_generated = token.is_generated,
-                    is_force_forwarded = token.is_force_forwarded,
+                    is_input=token.is_input,
+                    is_generated=token.is_generated,
+                    is_force_forwarded=token.is_force_forwarded,
                     top_k=top_k,
                 )
                 if token.is_backtracked:
@@ -123,14 +127,10 @@ class EngineInterpreter(Interpreter[EngineState]):
                     assert isinstance(log_probs, list)
                     assert len(values) == len(log_probs)
                     for value, log_prob in zip(values, log_probs):
-                        yield self.state.apply_capture(
-                            name, value.decode("utf-8"), log_prob=log_prob, is_append=True
-                        )
+                        yield self.state.apply_capture(name, value.decode("utf-8"), log_prob=log_prob, is_append=True)
                 else:
                     assert isinstance(log_probs, float)
-                    yield self.state.apply_capture(
-                        name, values.decode("utf-8"), log_prob=log_probs, is_append=False
-                    )
+                    yield self.state.apply_capture(name, values.decode("utf-8"), log_prob=log_probs, is_append=False)
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
@@ -183,13 +183,14 @@ def partial_decode(data: bytes) -> tuple[str, bytes]:
         delayed_part = data[e.start :]
     return (valid_part, delayed_part)
 
-LLG_SPECIAL_TOKEN_PAT = re.compile(br"\xff\[([0-9]+)\]")
+
+LLG_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
+
+
 def recode_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
     """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
-    return LLG_SPECIAL_TOKEN_PAT.sub(
-        lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]),
-        data
-    )
+    return LLG_SPECIAL_TOKEN_PAT.sub(lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]), data)
+
 
 def text_to_grammar(tokenizer: Tokenizer, text: str) -> GrammarNode:
     """

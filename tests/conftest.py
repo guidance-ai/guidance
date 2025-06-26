@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 from guidance import models
@@ -47,9 +48,7 @@ def selected_model(selected_model_name: str) -> models.Model:
         from huggingface_hub import hf_hub_download
 
         return models.LlamaCpp(
-            hf_hub_download(
-                repo_id="bartowski/gemma-2-9b-it-GGUF", filename="gemma-2-9b-it-IQ2_XS.gguf"
-            ),
+            hf_hub_download(repo_id="bartowski/gemma-2-9b-it-GGUF", filename="gemma-2-9b-it-IQ2_XS.gguf"),
             verbose=True,
             n_ctx=4096,
         )
@@ -177,6 +176,7 @@ def selected_model(selected_model_name: str) -> models.Model:
         return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
     if selected_model_name == "transformers_phi4_mini_gpu":
         from torch import bfloat16
+
         return models.Transformers(
             "microsoft/Phi-4-mini-instruct",
             trust_remote_code=True,
@@ -194,18 +194,14 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "transformers_qwen2dot5_0dot5b_instruct_gpu":
         return models.Transformers("Qwen/Qwen2.5-0.5B-Instruct", device_map="cuda:0")
 
-    raise ValueError(
-        f"No support for selected_model_name {selected_model_name}"
-    )  # pragma: no cover
+    raise ValueError(f"No support for selected_model_name {selected_model_name}")  # pragma: no cover
 
 
 @pytest.fixture(scope="module")
 def llamacpp_model(selected_model: models.Model, selected_model_name: str) -> models.LlamaCpp:
     if isinstance(selected_model, models.LlamaCpp):
         return selected_model
-    pytest.skip(
-        f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture"
-    )
+    pytest.skip(f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture")
 
 
 @pytest.fixture(scope="module")

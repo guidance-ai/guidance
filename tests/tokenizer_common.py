@@ -17,7 +17,8 @@ TOKENIZER_ROUND_TRIP_STRINGS = [
 class BaseTestTransformerTokenizers:
     def base_smoke(self, model_name: str):
         my_tok = models.TransformersTokenizer.from_pretrained(
-            model_name, trust_remote_code=True,
+            model_name,
+            trust_remote_code=True,
         )
         assert my_tok is not None
 
@@ -33,9 +34,7 @@ class BaseTestTransformerTokenizers:
 
         assert final_string == target_string
 
-    def base_eos_bos_token_round_trip(
-        self, model_name: str
-    ):
+    def base_eos_bos_token_round_trip(self, model_name: str):
         my_tok = models.TransformersTokenizer.from_pretrained(
             model_name,
             trust_remote_code=True,

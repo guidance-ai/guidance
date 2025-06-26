@@ -109,9 +109,7 @@ class TestSequence:
             ("a", b"", b"a", {b"b", b"B"}),
         ],
     )
-    def test_bad_repeats_unconstrained(
-        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_repeats_unconstrained(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
         grammar = PREFIX + sequence("b") + SUFFIX
@@ -142,9 +140,7 @@ class TestSequence:
             ("bbbbbba", b"bbbbbb", b"a", {b"b", b"B"}),
         ],
     )
-    def test_bad_repeats_min_length(
-        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_repeats_min_length(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
         grammar = PREFIX + sequence("b", min_length=4) + SUFFIX
@@ -174,9 +170,7 @@ class TestSequence:
             ("aa", b"", b"a", {b"b", b"B"}),
         ],
     )
-    def test_bad_repeats_max_length(
-        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_repeats_max_length(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
         grammar = PREFIX + sequence("b", max_length=2) + SUFFIX
@@ -242,9 +236,7 @@ class TestSequence:
             ("bba", b"bb", b"a", {b"B"}),
         ],
     )
-    def test_bad_repeats_min_max_length(
-        self, bad_string: str, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_repeats_min_max_length(self, bad_string: str, good_bytes, failure_byte, allowed_bytes):
         PREFIX = "AAA"
         SUFFIX = "BBB"
         grammar = PREFIX + sequence("b", min_length=1, max_length=2) + SUFFIX

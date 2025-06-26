@@ -1,23 +1,24 @@
 import ast
 import asyncio
-import json
+import functools
+import http
 import inspect
+import json
+import logging
+import pathlib
+import re
 import sys
 import textwrap
 import types
-import weakref
-import functools
-import numpy as np
-import logging
-from typing import Union, cast, Optional, TYPE_CHECKING
-import pathlib
-import pydantic
 import urllib
-import http
-import re
+import weakref
+from typing import TYPE_CHECKING, Optional, Union, cast
+
+import numpy as np
+import pydantic
 
 if TYPE_CHECKING:
-   from ._schema import SamplingParams
+    from ._schema import SamplingParams
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class _Rewrite(ast.NodeTransformer):
                     new_lines.append(line)
             node.value = "\n".join(new_lines)
 
+
 class normalize_notebook_stdout_stderr:
     """Remaps stdout and stderr back to their normal selves from what ipykernel did to them.
 
@@ -82,19 +84,13 @@ class normalize_notebook_stdout_stderr:
     def __enter__(self):
         normal_stdout = sys.__stdout__.fileno()
         self.restore_stdout = None
-        if (
-            getattr(sys.stdout, "_original_stdstream_copy", normal_stdout)
-            != normal_stdout
-        ):
+        if getattr(sys.stdout, "_original_stdstream_copy", normal_stdout) != normal_stdout:
             self.restore_stdout = sys.stdout._original_stdstream_copy
             sys.stdout._original_stdstream_copy = normal_stdout
 
         normal_stderr = sys.__stderr__.fileno()
         self.restore_stderr = None
-        if (
-            getattr(sys.stderr, "_original_stdstream_copy", normal_stderr)
-            != normal_stderr
-        ):
+        if getattr(sys.stderr, "_original_stdstream_copy", normal_stderr) != normal_stderr:
             self.restore_stderr = sys.stderr._original_stdstream_copy
             sys.stderr._original_stdstream_copy = normal_stderr
 
@@ -115,17 +111,17 @@ def strip_multiline_string_indents(f):
         raise Exception(
             "You currently must use @guidance(dedent=False) for closure functions (function nested within other functions that reference the outer functions variables)!"
         )
-#       lines = source.split("\n")
-#       lines[0] = "def __outer__closure_wrap():"
-#       lines[1] = (
-#           "    "
-#           + ",".join(f.__code__.co_freevars)
-#           + " = "
-#           + ",".join("None" for _ in f.__code__.co_freevars)
-#       )
-#       source = "    \n".join(
-#           lines
-#       )  # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
+    #       lines = source.split("\n")
+    #       lines[0] = "def __outer__closure_wrap():"
+    #       lines[1] = (
+    #           "    "
+    #           + ",".join(f.__code__.co_freevars)
+    #           + " = "
+    #           + ",".join("None" for _ in f.__code__.co_freevars)
+    #       )
+    #       source = "    \n".join(
+    #           lines
+    #       )  # TODO: this does not quite work because new_code_obj is now the __outer__closure_wrap() function...could be fixed with work...
 
     old_code_obj = f.__code__
     old_ast = ast.parse(source)
@@ -153,10 +149,12 @@ def strip_multiline_string_indents(f):
     new_f.__module__ = f.__module__
     return new_f
 
+
 def make_weak_bound_method(f, instance):
     instance_ref = weakref.ref(instance)
     instance_repr = repr(instance)
-    @functools.wraps(f) # ish
+
+    @functools.wraps(f)  # ish
     def weak_bound_f(*args, **kwargs):
         instance = instance_ref()
         if instance is None:
@@ -168,15 +166,15 @@ def make_weak_bound_method(f, instance):
     weak_bound_f.__signature__ = signature_pop(inspect.signature(f), 0)
     return weak_bound_f
 
+
 def signature_pop(signature, index):
     params = list(signature.parameters.values())
     params.pop(index)
     return signature.replace(parameters=params)
 
+
 class JupyterComm:
-    def __init__(
-        self, target_id, ipython_handle, callback=None, on_open=None, mode="register"
-    ):
+    def __init__(self, target_id, ipython_handle, callback=None, on_open=None, mode="register"):
         from ipykernel.comm import Comm
 
         self.target_name = "guidance_interface_target_" + target_id
@@ -201,9 +199,7 @@ class JupyterComm:
                 self.open_event.set()
                 self._fire_callback({"content": {"data": {"event": "opened"}}})
 
-            self.ipython_handle.kernel.comm_manager.register_target(
-                self.target_name, comm_opened
-            )
+            self.ipython_handle.kernel.comm_manager.register_target(self.target_name, comm_opened)
             # get_ipython().kernel.comm_manager.register_target(self.target_name, comm_opened) # noqa: F821
         elif mode == "open":
             # log("OPENING", self.target_name)
@@ -278,30 +274,30 @@ def softmax(array: np.ndarray, axis: int = -1) -> np.ndarray:
 def pydantic_no_default_repr(obj: pydantic.BaseModel, target_fields=None):
     if target_fields is None:
         records = (
-            f'{getattr(obj, name)!r}'
+            f"{getattr(obj, name)!r}"
             for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude
         )
     else:
         records = (
-            f'{getattr(obj, name)!r}'
+            f"{getattr(obj, name)!r}"
             for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude and name in target_fields
         )
-    out = f'{type(obj).__name__}:{":".join(records)}'
+    out = f"{type(obj).__name__}:{':'.join(records)}"
     return out
 
 
 def pydantic_no_default_str(obj: pydantic.BaseModel, target_fields=None):
     if target_fields is None:
         records = (
-            f'{getattr(obj, name)!s}'
+            f"{getattr(obj, name)!s}"
             for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude
         )
     else:
         records = (
-            f'{getattr(obj, name)!s}'
+            f"{getattr(obj, name)!s}"
             for name, field in obj.__class__.model_fields.items()
             if getattr(obj, name) != field.default and not field.exclude and name in target_fields
         )
@@ -322,6 +318,7 @@ def log_copy(s: str):
 def log_cleanup(s: str):
     logger.debug(f"CLEANUP:{s}")
     pass
+
 
 def to_utf8_or_bytes_string(_bytes: bytes) -> str:
     """
@@ -344,19 +341,20 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
     except UnicodeDecodeError:
         return str(_bytes)
 
+
 def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
     if k <= 0:
         return logits
-    
+
     indices_to_remove = logits.argpartition(-k)[:-k]
     logits[indices_to_remove] = -float("inf")
     return logits
-    
 
-def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional['SamplingParams']) -> np.ndarray:
+
+def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["SamplingParams"]) -> np.ndarray:
     if sampling_params is None:
         return logits
-    
+
     top_p = sampling_params.get("top_p", None)
     top_k = sampling_params.get("top_k", None)
 
@@ -383,7 +381,7 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional['
             # +1 to keep the first token that exceeds the threshold
             first_to_remove = np.argmax(indices_to_remove) + 1
             # make sure we always keep at least one token
-            sorted_indices_to_remove = sorted_indices[max(1, first_to_remove):]
+            sorted_indices_to_remove = sorted_indices[max(1, first_to_remove) :]
             logits[sorted_indices_to_remove] = -float("inf")
-        
+
     return logits

@@ -1,6 +1,7 @@
 import re
+
 from .._engine._engine import Chat, Instruct
-from .._grammarless import GrammarlessEngine, Grammarless
+from .._grammarless import Grammarless, GrammarlessEngine
 
 try:
     import vertexai
@@ -11,9 +12,7 @@ except ModuleNotFoundError:
 
 
 class VertexAIEngine(GrammarlessEngine):
-    def __init__(
-        self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model_obj
-    ):
+    def __init__(self, tokenizer, max_streaming_tokens, timeout, compute_log_probs, model_obj):
         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)
         self.model_obj = model_obj
 
@@ -85,9 +84,7 @@ class VertexAI(Grammarless):
 
             # make sure we have a valid model object
             if isinstance(model, str):
-                raise Exception(
-                    "The model ID you passed, `{model}`, does not match any known subclasses!"
-                )
+                raise Exception("The model ID you passed, `{model}`, does not match any known subclasses!")
 
         # this allows us to use a single constructor for all our subclasses
         if engine_class is None:
@@ -118,7 +115,6 @@ class VertexAICompletion(VertexAI):
 
 
 class VertexAICompletionEngine(VertexAIEngine):
-
     def _generator(self, prompt, temperature):
         self._not_running_stream.clear()  # so we know we are running
         self._data = prompt  # we start with this data
@@ -141,7 +137,6 @@ class VertexAICompletionEngine(VertexAIEngine):
 
 
 class VertexAIInstruct(VertexAI, Instruct):
-
     def get_role_start(self, name):
         return ""
 
@@ -149,9 +144,7 @@ class VertexAIInstruct(VertexAI, Instruct):
         if name == "instruction":
             return "<|endofprompt|>"
         else:
-            raise Exception(
-                f"The VertexAIInstruct model does not know about the {name} role type!"
-            )
+            raise Exception(f"The VertexAIInstruct model does not know about the {name} role type!")
 
 
 class VertexAIInstructEngine(VertexAIEngine):
@@ -169,9 +162,7 @@ class VertexAIInstructEngine(VertexAIEngine):
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        for chunk in self.model_obj.predict_streaming(
-            self._data.decode("utf8"), temperature=temperature, **kwargs
-        ):
+        for chunk in self.model_obj.predict_streaming(self._data.decode("utf8"), temperature=temperature, **kwargs):
             yield chunk.text.encode("utf8")
 
 
@@ -180,9 +171,7 @@ class VertexAIChat(VertexAI, Chat):
 
 
 class VertexAIChatEngine(VertexAIEngine):
-
     def _generator(self, prompt, temperature):
-
         # find the system text
         pos = 0
         system_start = b"<|im_start|>system\n"
@@ -203,7 +192,6 @@ class VertexAIChatEngine(VertexAIEngine):
         messages = []
         valid_end = False
         while True:
-
             # find the user text
             if prompt[pos:].startswith(user_start):
                 pos += len(user_start)
@@ -238,9 +226,9 @@ class VertexAIChatEngine(VertexAIEngine):
         self._data = prompt[:pos]
 
         assert len(messages) > 0, "Bad chat format! No chat blocks were defined."
-        assert (
-            messages[-1]["role"] == "user"
-        ), "Bad chat format! There must be a user() role before the last assistant() role."
+        assert messages[-1]["role"] == "user", (
+            "Bad chat format! There must be a user() role before the last assistant() role."
+        )
         assert valid_end, "Bad chat format! You must generate inside assistant() roles."
 
         # TODO: don't make a new session on every call
@@ -257,10 +245,7 @@ class VertexAIChatEngine(VertexAIEngine):
         #     yield chunk.text.encode("utf8")
 
     def _start_generator(self, system_text, messages, temperature):
-        messages = [
-            vertexai.language_models.ChatMessage(author=m["role"], content=m["content"])
-            for m in messages
-        ]
+        messages = [vertexai.language_models.ChatMessage(author=m["role"], content=m["content"]) for m in messages]
         last_user_text = messages.pop().content
 
         chat_session = self.model_obj.start_chat(
@@ -271,9 +256,7 @@ class VertexAIChatEngine(VertexAIEngine):
         kwargs = {}
         if self.max_streaming_tokens is not None:
             kwargs["max_output_tokens"] = self.max_streaming_tokens
-        generator = chat_session.send_message_streaming(
-            last_user_text, temperature=temperature, **kwargs
-        )
+        generator = chat_session.send_message_streaming(last_user_text, temperature=temperature, **kwargs)
 
         for chunk in generator:
             yield chunk.text.encode("utf8")

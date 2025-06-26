@@ -1,5 +1,6 @@
-from guidance import regex, block, models
 import pytest
+
+from guidance import block, models, regex
 
 
 def test_text_opener():
@@ -35,9 +36,7 @@ def test_grammar_closer():
             model += regex(r".")
     except:
         return  # we expect an exception
-    assert (
-        False
-    ), "We should have thrown an exception using a context (prompt) based grammar in the closer!"
+    assert False, "We should have thrown an exception using a context (prompt) based grammar in the closer!"
 
 
 def test_block_name_capture():

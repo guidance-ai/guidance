@@ -5,16 +5,15 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Union, Optional
-import ctypes
+from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 
-from .._schema import GenToken, GenTokenExtra, SamplingParams
-from .._utils import normalize_notebook_stdout_stderr, softmax
+from .._schema import SamplingParams
+from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer
+from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 
 try:
     import llama_cpp
@@ -26,7 +25,6 @@ else:
     import llguidance.llamacpp
 
 if TYPE_CHECKING:
-    from llama_cpp.llama_tokenizer import LlamaTokenizer
     from llama_cpp.llama import Llama
 
 logger = logging.getLogger(__name__)
@@ -71,17 +69,10 @@ class LlamaCppTokenizer(Tokenizer):
 
         # Chat Template logic
         if chat_template is None:
-            if (
-                hasattr(self._model_obj, "metadata")
-                and "tokenizer.chat_template" in self._model_obj.metadata
-            ):
+            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
                 chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
-        super().__init__(
-            ll_tokenizer=ll_tokenizer,
-            chat_template=chat_template,
-            bos_token_id=model_obj.token_bos()
-        )
+        super().__init__(ll_tokenizer=ll_tokenizer, chat_template=chat_template, bos_token_id=model_obj.token_bos())
 
 
 class LlamaCppEngine(Engine):
@@ -144,11 +135,16 @@ class LlamaCppEngine(Engine):
         self._cached_token_ids = []
         self._cached_logits = None
 
-        super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
-                         compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+        super().__init__(
+            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
+        )
 
-    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -169,7 +165,11 @@ class LlamaCppEngine(Engine):
         if num_cached == len(token_ids):
             if num_cached == len(self._cached_token_ids):
                 # last token input is the same as the last cached token, so return the last cached logits
-                return self._cached_logits
+                return {
+                    "logits": self._cached_logits,
+                    "n_tokens": len(token_ids),
+                    "n_cached": num_cached,
+                }
             # we need to pass at least one new token
             num_cached = num_cached - 1
 
@@ -202,23 +202,21 @@ class LlamaCppEngine(Engine):
             ).copy()
             logits_for_each_batch.append(logits_for_this_batch)
 
-        # update the metrics
-        self.metrics.engine_output_tokens += 1
-        self.metrics.engine_input_tokens += len(token_ids) - num_cached
-
         # save the results
         self._cached_token_ids = token_ids.copy()
         self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
         if include_all_uncached_tokens:
-            logits = np.concatenate(
-                logits_for_each_batch,
-                axis=0
-            )
+            logits = np.concatenate(logits_for_each_batch, axis=0)
             assert logits.shape[0] == len(token_ids) - num_cached
-            return logits
         else:
-            return self._cached_logits
+            logits = self._cached_logits
+
+        return {
+            "logits": logits,
+            "n_tokens": len(token_ids),
+            "n_cached": num_cached,
+        }
 
 
 class LlamaCpp(Model):
