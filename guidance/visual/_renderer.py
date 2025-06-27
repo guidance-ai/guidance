@@ -11,6 +11,7 @@ import traceback
 import weakref
 from asyncio import Queue
 from functools import lru_cache, partial
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Callable, Optional
 from warnings import warn
 
@@ -31,20 +32,14 @@ from ._message import (
 )
 
 try:
-    from IPython import get_ipython
-    from IPython.display import HTML, clear_output, display
+    from IPython.display import display
 
     ipython_imported = True
 except ImportError:
     ipython_imported = False
 
 
-try:
-    import stitch  # type: ignore[import-untyped]
-
-    stitch_installed = True
-except ImportError:
-    stitch_installed = False
+stitch_installed = find_spec("stitch") is not None
 
 if TYPE_CHECKING:
     from stitch import StitchWidget
@@ -443,7 +438,6 @@ class JupyterWidgetRenderer(Renderer):
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
-        from ..registry import get_bg_async
 
         self._debug_enabled = True
         self._debug_messages = []  # Clear previous messages

@@ -31,9 +31,7 @@ from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
-    from openai import OpenAI
     from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
 
 
 def get_role_start(role: str) -> str:
