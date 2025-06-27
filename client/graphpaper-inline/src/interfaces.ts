@@ -21,7 +21,7 @@ export interface Token {
     is_generated: boolean,
     role: string,
     special: boolean,
-    top_k?: Array<GenToken>
+    top_k?: Array<Token>
 }
 export declare type TokenCallback = (token: Token) => string;
 
