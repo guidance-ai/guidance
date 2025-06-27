@@ -1,6 +1,5 @@
 import json
 import textwrap
-from typing import List
 
 import llguidance
 import pytest
@@ -36,7 +35,7 @@ class PhiTokenizer:
         return PhiTokenizer._ll_tokenizer
 
 
-def check_eq(label: str, tokens: List[int], expected_tokens: str):
+def check_eq(label: str, tokens: list[int], expected_tokens: str):
     if log_level > 0:
         print(f"Checking {label}: {repr(expected_tokens)}")
     t = PhiTokenizer.ll_tokenizer()
@@ -49,7 +48,7 @@ def check_eq(label: str, tokens: List[int], expected_tokens: str):
 def tokenize_trace(s: str):
     if log_level > 0:
         print("Tokenizing", repr(s))
-    r: List[int] = []
+    r: list[int] = []
     for word in s.split("‧"):
         if word == "≺EOS≻":
             r.append(PhiTokenizer.ll_tokenizer().eos_token)
@@ -60,7 +59,7 @@ def tokenize_trace(s: str):
     return r
 
 
-def check_grammar(grm: GrammarNode, output: List[str]):
+def check_grammar(grm: GrammarNode, output: list[str]):
     """
     Check that the grammar generates the expected output.
 
@@ -191,7 +190,7 @@ def test_llparser():
         ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧",'],  # check that we allow `",` as a single token:
     ],
 )
-def test_ll_dolphin(grm: GrammarNode, output: List[str]):
+def test_ll_dolphin(grm: GrammarNode, output: list[str]):
     check_grammar(grm, output)
 
 

@@ -1,7 +1,7 @@
 import logging
 import os
 import pathlib
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
 import papermill as pm
@@ -12,7 +12,7 @@ from ..utils import slowdown
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
-def run_notebook(notebook_path: pathlib.Path, params: Optional[Dict[str, Any]] = None):
+def run_notebook(notebook_path: pathlib.Path, params: Optional[dict[str, Any]] = None):
     assert notebook_path.exists(), f"Checking for: {notebook_path}"
     output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
     output_path = notebook_path.parent / output_nb

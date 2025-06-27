@@ -1,5 +1,3 @@
-from typing import List
-
 import numpy as np
 
 from ._engine import Tokenizer
@@ -27,7 +25,7 @@ class ByteTokenizer(Tokenizer):
             bos_token_id=256,
         )
 
-    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> List[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
         if isinstance(byte_string, str):
             byte_string = byte_string.encode("utf8")
