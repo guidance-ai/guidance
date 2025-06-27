@@ -110,8 +110,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
         // console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
+      appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
-      // Client ready acknowledged - no action needed, server handles replay
+      if (appState.requireFullReplay) {
+        // console.log('Require full replay and went past completion output message.');
+        const msg: StitchMessage = {
+          type: 'clientmsg',
+          content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
+        };
+        clientmsg.set(msg);
+      }
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
@@ -232,6 +240,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
+               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
                backtrackCount={appState.backtrackCount}
                resetCount={appState.resetCount} />
   </section>

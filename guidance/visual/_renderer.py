@@ -18,6 +18,7 @@ from .._topics import DEFAULT_TOPIC
 from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import (
+    ClientReadyMessage,
     GuidanceMessage,
     ResetDisplayMessage,
     TraceMessage,
@@ -26,6 +27,7 @@ from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
 from ._message import (
+    ClientReadyAckMessage,
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
     OutputRequestMessage,
@@ -177,7 +179,10 @@ async def _handle_recv_messages(
                 logger.debug("RECV:renderer early clean")
                 break
 
-            if isinstance(message, OutputRequestMessage):
+            if isinstance(message, ClientReadyMessage):
+                logger.debug("RECV:clientready")
+                get_bg_async().call_soon_threadsafe(renderer.send_queue.put_nowait, ClientReadyAckMessage())
+            elif isinstance(message, OutputRequestMessage):
                 logger.debug("RECV:outputrequest")
 
             get_exchange().publish(message, topic=f"{DEFAULT_TOPIC}")
@@ -190,6 +195,13 @@ async def _handle_send_messages(
     renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
 ) -> None:
     logger.debug("SEND:init")
+    # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
+    #                Currently, we do a replay of messages on completion for client if client
+    #                first receives non-zero message identifier.
+
+    # What if we only used 1% of our brain?
+    await asyncio.sleep(200 / 1000.0)
+    logger.debug("SEND:ready")
 
     while True:
         try:
@@ -452,6 +464,8 @@ class JupyterWidgetRenderer(Renderer):
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
+        from ..registry import get_bg_async
+
         self._debug_enabled = True
         self._debug_messages = []  # Clear previous messages
 
