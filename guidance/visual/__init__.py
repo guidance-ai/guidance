@@ -7,7 +7,6 @@ from ._exchange import TopicExchange
 from ._message import (
     ClientReadyAckMessage,
     ClientReadyMessage,
-    ExecutionCompletedAckMessage,
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
     GuidanceMessage,

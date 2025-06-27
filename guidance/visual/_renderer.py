@@ -7,7 +7,6 @@ Our main focus is on jupyter notebooks and later terminal.
 
 import asyncio
 import logging
-import threading
 import traceback
 import weakref
 from asyncio import Queue
@@ -20,7 +19,6 @@ from .._utils import log_cleanup
 from ..trace import TraceHandler
 from ..visual import (
     ClientReadyMessage,
-    ExecutionCompletedAckMessage,
     GuidanceMessage,
     ResetDisplayMessage,
     TraceMessage,
@@ -139,7 +137,7 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
-    logger.debug(f"CELL:executed")
+    logger.debug(f"CELL_COMPLETE:executed")
     try:
         renderer = renderer_weakref()
         if renderer is None:
@@ -150,7 +148,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
-    except Exception as _:
+    except Exception:
         logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
@@ -186,13 +184,6 @@ async def _handle_recv_messages(
                 get_bg_async().call_soon_threadsafe(renderer.send_queue.put_nowait, ClientReadyAckMessage())
             elif isinstance(message, OutputRequestMessage):
                 logger.debug("RECV:outputrequest")
-            elif isinstance(message, ExecutionCompletedAckMessage):
-                logger.debug(f"RECV:ExecutionCompletedAck (id={message.message_id})")
-                if renderer._ack_received_event is not None:
-                    logger.debug(f"RECV:setting ack received event, event={id(renderer._ack_received_event)}")
-                    renderer._ack_received_event.set()
-                else:
-                    logger.debug(f"RECV:ack received but no event to set")
 
             get_exchange().publish(message, topic=f"{DEFAULT_TOPIC}")
             renderer.recv_queue.task_done()
@@ -268,9 +259,6 @@ class JupyterWidgetRenderer(Renderer):
         # Debug tracking
         self._debug_enabled = False
         self._debug_messages: list[GuidanceMessage] = []
-
-        # For waiting on execution completion acknowledgment
-        self._ack_received_event = None
 
         # Create queue and wait for instantiation
         self.send_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
@@ -387,20 +375,9 @@ class JupyterWidgetRenderer(Renderer):
                 out_messages.append(MetricMessage(name="status", value="Error"))
             else:
                 out_messages.append(MetricMessage(name="status", value="Done"))
-
-            # Set up event for waiting on acknowledgment BEFORE sending the message
-            self._ack_received_event = threading.Event()
-            logger.debug(
-                f"RENDERER:setup ack event for ExecutionCompletedMessage, event={id(self._ack_received_event)}"
-            )
         elif not self._running and isinstance(message, TraceMessage):
             # Execution started
             logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
-
-            # Clear any pending ack event from previous execution
-            if self._ack_received_event is not None:
-                logger.debug("RENDERER:clearing previous ack event")
-                self._ack_received_event = None
 
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
@@ -467,9 +444,9 @@ class JupyterWidgetRenderer(Renderer):
 
         # Append current message to outgoing
         out_messages.append(message)
-        logger.debug(
-            f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
-        )
+        # logger.debug(
+        #     f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
+        # )
 
         # Send outgoing messages to client
         for out_message in out_messages:
@@ -484,21 +461,6 @@ class JupyterWidgetRenderer(Renderer):
                 self._debug_messages.append(out_message)
 
             get_bg_async().call_soon_threadsafe(self.send_queue.put_nowait, out_message)
-
-        # Wait for ExecutionCompletedAck if we set up an event
-        if self._ack_received_event is not None:
-            logger.debug("RENDERER:waiting for ExecutionCompletedAck...")
-
-            # Wait up to 2 seconds for acknowledgment
-            ack_received = self._ack_received_event.wait(timeout=2.0)
-
-            if ack_received:
-                logger.debug("RENDERER:ExecutionCompletedAck received - continuing")
-                # Clear the event since we got the ack
-                self._ack_received_event = None
-            else:
-                logger.warning("RENDERER:ExecutionCompletedAck timeout - continuing anyway")
-                # Don't clear the event - let it stay for late acks
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""

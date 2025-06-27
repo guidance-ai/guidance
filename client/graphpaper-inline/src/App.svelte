@@ -160,14 +160,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
         content: savedState,
       };
       state.set(stateMessage);
-      
-      // Send acknowledgment that we've processed the execution completion
-      console.log(`Sending ExecutionCompletedAck`);
-      const ackMsg: StitchMessage = {
-        type: 'clientmsg',
-        content: JSON.stringify({ 'class_name': 'ExecutionCompletedAckMessage', 'message_id': msg.message_id + 1000 })
-      };
-      clientmsg.set(ackMsg);
 
       // console.log(appState.components);
     }
