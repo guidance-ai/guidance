@@ -73,7 +73,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
-      console.log("Received GuidanceMessage:", msg);
+    // console.log("Received GuidanceMessage:", msg);
 
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
@@ -107,19 +107,12 @@ For upcoming features, we won't be able to send all details over the wire, and w
         }
         appState.backtrackCount += 1;
       } else {
-        console.log("Unknown trace msg node_attr: ", msg)
+        // console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
-      if (appState.requireFullReplay) {
-        console.log('Require full replay and went past completion output message.');
-        const msg: StitchMessage = {
-          type: 'clientmsg',
-          content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
-        };
-        clientmsg.set(msg);
-      }
+      // Do nothing -- server will handle replay.
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;

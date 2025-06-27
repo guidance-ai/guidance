@@ -267,7 +267,7 @@
       } else if (isVideoOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("video", nodeAttr));
       } else if (isTokenOutput(nodeAttr) || (isTextOutput(nodeAttr) && !nodeAttr.value.includes("<|im_start|>") && !nodeAttr.value.includes("<|im_end|>"))) {
-        console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
+        // console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
         if (activeOpenerRoles.length === 0) {
           if (
             activeCloserRoleText.length !== 0 &&

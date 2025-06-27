@@ -17,7 +17,12 @@ from warnings import warn
 from .._topics import DEFAULT_TOPIC
 from .._utils import log_cleanup
 from ..trace import TraceHandler
-from ..visual import ClientReadyMessage, GuidanceMessage, ResetDisplayMessage, TraceMessage
+from ..visual import (
+    ClientReadyMessage,
+    GuidanceMessage,
+    ResetDisplayMessage,
+    TraceMessage,
+)
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
@@ -50,6 +55,18 @@ if TYPE_CHECKING:
     from stitch import StitchWidget
 
 logger = logging.getLogger(__name__)
+
+
+# Uncomment the following lines to enable file logging
+# import datetime
+#
+# log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
+# file_handler = logging.FileHandler(log_filename)
+# file_handler.setLevel(logging.DEBUG)
+# formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
+# logger.setLevel(logging.DEBUG)
 
 
 class Renderer:
@@ -119,7 +136,7 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
-    logger.debug(f"CELL:executed")
+    logger.debug(f"CELL_COMPLETE:executed")
     try:
         renderer = renderer_weakref()
         if renderer is None:
@@ -130,7 +147,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
-    except Exception as _:
+    except Exception:
         logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
@@ -338,16 +355,13 @@ class JupyterWidgetRenderer(Renderer):
                 return False, -1
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
-        from ..registry import get_bg_async, get_exchange
+        from ..registry import get_bg_async
 
         out_messages: list[GuidanceMessage] = []
 
         # Metrics
         if isinstance(message, MetricMessage):
-            if self._running:
-                # logger.debug(f"RENDERER:metric:{message}")
-                pass
-            else:
+            if not self._running:
                 return
 
         if isinstance(message, ExecutionCompletedMessage):
@@ -355,7 +369,10 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            get_exchange().publish(message)
+
+            # Replay all messages on completion
+            out_messages.append(ResetDisplayMessage())
+            out_messages[len(out_messages) :] = self._messages[:]
 
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
@@ -363,7 +380,8 @@ class JupyterWidgetRenderer(Renderer):
                 out_messages.append(MetricMessage(name="status", value="Done"))
         elif not self._running and isinstance(message, TraceMessage):
             # Execution started
-            logger.debug("RENDERER:execution start")
+            logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
+
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value="Running"))
@@ -381,9 +399,12 @@ class JupyterWidgetRenderer(Renderer):
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
         if diverged:
-            logger.debug("RENDERER:diverged")
+            logger.debug(f"RENDERER:diverged, keeping {shared_ancestor_idx} messages out of {len(self._messages)}")
             out_messages.append(ResetDisplayMessage())
             out_messages[len(out_messages) :] = self._messages[:shared_ancestor_idx]
+            logger.debug(
+                f"RENDERER:cleared {len(self._messages)} messages, keeping {len(self._messages[:shared_ancestor_idx])}"
+            )
             self._messages.clear()
 
         # Check if requested to reset and replay
@@ -426,6 +447,9 @@ class JupyterWidgetRenderer(Renderer):
 
         # Append current message to outgoing
         out_messages.append(message)
+        # logger.debug(
+        #     f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
+        # )
 
         # Send outgoing messages to client
         for out_message in out_messages:
