@@ -8,7 +8,6 @@ import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
 from guidance import json as gen_json
-from guidance import models
 
 from ...utils import check_match_failure as _check_match_failure
 from ...utils import generate_and_check as _generate_and_check

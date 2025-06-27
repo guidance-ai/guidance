@@ -1,12 +1,10 @@
 import pytest
 
-from guidance import gen, models, select
 
-from ..utils import get_model
 
 
 def test_gemini_pro():
-    from guidance import assistant, gen, models, system, user
+    from guidance import assistant, gen, models, user
 
     try:
         vmodel = models.GoogleAI("gemini-pro")

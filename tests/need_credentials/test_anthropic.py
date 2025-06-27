@@ -1,9 +1,8 @@
 import pytest
 
 import guidance
-from guidance import assistant, capture, gen, select, system, user
+from guidance import assistant, gen, select, system, user
 
-from ..utils import get_model
 
 
 def test_anthropic_chat():

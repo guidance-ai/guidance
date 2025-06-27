@@ -1,14 +1,6 @@
-import pathlib
-import tempfile
-import uuid
-from urllib.error import HTTPError, URLError
 
-import pytest
-import requests
 
-from guidance import image, models
 
-from ...utils import remote_image_url
 
 #################################################################################
 # The tests below need to be rewritten once multimodal support is complete

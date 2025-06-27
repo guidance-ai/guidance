@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 import papermill as pm
 import pytest
 
-from ..utils import env_or_skip, slowdown
+from ..utils import slowdown
 
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
