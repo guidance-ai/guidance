@@ -1,7 +1,6 @@
 import json
 import re
 
-
 import guidance
 from guidance import (
     gen,

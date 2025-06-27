@@ -4,7 +4,6 @@ import guidance
 from guidance import assistant, gen, select, system, user
 
 
-
 def test_lite_llm_basic_openai():
     try:
         lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")

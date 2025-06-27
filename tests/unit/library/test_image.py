@@ -1,7 +1,3 @@
-
-
-
-
 #################################################################################
 # The tests below need to be rewritten once multimodal support is complete
 # A pseudocode description has been written in comments to preserve notes about

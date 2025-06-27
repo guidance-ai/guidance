@@ -3,7 +3,6 @@ import pytest
 from guidance import gen, models, role
 
 
-
 def test_palm2_instruct():
     try:
         vmodel = models.VertexAI("text-bison@001")

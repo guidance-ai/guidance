@@ -4,7 +4,6 @@ import guidance
 from guidance import assistant, gen, select, system, user
 
 
-
 def test_anthropic_chat():
     try:
         lm = guidance.models.Anthropic(model="claude-3-haiku-20240307")

@@ -1,8 +1,6 @@
 import pytest
 
 
-
-
 def test_gemini_pro():
     from guidance import assistant, gen, models, user
 
