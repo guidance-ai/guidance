@@ -56,18 +56,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 # Uncomment the following lines to enable file logging
-import datetime
-
-log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
-file_handler = logging.FileHandler(log_filename)
-file_handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
-file_handler.setFormatter(formatter)
-logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
-
-DEFAULT_TOPIC = "default"
+# import datetime
+#
+# log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
+# file_handler = logging.FileHandler(log_filename)
+# file_handler.setLevel(logging.DEBUG)
+# formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
+# logger.setLevel(logging.DEBUG)
 
 
 class Renderer:
