@@ -229,7 +229,7 @@ def emit_usage(usage: TokenUsage) -> None:
     exchange.publish(
         MetricMessage(
             name="token reduction",
-            value=usage.token_savings * 100,  # display as percentage
+            value=(usage.token_savings or 0) * 100,  # display as percentage
         ),
         topic=METRICS_TOPIC,
     )
