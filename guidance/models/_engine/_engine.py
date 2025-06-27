@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Generator, Iterator, Optional, TypedDict, Union
+from typing import Generator, Optional, Protocol, Sequence, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,6 +17,17 @@ from ._tokenizer import Tokenizer
 logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
+
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
+
+
+class ChatFormatter(Protocol):
+    def __call__(self, messages: Sequence[ChatMessage]) -> str:
+        """Formats a sequence of chat messages into a string."""
+        pass
 
 
 class LogitsOutput(TypedDict):
@@ -35,11 +46,18 @@ class Engine(ABC):
     """
 
     def __init__(
-        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+        self,
+        tokenizer: Tokenizer,
+        chat_formatter: Optional[ChatFormatter] = None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
     ):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
+        self.chat_formatter = chat_formatter
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
@@ -104,8 +122,8 @@ class Engine(ABC):
         # audio = state.audio
         # videos = state.videos
 
-        tokens = self.tokenizer.encode(state.prompt.encode("utf-8"))
-
+        prompt = self.get_prompt(state)
+        tokens = self.tokenizer.encode(prompt.encode())
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
@@ -436,3 +454,48 @@ class Engine(ABC):
             the return value's shape will be `(1, vocab_size)`.
         """
         pass
+
+    def apply_chat_template(
+        self,
+        messages: Sequence[ChatMessage],
+        continue_final_message: bool = True,
+    ) -> str:
+        if len(messages) == 0:
+            return ""  # No messages, return empty string..?
+
+        if not continue_final_message:
+            return self.chat_formatter(messages)
+
+        # transformers and llamacpp tokenizers seem super inconsistent about respecting
+        # `continue_final_message` and `add_generation_prompt` and tend to add an EOS
+        # token to the end of the last message if it's not an assistant message.
+        # It might be caused when the final message being empty?
+        # We add a sentinel to the end of the last message and strip it out manually.
+        sentinel = "\x02"  # Something hopefully very unlikely to be in a chat template..?
+
+        *msgs, active = messages
+        active_with_sentinel = ChatMessage(
+            role=active["role"],
+            content=active["content"] + sentinel,
+        )
+        msgs = msgs + [active_with_sentinel]
+
+        text = self.chat_formatter(msgs)
+
+        # Find the last occurrence of the sentinel and remove it
+        last_sentinel_index = text.rfind(sentinel)
+        if last_sentinel_index == -1:
+            raise ValueError("Sentinel not found in the chat template output.")
+
+        return text[:last_sentinel_index]
+
+    def get_prompt(self, state: EngineState) -> str:
+        """Get the prompt for the engine."""
+        return state.get_prompt(self)
+
+
+class ConstraintException(Exception):
+    def __init__(self, *args, **kwargs):
+        self.prompt = kwargs.pop("prompt", None)
+        self.data = kwargs.pop("data", None)
+        super().__init__(*args, **kwargs)

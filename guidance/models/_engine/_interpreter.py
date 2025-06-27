@@ -10,14 +10,20 @@ from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
-from ._state import EngineState
+from ._state import EngineChatState, EngineCompletionState, EngineState
 
 
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine, default_sampling_params: Optional[SamplingParams] = None):
-        super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
+        if engine.chat_formatter is not None:
+            state = EngineChatState()
+        else:
+            state = EngineCompletionState()
+        super().__init__(state=state, default_sampling_params=default_sampling_params)
         self.engine = engine
-        self.chat_template = self.engine.get_chat_template()
+
+    def get_prompt(self) -> str:
+        return self.engine.get_prompt(self.state)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
@@ -32,31 +38,15 @@ class EngineInterpreter(Interpreter[EngineState]):
                 setattr(result, k, deepcopy(v, memo))
         return result
 
-    def get_role_start(self, role: str) -> str:
-        if self.chat_template is None:
-            raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_start(role)
-
-    def get_role_end(self, role: str) -> str:
-        if self.chat_template is None:
-            raise ValueError("Cannot use roles without a chat template")
-        return self.chat_template.get_role_end(role)
-
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = node.role
-        text = self.get_role_start(node.role)
-        # TODO: it's probably somewhat wasteful to trigger engine calls here,
-        # so we can maybe add this as "pending text" to the state instead,
-        # accumulating it until the next engine call..?
-        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
+        self.state.open_role(node.role)
+        # TODO: something for vis?
+        yield from ()
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = None
-        text = self.get_role_end(node.role)
-        # TODO: it's probably somewhat wasteful to trigger engine calls here,
-        # so we can maybe add this as "pending text" to the state instead,
-        # accumulating it until the next engine call..?
-        yield from self.run(text_to_grammar(self.engine.tokenizer, text))
+        self.state.close_role()
+        # TODO: something for vis?
+        yield from ()
 
     def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self.grammar(node, **kwargs)
@@ -82,7 +72,7 @@ class EngineInterpreter(Interpreter[EngineState]):
 
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
-            self.state.prompt += new_text
+            self.state.add_text(new_text)
 
             if chunk.backtrack:
                 yield Backtrack(
@@ -147,9 +137,12 @@ class Llama3VisionInterpreter(EngineInterpreter):
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
-        self.state.images.append(pil_image)
-        self.state.prompt += "<|image|>"
-
+        self.state.add_media(
+            media_type="image",
+            media=pil_image,
+            text_representation="<|image|>",
+            allow_ref=False,
+        )
         yield ImageOutput(value=node.data, is_input=True)
 
 
@@ -164,14 +157,12 @@ class Phi3VisionInterpreter(EngineInterpreter):
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
-
-        if pil_image in self.state.images:
-            ix = self.state.images.index(pil_image) + 1
-        else:
-            self.state.images.append(pil_image)
-            ix = len(self.state.images)
-        self.state.prompt += f"<|image_{ix}|>"
-
+        self.state.add_media(
+            media_type="image",
+            media=pil_image,
+            text_representation=lambda ix: f"<|image_{ix}|>",
+            allow_ref=True,
+        )
         yield ImageOutput(value=node.data, is_input=True)
 
 

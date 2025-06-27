@@ -1,4 +1,5 @@
 import base64
+from abc import ABC, abstractmethod
 from typing import Generic, Iterator, Optional, TypeVar
 
 from guidance._schema import SamplingParams
@@ -30,10 +31,13 @@ from ._state import State
 S = TypeVar("S", bound=State)
 
 
-class Interpreter(Generic[S]):
+class Interpreter(Generic[S], ABC):
     def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
         self.state = state
         self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
+
+    @abstractmethod
+    def get_prompt(self) -> str: ...
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)

@@ -14,7 +14,6 @@ class CaptureVar(TypedDict):
 class State(ABC):
     def __init__(self, token_usage: Optional[TokenUsage] = None) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
-        self.active_role: Optional[str] = None
         self._token_usage: TokenUsage = token_usage or TokenUsage()
 
     def add_usage(self, usage: TokenUsage) -> None:
@@ -27,8 +26,9 @@ class State(ABC):
         """Get the current token usage."""
         return self._token_usage
 
+    @property
     @abstractmethod
-    def __str__(self) -> str:
+    def active_role(self) -> Optional[str]:
         pass
 
     def apply_capture(
