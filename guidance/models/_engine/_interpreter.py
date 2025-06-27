@@ -67,7 +67,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             echo=False,
-            sampling_params=kwargs.pop("sampling_params", None)
+            sampling_params=kwargs.pop("sampling_params", None),
         )
 
         delayed_bytes = b""

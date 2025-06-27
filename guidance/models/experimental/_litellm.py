@@ -233,15 +233,17 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         sampling_params = kwargs.pop("sampling_params", None)
         if sampling_params is None:
             return kwargs
-        
+
         kwargs["top_p"] = sampling_params.pop("top_p", None)
         kwargs["top_k"] = sampling_params.pop("top_k", None)
-            
+
         return kwargs
 
 
 class LiteLLM(Model):
-    def __init__(self, model_description: dict, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
+    def __init__(
+        self, model_description: dict, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs
+    ):
         interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
         super().__init__(
             interpreter=interpreter,

@@ -231,7 +231,7 @@ class LlamaCpp(Model):
         enable_ff_tokens=True,
         enable_monitoring=True,
         sampling_params: Optional[SamplingParams] = None,
-        **llama_cpp_kwargs
+        **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
 

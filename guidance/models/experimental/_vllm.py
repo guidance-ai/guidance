@@ -64,13 +64,13 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
     def _process_kwargs(self, **kwargs):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
-            
+
         sampling_params = kwargs.pop("sampling_params", None)
         if sampling_params is None:
             return kwargs
-        
+
         kwargs["top_p"] = sampling_params.pop("top_p", None)
-        
+
         # top_k must be put in extra_body
         top_k = sampling_params.pop("top_k", None)
         if top_k is not None:
@@ -82,7 +82,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
 class VLLMModel(Model):
     def __init__(self, model: str, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
         super().__init__(
-            interpreter=VLLMInterpreter(model=model,**kwargs),
+            interpreter=VLLMInterpreter(model=model, **kwargs),
             sampling_params=sampling_params,
             echo=echo,
         )

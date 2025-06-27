@@ -292,7 +292,7 @@ class Model:
             return [c["log_prob"] for c in captures]
         else:
             return captures["log_prob"]
-        
+
     def with_sampling_params(self, sampling_params: SamplingParams) -> Self:
         """Return a new model with the given sampling parameters set."""
         self = self.copy()

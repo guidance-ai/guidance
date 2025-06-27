@@ -203,12 +203,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     log_probs: bool = True
 
-    def __init__(
-        self,
-        model: str,
-        client: BaseOpenAIClientWrapper,
-        **kwargs
-    ):
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
         super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
@@ -251,7 +246,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
-                    
+
         sampling_params = kwargs.pop("sampling_params", None)
         if sampling_params:
             # only process kwargs that are supported by the OpenAI API
