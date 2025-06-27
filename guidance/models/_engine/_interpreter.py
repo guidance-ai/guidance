@@ -10,12 +10,16 @@ from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
-from ._state import EngineState
+from ._state import EngineChatState, EngineCompletionState, EngineState
 
 
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine, default_sampling_params: Optional[SamplingParams] = None):
-        super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
+        if engine.chat_formatter is not None:
+            state = EngineChatState()
+        else:
+            state = EngineCompletionState()
+        super().__init__(state=state, default_sampling_params=default_sampling_params)
         self.engine = engine
 
     def get_prompt(self) -> str:
@@ -35,12 +39,12 @@ class EngineInterpreter(Interpreter[EngineState]):
         return result
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = node.role
+        self.state.open_role(node.role)
         # TODO: something for vis?
         yield from ()
 
     def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = None
+        self.state.close_role()
         # TODO: something for vis?
         yield from ()
 

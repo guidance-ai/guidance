@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
 
 from ..._schema import TokenUsage
@@ -10,10 +11,9 @@ class CaptureVar(TypedDict):
     log_prob: Optional[float]
 
 
-class State:
+class State(ABC):
     def __init__(self, token_usage: Optional[TokenUsage] = None) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
-        self.active_role: Optional[str] = None
         self._token_usage: TokenUsage = token_usage or TokenUsage()
 
     def add_usage(self, usage: TokenUsage) -> None:
@@ -27,12 +27,9 @@ class State:
         return self._token_usage
 
     @property
+    @abstractmethod
     def active_role(self) -> Optional[str]:
-        return self._active_role
-
-    @active_role.setter
-    def active_role(self, role: Optional[str]) -> None:
-        self._active_role = role
+        pass
 
     def apply_capture(
         self, name: str, value: Optional[str], log_prob=Optional[float], is_append: bool = False

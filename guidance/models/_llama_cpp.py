@@ -61,7 +61,7 @@ class _LlamaBatchContext:
 
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj: "Llama", chat_template: Optional[str] = None):
+    def __init__(self, model_obj: "Llama"):
         self._model_obj = model_obj
 
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
@@ -69,32 +69,14 @@ class LlamaCppTokenizer(Tokenizer):
             raise Exception("call to llama_cpp.llama_model_get_vocab returned NULL.")
         ll_tokenizer = llguidance.llamacpp.lltokenizer_from_vocab(vocab)
 
-        self._chat_formatter: Optional["llama_cpp.llama_chat_format.ChatFormatter"] = None
-        if chat_template is None:
-            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
-                chat_template = self._model_obj.metadata["tokenizer.chat_template"]
-
         bos_token_id = model_obj.token_bos()
         if bos_token_id == -1:
             bos_token_id = None
 
-        super().__init__(ll_tokenizer=ll_tokenizer, chat_template=chat_template, bos_token_id=bos_token_id)
-
-    def chat_formatter(self, messages: list[dict[str, str]]) -> Optional[str]:
-        if self._chat_template is not None:
-            raise NotImplementedError(
-                "Chat formatting with a custom template is not implemented for LlamaCppTokenizer."
-            )
-        elif self._chat_formatter is not None:
-            # Use the chat formatter from the model object
-            return self._chat_formatter(
-                messages=cast(list["llama_types.ChatCompletionRequestMessage"], messages),
-            ).prompt
-        else:
-            raise RuntimeError("One of chat_template or _chat_formatter must be set for LlamaCppTokenizer.")
+        super().__init__(ll_tokenizer=ll_tokenizer, bos_token_id=bos_token_id)
 
 
-def get_chat_formatter(model_obj: "Llama") -> Optional["llama_cpp.llama_chat_format.ChatFormatter"]:
+def get_chat_formatter(model_obj: "Llama"):
     handler = (
         model_obj.chat_handler
         or model_obj._chat_handlers.get(model_obj.chat_format)
@@ -109,7 +91,7 @@ def get_chat_formatter(model_obj: "Llama") -> Optional["llama_cpp.llama_chat_for
                 return_type == "ChatFormatterResponse"
                 or getattr(return_type, "__name__", None) == "ChatFormatterResponse"
             ):
-                return contents  # type: ignore[return-value]
+                return lambda messages: contents(messages=messages).prompt  # type: ignore[return-value]
     return None
 
 
@@ -173,8 +155,12 @@ class LlamaCppEngine(Engine):
         self._cached_token_ids = []
         self._cached_logits = None
 
+        if chat_template is not None:
+            raise NotImplementedError()
+
         super().__init__(
-            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            tokenizer=LlamaCppTokenizer(self.model_obj),
+            chat_formatter=get_chat_formatter(self.model_obj),
             compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,

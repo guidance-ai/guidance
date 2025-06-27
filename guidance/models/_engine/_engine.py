@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Generator, Optional, Sequence, TypedDict
+from typing import Generator, Optional, Protocol, Sequence, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,11 +12,22 @@ from ..._parser import TokenParser
 from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
 from ..._utils import apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
-from ._tokenizer import ChatMessage, Tokenizer
+from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
+
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
+
+
+class ChatFormatter(Protocol):
+    def __call__(self, messages: Sequence[ChatMessage]) -> str:
+        """Formats a sequence of chat messages into a string."""
+        pass
 
 
 class LogitsOutput(TypedDict):
@@ -35,11 +46,18 @@ class Engine(ABC):
     """
 
     def __init__(
-        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+        self,
+        tokenizer: Tokenizer,
+        chat_formatter: Optional[ChatFormatter] = None,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        **kwargs,
     ):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
+        self.chat_formatter = chat_formatter
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
@@ -442,14 +460,11 @@ class Engine(ABC):
         messages: Sequence[ChatMessage],
         continue_final_message: bool = True,
     ) -> str:
-        if self.tokenizer.chat_formatter is None:
-            raise NotImplementedError("No chat formatter, and completions are not yet supported.")
-
         if len(messages) == 0:
             return ""  # No messages, return empty string..?
 
         if not continue_final_message:
-            raise NotImplementedError("continue_final_message=False is not supported yet.")
+            return self.chat_formatter(messages)
 
         # transformers and llamacpp tokenizers seem super inconsistent about respecting
         # `continue_final_message` and `add_generation_prompt` and tend to add an EOS
@@ -465,7 +480,7 @@ class Engine(ABC):
         )
         msgs = msgs + [active_with_sentinel]
 
-        text = self.tokenizer.chat_formatter(msgs)
+        text = self.chat_formatter(msgs)
 
         # Find the last occurrence of the sentinel and remove it
         last_sentinel_index = text.rfind(sentinel)

@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, Union
 
 from pydantic import BaseModel, Discriminator
@@ -50,7 +50,7 @@ def stringify_content(content: list[Content]) -> str:
     return s
 
 
-class EngineState(ABC, State):
+class EngineState(State):
     def __init__(self) -> None:
         # Initialize with zero token usage rather than default None
         # since engine can fast-forward tokens
@@ -148,6 +148,10 @@ class EngineCompletionState(EngineState):
         super().__init__()
         self.content: list[Content] = []
 
+    @property
+    def active_role(self) -> None:
+        return None
+
     def get_prompt(self, engine: "Engine") -> str:
         return stringify_content(self.content)
 
@@ -166,11 +170,15 @@ class EngineCompletionState(EngineState):
         self.content.append(content)
 
 
-class EngineChatState(State):
+class EngineChatState(EngineState):
     def __init__(self) -> None:
         super().__init__()
         self.active_message: Optional[EngineMessage] = None
         self.messages: list[EngineMessage] = []
+
+    @property
+    def active_role(self) -> Optional[str]:
+        return self.active_message.role if self.active_message else None
 
     def get_prompt(self, engine: "Engine") -> str:
         engine_messages = self.messages.copy()

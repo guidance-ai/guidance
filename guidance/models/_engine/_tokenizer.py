@@ -1,19 +1,8 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable, Optional, Protocol, Sequence, TypedDict, Union
+from typing import Callable, Optional, Sequence, Union
 
 import llguidance
-
-
-class ChatMessage(TypedDict):
-    role: str
-    content: str
-
-
-class ChatFormatter(Protocol):
-    def __call__(self, messages: Sequence[ChatMessage]) -> str:
-        """Formats a sequence of chat messages into a string."""
-        pass
 
 
 @dataclass
@@ -42,22 +31,14 @@ class Tokenizer:
     def __init__(
         self,
         ll_tokenizer: llguidance.LLTokenizer,
-        chat_template: Optional[str] = None,
         bos_token_id: Optional[int] = None,
     ):
         self._ll_tokenizer = ll_tokenizer
-        # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
-        # Defaults to ChatML if nothing is found
-        self._chat_template = chat_template
         self._bos_token_id = bos_token_id
 
     def is_special_token(self, token_id: int) -> bool:
         """Returns True if the given token ID is a special token."""
         return self._ll_tokenizer.is_special_token(token_id)
-
-    @property
-    def chat_formatter(self) -> Optional[ChatFormatter]:
-        return None
 
     @property
     def bos_token_id(self) -> Union[int, None]:
@@ -78,10 +59,6 @@ class Tokenizer:
     @cached_property
     def eos_token(self) -> bytes:
         return self.decode([self.eos_token_id])
-
-    @property
-    def chat_template(self) -> Union[Any, None]:
-        return self._chat_template
 
     def __call__(self, byte_string: bytes):
         return self.encode(byte_string)
