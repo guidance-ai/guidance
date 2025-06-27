@@ -112,14 +112,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
-      if (appState.requireFullReplay) {
-        // console.log('Require full replay and went past completion output message.');
-        const msg: StitchMessage = {
-          type: 'clientmsg',
-          content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
-        };
-        clientmsg.set(msg);
-      }
+      // Do nothing -- server will handle replay.
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;

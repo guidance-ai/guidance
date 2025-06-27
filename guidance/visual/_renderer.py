@@ -371,6 +371,10 @@ class JupyterWidgetRenderer(Renderer):
             self._completed = True
             self._running = False
 
+            # Replay all messages on completion
+            out_messages.append(ResetDisplayMessage())
+            out_messages[len(out_messages) :] = self._messages[:]
+
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
             else:
