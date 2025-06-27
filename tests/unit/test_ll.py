@@ -8,7 +8,6 @@ from huggingface_hub import hf_hub_download
 
 import guidance
 from guidance import (
-    GrammarNode,
     capture,
     gen,
     one_or_more,
@@ -17,6 +16,7 @@ from guidance import (
     select,
     string,
 )
+from guidance._ast import GrammarNode
 from guidance.library._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 log_level = 10
