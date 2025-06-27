@@ -475,7 +475,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
             # TODO: just store format on ImageOutput type
             format = pil_image.format
             if format is None:
-                raise ValueError(f"Cannot upload image with unknown format")
+                raise ValueError("Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(

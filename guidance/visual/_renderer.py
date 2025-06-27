@@ -114,7 +114,7 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
-    logger.debug(f"CELL:executed")
+    logger.debug("CELL:executed")
     try:
         renderer = renderer_weakref()
         if renderer is None:
@@ -202,7 +202,7 @@ async def _handle_send_messages(
                 # NOTE(nopdive): This at random times, appears to fire two changes instead of one change event.
                 renderer.stitch_widget.kernelmsg = message_json
             else:
-                logger.debug(f"SEND:jupyter:send but no widget")
+                logger.debug("SEND:jupyter:send but no widget")
             renderer.send_queue.task_done()
         except Exception as _:
             logger.error(f"SEND:err:{traceback.format_exc()}")
@@ -325,7 +325,7 @@ class JupyterWidgetRenderer(Renderer):
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
                     else:
-                        logger.debug(f"DIVERGENCE:full_reset")
+                        logger.debug("DIVERGENCE:full_reset")
                         ancestor_idx = 0
 
                 return True, ancestor_idx

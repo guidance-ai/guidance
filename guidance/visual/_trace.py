@@ -83,7 +83,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                 if not prettify_roles:
                     buffer.append("</span>")
                 if isinstance(active_role.input, RoleCloserInput) and prettify_roles:
-                    buffer.append(f"</div></div>")
+                    buffer.append("</div></div>")
                 active_role = None
         elif isinstance(node.output, ImageOutput):
             buffer.append(
