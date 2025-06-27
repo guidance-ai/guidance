@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Generator, Iterator, Optional, TypedDict, Union
+from typing import Generator, Optional, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray

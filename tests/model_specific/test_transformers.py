@@ -1,7 +1,7 @@
 import jinja2
 import pytest
 
-from guidance import assistant, gen, guidance, models, select, system, user
+from guidance import assistant, gen, guidance, models, select, user
 
 from ..utils import get_model
 

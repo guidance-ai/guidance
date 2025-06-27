@@ -1,7 +1,7 @@
 import pytest
 
 import guidance
-from guidance import assistant, capture, gen, role, select, system, user
+from guidance import gen, role
 
 
 def test_lite_llm_basic():

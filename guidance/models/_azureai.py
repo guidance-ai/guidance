@@ -122,7 +122,7 @@ def create_azure_openai_model(
         names include `base_url` and `organization`
     """
     if has_audio_support and has_image_support:
-        raise ValueError(f"No known models have both audio and image support")
+        raise ValueError("No known models have both audio and image support")
 
     interpreter_cls: type[AzureOpenAIInterpreter]
     if (model_name and "audio-preview" in model_name) or has_audio_support:

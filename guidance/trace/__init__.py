@@ -28,3 +28,26 @@ from ._trace import (
     TraceNode,
     VideoOutput,
 )
+
+__all__ = [
+    "TraceNode",
+    "TraceHandler",
+    "InputAttr",
+    "OutputAttr",
+    "NodeAttr",
+    "LiteralInput",
+    "StatefulGuidanceInput",
+    "StatelessGuidanceInput",
+    "RoleOpenerInput",
+    "RoleCloserInput",
+    "EmbeddedInput",
+    "ImageInput",
+    "AudioOutput",
+    "ImageOutput",
+    "VideoOutput",
+    "CaptureOutput",
+    "TextOutput",
+    "TokenOutput",
+    "Token",
+    "Backtrack",
+]

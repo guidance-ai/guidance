@@ -27,7 +27,6 @@ from ...trace import (
     RoleCloserInput,
     RoleOpenerInput,
     StatelessGuidanceInput,
-    TokenOutput,
     TraceNode,
 )
 from ...trace._trace import AudioInput

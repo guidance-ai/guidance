@@ -1,10 +1,6 @@
 import json
 import re
 
-import numpy as np
-import pytest
-from jsonschema import validate
-
 import guidance
 from guidance import (
     gen,

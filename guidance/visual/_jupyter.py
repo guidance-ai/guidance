@@ -1,7 +1,7 @@
 """Jupyter specific utilities."""
 
 import logging
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
 try:
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 IPythonCallback = Callable[[Any], None]
 
 
-def ipy_handle_event_once(cb: IPythonCallback, event_name: str) -> Tuple[Optional[IPythonCallback], str]:
+def ipy_handle_event_once(cb: IPythonCallback, event_name: str) -> tuple[Optional[IPythonCallback], str]:
     ipy = get_ipython()
     cell_session_id = str(uuid4())
 

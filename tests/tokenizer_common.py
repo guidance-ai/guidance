@@ -1,4 +1,4 @@
-from guidance import models
+from guidance.models._transformers import TransformersTokenizer
 
 TOKENIZER_ROUND_TRIP_STRINGS = [
     "",
@@ -16,14 +16,14 @@ TOKENIZER_ROUND_TRIP_STRINGS = [
 
 class BaseTestTransformerTokenizers:
     def base_smoke(self, model_name: str):
-        my_tok = models.TransformersTokenizer.from_pretrained(
+        my_tok = TransformersTokenizer.from_pretrained(
             model_name,
             trust_remote_code=True,
         )
         assert my_tok is not None
 
     def base_string_roundtrip(self, model_name: str, target_string: str):
-        my_tok = models.TransformersTokenizer.from_pretrained(
+        my_tok = TransformersTokenizer.from_pretrained(
             model_name,
             trust_remote_code=True,
         )
@@ -35,7 +35,7 @@ class BaseTestTransformerTokenizers:
         assert final_string == target_string
 
     def base_eos_bos_token_round_trip(self, model_name: str):
-        my_tok = models.TransformersTokenizer.from_pretrained(
+        my_tok = TransformersTokenizer.from_pretrained(
             model_name,
             trust_remote_code=True,
         )

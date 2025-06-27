@@ -1,7 +1,7 @@
 import pytest
 
 import guidance
-from guidance import gen, models, system, user
+from guidance import gen, models
 
 
 def test_call_embeddings():

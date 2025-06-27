@@ -53,7 +53,6 @@ class PeriodicMetricsGenerator:
 
     async def _emit(self):
         import asyncio
-        import time
 
         from ..registry import get_exchange
 

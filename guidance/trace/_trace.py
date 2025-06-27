@@ -3,7 +3,7 @@
 import logging
 import weakref
 from itertools import count
-from typing import Annotated, Any, ClassVar, Dict, Generator, Optional, Union
+from typing import Annotated, Any, ClassVar, Generator, Optional, Union
 
 from pydantic import Base64Bytes, BaseModel, Discriminator, Field, Tag, computed_field, model_validator
 
@@ -341,8 +341,8 @@ class TraceHandler(BaseModel):
     """
 
     # NOTE(nopdive): Type trickery for pydantic.
-    id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
-    node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
+    id_node_map: dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
+    node_id_map: dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
