@@ -1,17 +1,20 @@
-from typing import Any, Optional, Sequence, Union, Callable, Protocol, TypedDict
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any, Callable, Optional, Protocol, Sequence, TypedDict, Union
 
 import llguidance
+
 
 class ChatMessage(TypedDict):
     role: str
     content: str
 
+
 class ChatFormatter(Protocol):
     def __call__(self, messages: Sequence[ChatMessage]) -> str:
         """Formats a sequence of chat messages into a string."""
         pass
+
 
 @dataclass
 class TokenizerWrappable:
@@ -26,9 +29,8 @@ class TokenizerWrappable:
 
     def as_ll_tokenizer(self) -> "llguidance.LLTokenizer":
         """Returns an LLTokenizer that can be used by llguidance."""
-        return llguidance.LLTokenizer(
-            llguidance.TokenizerWrapper(self)
-        )
+        return llguidance.LLTokenizer(llguidance.TokenizerWrapper(self))
+
 
 class Tokenizer:
     """This is the standardized tokenizer interface used by guidance models.

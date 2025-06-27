@@ -1,4 +1,4 @@
-from guidance import capture, models, one_or_more, select, guidance
+from guidance import capture, guidance, models, one_or_more, select
 
 
 def test_capture():
@@ -25,11 +25,11 @@ def test_capture_raw_function():
         elif lm["state"] == "2":
             lm += select(["5", "6"], name="state_2")
         return lm
-    
+
     lm_nocap = lm + "the beginning|" + raw_fn() + "|the end"
-    lm_cap_arg = lm + "the beginning|" + capture("<cap>" + raw_fn() + "</cap>" , "cap_arg") + "|the end"
+    lm_cap_arg = lm + "the beginning|" + capture("<cap>" + raw_fn() + "</cap>", "cap_arg") + "|the end"
     lm_cap_kwarg = lm + "the beginning|" + capture("<cap>" + raw_fn() + "</cap>", name="cap_kwarg") + "|the end"
-    
+
     # Bunch of random tests
     assert "state_1" in lm_nocap or "state_2" in lm_nocap
     assert "cap_arg" in lm_cap_arg

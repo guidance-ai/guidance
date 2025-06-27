@@ -1,20 +1,19 @@
 import atexit
+import inspect
 import logging
 import operator
 import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Union, Optional, cast
-import ctypes
-import inspect
+from typing import TYPE_CHECKING, Optional, cast
+
 import numpy as np
 
-from .._schema import GenToken, GenTokenExtra
-from .._utils import normalize_notebook_stdout_stderr, softmax
-from ..chat import ChatTemplate
+from .._schema import SamplingParams
+from .._utils import normalize_notebook_stdout_stderr
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, Tokenizer
+from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 
 try:
     import llama_cpp
@@ -26,10 +25,9 @@ else:
     import llguidance.llamacpp
 
 if TYPE_CHECKING:
-    from llama_cpp.llama_tokenizer import LlamaTokenizer
-    from llama_cpp.llama import Llama
     import llama_cpp.llama_chat_format
     from llama_cpp import llama_types
+    from llama_cpp.llama import Llama
 
 logger = logging.getLogger(__name__)
 
@@ -73,24 +71,20 @@ class LlamaCppTokenizer(Tokenizer):
 
         self._chat_formatter: Optional["llama_cpp.llama_chat_format.ChatFormatter"] = None
         if chat_template is None:
-            self._chat_formatter = get_chat_formatter(model_obj)
-            if self._chat_formatter is None:
-                # Set the function to None if no chat formatter is available
-                self.chat_formatter = None
+            if hasattr(self._model_obj, "metadata") and "tokenizer.chat_template" in self._model_obj.metadata:
+                chat_template = self._model_obj.metadata["tokenizer.chat_template"]
 
         bos_token_id = model_obj.token_bos()
         if bos_token_id == -1:
             bos_token_id = None
 
-        super().__init__(
-            ll_tokenizer=ll_tokenizer,
-            chat_template=chat_template,
-            bos_token_id=bos_token_id,
-        )
+        super().__init__(ll_tokenizer=ll_tokenizer, chat_template=chat_template, bos_token_id=bos_token_id)
 
     def chat_formatter(self, messages: list[dict[str, str]]) -> Optional[str]:
         if self._chat_template is not None:
-            raise NotImplementedError("Chat formatting with a custom template is not implemented for LlamaCppTokenizer.")
+            raise NotImplementedError(
+                "Chat formatting with a custom template is not implemented for LlamaCppTokenizer."
+            )
         elif self._chat_formatter is not None:
             # Use the chat formatter from the model object
             return self._chat_formatter(
@@ -98,6 +92,7 @@ class LlamaCppTokenizer(Tokenizer):
             ).prompt
         else:
             raise RuntimeError("One of chat_template or _chat_formatter must be set for LlamaCppTokenizer.")
+
 
 def get_chat_formatter(model_obj: "Llama") -> Optional["llama_cpp.llama_chat_format.ChatFormatter"]:
     handler = (
@@ -114,8 +109,9 @@ def get_chat_formatter(model_obj: "Llama") -> Optional["llama_cpp.llama_chat_for
                 return_type == "ChatFormatterResponse"
                 or getattr(return_type, "__name__", None) == "ChatFormatterResponse"
             ):
-                return contents # type: ignore[return-value]
+                return contents  # type: ignore[return-value]
     return None
+
 
 class LlamaCppEngine(Engine):
     """The core class that runs inference using llama.cpp."""
@@ -177,11 +173,16 @@ class LlamaCppEngine(Engine):
         self._cached_token_ids = []
         self._cached_logits = None
 
-        super().__init__(LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
-                         compute_log_probs=compute_log_probs, enable_backtrack=enable_backtrack,
-                         enable_ff_tokens=enable_ff_tokens, enable_monitoring=enable_monitoring, **kwargs)
+        super().__init__(
+            LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
+            compute_log_probs=compute_log_probs,
+            enable_backtrack=enable_backtrack,
+            enable_ff_tokens=enable_ff_tokens,
+            enable_monitoring=enable_monitoring,
+            **kwargs,
+        )
 
-    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> np.ndarray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """Computes the logits for the given token state.
 
         This overrides a method from the LocalEngine class that is used to get
@@ -202,7 +203,11 @@ class LlamaCppEngine(Engine):
         if num_cached == len(token_ids):
             if num_cached == len(self._cached_token_ids):
                 # last token input is the same as the last cached token, so return the last cached logits
-                return self._cached_logits
+                return {
+                    "logits": self._cached_logits,
+                    "n_tokens": len(token_ids),
+                    "n_cached": num_cached,
+                }
             # we need to pass at least one new token
             num_cached = num_cached - 1
 
@@ -235,23 +240,21 @@ class LlamaCppEngine(Engine):
             ).copy()
             logits_for_each_batch.append(logits_for_this_batch)
 
-        # update the metrics
-        self.metrics.engine_output_tokens += 1
-        self.metrics.engine_input_tokens += len(token_ids) - num_cached
-
         # save the results
         self._cached_token_ids = token_ids.copy()
         self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
         if include_all_uncached_tokens:
-            logits = np.concatenate(
-                logits_for_each_batch,
-                axis=0
-            )
+            logits = np.concatenate(logits_for_each_batch, axis=0)
             assert logits.shape[0] == len(token_ids) - num_cached
-            return logits
         else:
-            return self._cached_logits
+            logits = self._cached_logits
+
+        return {
+            "logits": logits,
+            "n_tokens": len(token_ids),
+            "n_cached": num_cached,
+        }
 
 
 class LlamaCpp(Model):
@@ -265,6 +268,7 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
+        default_sampling_params: Optional[SamplingParams] = None,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
@@ -278,5 +282,5 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine)
+        interpreter = EngineInterpreter(engine, default_sampling_params=default_sampling_params)
         super().__init__(interpreter=interpreter, echo=echo)

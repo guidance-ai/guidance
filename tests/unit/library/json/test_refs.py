@@ -417,9 +417,7 @@ class TestRefs:
             ({"$ref": "#/$defs/a_string"}, True),
         ],
     )
-    def test_naive_replacement_of_ref_with_its_destination_is_not_correct(
-        self, test_object, valid
-    ):
+    def test_naive_replacement_of_ref_with_its_destination_is_not_correct(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$defs": {"a_string": {"type": "string"}},
@@ -512,9 +510,7 @@ class TestRefs:
             ("a", False),
         ],
     )
-    def test_id_must_be_resolved_against_nearest_parent_not_just_immediate_parent(
-        self, test_object, valid
-    ):
+    def test_id_must_be_resolved_against_nearest_parent_not_just_immediate_parent(self, test_object, valid):
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$id": "http://example.com/a.json",
@@ -745,9 +741,7 @@ class TestRefs:
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$id": "urn:uuid:deadbeef-1234-0000-0000-4321feebdaed",
-            "properties": {
-                "foo": {"$ref": "urn:uuid:deadbeef-1234-0000-0000-4321feebdaed#/$defs/bar"}
-            },
+            "properties": {"foo": {"$ref": "urn:uuid:deadbeef-1234-0000-0000-4321feebdaed#/$defs/bar"}},
             "$defs": {"bar": {"type": "string"}},
         }
         if valid:
@@ -771,9 +765,7 @@ class TestRefs:
         schema = {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "$id": "urn:uuid:deadbeef-1234-ff00-00ff-4321feebdaed",
-            "properties": {
-                "foo": {"$ref": "urn:uuid:deadbeef-1234-ff00-00ff-4321feebdaed#something"}
-            },
+            "properties": {"foo": {"$ref": "urn:uuid:deadbeef-1234-ff00-00ff-4321feebdaed#something"}},
             "$defs": {"bar": {"$anchor": "something", "type": "string"}},
         }
         if valid:

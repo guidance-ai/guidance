@@ -2,68 +2,27 @@
 
 import logging
 import time
-import weakref
-from typing import Callable, Iterator, Optional, Sequence
 from abc import ABC, abstractmethod
+from typing import Generator, Optional, Sequence, TypedDict
+
 import numpy as np
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import (
-    EngineOutput,
-    EngineResponse,
-    GenToken,
-    GuidanceEngineMetrics,
-)
-
-from ...registry import get_exchange
-from ..._utils import log_cleanup, log_init, softmax
-from ...visual import (
-    ExecutionCompletedMessage,
-    ExecutionStartedMessage,
-    GuidanceMessage,
-    OutputRequestMessage,
-    MetricMessage,
-)
+from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
+from ..._utils import apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
-from ._tokenizer import Tokenizer, ChatMessage
-
+from ._tokenizer import ChatMessage, Tokenizer
 
 logger = logging.getLogger(__name__)
 
 _TEMPERATURE_EPSILON = 0.0001
 
-def _engine_cleanup(msg_recv: Callable[[GuidanceMessage], None], log_msg: str):
-    get_exchange().unsubscribe(msg_recv)
-    log_cleanup(log_msg)
 
-
-def _wrapped_msg_recv(engine_weak_ref: weakref.ref) -> Callable[[GuidanceMessage], None]:
-    def closure(message):
-        return _msg_recv(engine_weak_ref, message)
-
-    return closure
-
-
-def _msg_recv(engine_weakref: weakref.ReferenceType, message: GuidanceMessage) -> None:
-    # NOTE(nopdive): This is run on a background thread.
-
-    engine = engine_weakref()
-    if engine is None:
-        return
-
-    if isinstance(message, MetricMessage):
-        return
-
-    # logger.debug(f"ENGINE({id(engine)}):msg_recv:{message}")
-    if isinstance(message, ExecutionStartedMessage):
-        pass
-    elif isinstance(message, ExecutionCompletedMessage) and message.is_err:
-        pass
-    elif isinstance(message, ExecutionCompletedMessage):
-        pass
-    elif isinstance(message, OutputRequestMessage):
-        pass
+class LogitsOutput(TypedDict):
+    logits: NDArray
+    n_tokens: int
+    n_cached: int
 
 
 class Engine(ABC):
@@ -75,8 +34,9 @@ class Engine(ABC):
     Server so a single server can serve many clients' model objects through a single Engine object.
     """
 
-    def __init__(self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True,
-                 enable_monitoring=True, **kwargs):
+    def __init__(
+        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+    ):
         from ...registry import get_monitor
 
         self.tokenizer = tokenizer
@@ -85,22 +45,10 @@ class Engine(ABC):
         self._enable_monitoring = enable_monitoring
         self._top_k = kwargs.get("top_k", 5)
 
-        # TODO(nopdive): Remove on refactor.
-        self.metrics = GuidanceEngineMetrics()
-
         if self._enable_monitoring:
             # Idempotent start
             _ = get_monitor()
 
-        msg_recv = _wrapped_msg_recv(weakref.ref(self))
-        get_exchange().subscribe(msg_recv)
-
-        weakref.finalize(
-            self,
-            _engine_cleanup,
-            msg_recv,
-            f"engine({id(self)})",
-        )
         log_init(f"engine({id(self)})")
 
     # These need to be properties because once an Engine is started, you can't change their behavior.
@@ -119,12 +67,7 @@ class Engine(ABC):
     def get_chat_template(
         self,
     ):  # TODO [HN]: Add more logic here...should we instantiate class here? do we even need to?
-        return (
-            self.tokenizer.chat_template()
-        )  # Instantiate the class before returning to client for now
-
-    def reset_metrics(self):
-        self.metrics = GuidanceEngineMetrics()
+        return self.tokenizer.chat_template()  # Instantiate the class before returning to client for now
 
     def __call__(
         self,
@@ -132,7 +75,8 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         echo: bool = True,
-    ) -> Iterator[EngineResponse]:
+        sampling_params: Optional[SamplingParams] = None,
+    ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
 
@@ -148,16 +92,20 @@ class Engine(ABC):
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
             Ensures that the prompt ends with the BOS token.
+        sampling_params: Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
         """
+        # Note: t0 will get reset further down in the loop, just after the break condition
+        _t0 = time.time()
+        t0 = _t0
+
         # TODO: Pass these to get_logits
         # images = state.images
         # audio = state.audio
         # videos = state.videos
 
         prompt = self.get_prompt(state)
-        tokens = self.tokenizer.encode(
-            prompt.encode()
-        )
+        tokens = self.tokenizer.encode(prompt.encode())
         parser = TokenParser(
             grammar,
             tokenizer=self.tokenizer,
@@ -167,9 +115,9 @@ class Engine(ABC):
 
         last_temperature = 1.0
         engine_output = None
-        while not parser.done():
-            t0 = time.time()
+        usage = TokenUsage(round_trips=1, ff_tokens=0)
 
+        while not parser.done():
             recode = False
             if engine_output is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -180,9 +128,7 @@ class Engine(ABC):
                     tokens = prefix_tokens + tokens
                     recode = True
             else:
-                backtrack, ff_tokens, mask_fut = parser.advance(
-                    token_id=engine_output.issued_token.token_id
-                )
+                backtrack, ff_tokens, mask_fut = parser.advance(token_id=engine_output.issued_token.token_id)
 
             if backtrack:
                 backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
@@ -214,7 +160,14 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits = logits_output["logits"]
+                usage.input_tokens += logits_output["n_tokens"]
+                usage.cached_input_tokens += logits_output["n_cached"]
+                if logits_output["n_tokens"] > logits_output["n_cached"]:
+                    usage.forward_passes += 1
+                else:
+                    usage.cached_output_tokens += 1
                 logits_lat_ms = (time.time() - t1) * 1000
 
             # Important: don't wait on this future until after getting the logits;
@@ -222,15 +175,9 @@ class Engine(ABC):
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            ff_lat_ms = (time.time() - t0) * 1000
-            if not ll_response.stop:
-                # Logit latency will go into the NEXT token
-                # if it exists
-                ff_lat_ms -= logits_lat_ms
-
             if logits is not None:
                 # Not the last one -- that's for the *next* token.
-                ff_logits = logits[-len(ff_tokens)-1:-1]
+                ff_logits = logits[-len(ff_tokens) - 1 : -1]
                 ff_probs = (
                     softmax(ff_logits)
                     if last_temperature < _TEMPERATURE_EPSILON
@@ -239,30 +186,36 @@ class Engine(ABC):
 
                 if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
                     # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                    ff_probs = np.pad(
-                        ff_probs, [(1, 0), (0, 0)], mode='constant', constant_values=1.0
-                    )
+                    ff_probs = np.pad(ff_probs, [(1, 0), (0, 0)], mode="constant", constant_values=1.0)
                 elif ff_probs.shape[0] < len(ff_tokens):
                     # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
                     # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
                     ff_probs = np.pad(
-                        ff_probs, [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
-                        mode='constant', constant_values=np.nan
+                        ff_probs,
+                        [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
+                        mode="constant",
+                        constant_values=np.nan,
                     )
             else:
                 # really just for mypy -- we shouldn't need this
                 ff_probs = np.empty(shape=())
 
+            ff_lat_ms = (time.time() - t0) * 1000
+            if not ll_response.stop:
+                # If we're not stopping, the logit latency will go into the next generated token
+                ff_lat_ms -= logits_lat_ms
+
             gen_tokens = []
             if engine_output is None:
+                # Note: intentionally not counting ff_tokens here, as we're counting these
+                # all just as input tokens
                 for i, token_id in enumerate(ff_tokens):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
-                            latency_ms=ff_lat_ms/len(ff_tokens),
+                            latency_ms=ff_lat_ms / len(ff_tokens),
                             is_input=True,
                         )
                     )
@@ -273,14 +226,18 @@ class Engine(ABC):
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
-                for i, token_id in enumerate(ff_tokens[ff_start_index:], start=ff_start_index):
+                ff_tokens = ff_tokens[ff_start_index:]
+
+                # Just update ff tokens here -- usage for engine_output has already been
+                # handled where we got logits above
+                usage.ff_tokens += len(ff_tokens)
+                for i, token_id in enumerate(ff_tokens, start=ff_start_index):
                     gen_tokens.append(
                         GenToken(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
                             prob=ff_probs[i, token_id],
-                            # amortize latency
-                            latency_ms=ff_lat_ms/len(ff_tokens[ff_start_index:]),
+                            latency_ms=ff_lat_ms / len(ff_tokens),
                             is_force_forwarded=True,
                         )
                     )
@@ -305,6 +262,9 @@ class Engine(ABC):
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
+            # Reset time down here instead of at the top of the loop in order to make sure
+            # we take sampling time into account
+            t0 = time.time()
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert logits is not None
@@ -333,6 +293,7 @@ class Engine(ABC):
                 temperature=ll_response.temperature,
                 k=self._top_k,
                 force_return_unmasked_probs=echo,
+                sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
 
@@ -340,6 +301,9 @@ class Engine(ABC):
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 engine_output.issued_token.token_id = self.tokenizer.eos_token_id
+
+        usage.total_latency_ms += (time.time() - _t0) * 1000
+        return usage
 
     def get_next_token_with_top_k(
         self,
@@ -350,6 +314,7 @@ class Engine(ABC):
         temperature: float,
         k: int = 5,
         force_return_unmasked_probs: bool = False,
+        sampling_params: Optional[SamplingParams] = None,
     ) -> EngineOutput:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -371,6 +336,8 @@ class Engine(ABC):
             The number of top-k tokens to return.
         force_return_unmasked_probs: bool
             If True, the top-k unmasked probabilities will be returned.
+        sampling_params : Optional[SamplingParams]
+            Additional sampling parameters to apply to the logits.
 
         Returns
         -------
@@ -395,15 +362,13 @@ class Engine(ABC):
             ]
             # Sort by probability in descending order, as above argpartition
             # does not guarantee order. Sorting the smaller array is faster.
-            return sorted(
-                top_k_tokens, key=lambda x: x.prob, reverse=True
-            )
+            return sorted(top_k_tokens, key=lambda x: x.prob, reverse=True)
 
         # compute top-k without masking
         probs = (
-            softmax(np.array(logits))
+            softmax(apply_top_k_and_top_p_filter(np.array(logits), sampling_params))
             if temperature < _TEMPERATURE_EPSILON
-            else softmax(np.array(logits) / temperature)
+            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, sampling_params))
         )
 
         top_k: list[GenToken] = []
@@ -415,10 +380,13 @@ class Engine(ABC):
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
+
             if temperature < _TEMPERATURE_EPSILON:
                 masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
             else:
                 masked_logits /= temperature
+
+            masked_logits = apply_top_k_and_top_p_filter(masked_logits, sampling_params)
 
             masked_probs = softmax(masked_logits)
             masked_top_k = get_top_k(masked_probs, k)
@@ -457,7 +425,7 @@ class Engine(ABC):
         return output
 
     @abstractmethod
-    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> NDArray:
+    def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """
         Get the logits for the given token ids.
         If include_all_uncached_tokens is True:
@@ -478,7 +446,7 @@ class Engine(ABC):
             raise NotImplementedError("No chat formatter, and completions are not yet supported.")
 
         if len(messages) == 0:
-            return "" # No messages, return empty string..?
+            return ""  # No messages, return empty string..?
 
         if not continue_final_message:
             raise NotImplementedError("continue_final_message=False is not supported yet.")
@@ -488,12 +456,12 @@ class Engine(ABC):
         # token to the end of the last message if it's not an assistant message.
         # It might be caused when the final message being empty?
         # We add a sentinel to the end of the last message and strip it out manually.
-        sentinel = "\x02" # Something hopefully very unlikely to be in a chat template..?
+        sentinel = "\x02"  # Something hopefully very unlikely to be in a chat template..?
 
-        *msgs, active = msgs
+        *msgs, active = messages
         active_with_sentinel = ChatMessage(
-            role = active["role"],
-            content = active["content"] + sentinel,
+            role=active["role"],
+            content=active["content"] + sentinel,
         )
         msgs = msgs + [active_with_sentinel]
 

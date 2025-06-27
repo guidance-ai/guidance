@@ -1,5 +1,7 @@
 from typing import Optional, TypedDict, Union
 
+from ..._schema import TokenUsage
+from ...metrics import emit_usage
 from ...trace import CaptureOutput
 
 
@@ -9,9 +11,20 @@ class CaptureVar(TypedDict):
 
 
 class State:
-    def __init__(self) -> None:
+    def __init__(self, token_usage: Optional[TokenUsage] = None) -> None:
         self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
-        self._active_role: Optional[str] = None
+        self.active_role: Optional[str] = None
+        self._token_usage: TokenUsage = token_usage or TokenUsage()
+
+    def add_usage(self, usage: TokenUsage) -> None:
+        """Add token usage to the current state."""
+        self._token_usage += usage
+        # TODO: need to do this conditionally? Or is this essentially zero-cost?
+        emit_usage(self._token_usage)
+
+    def get_usage(self) -> TokenUsage:
+        """Get the current token usage."""
+        return self._token_usage
 
     @property
     def active_role(self) -> Optional[str]:

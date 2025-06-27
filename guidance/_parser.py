@@ -1,6 +1,6 @@
 import os
-from typing import Any, Generator, Optional, TYPE_CHECKING
-from concurrent.futures import ThreadPoolExecutor, Future
+from concurrent.futures import Future, ThreadPoolExecutor
+from typing import TYPE_CHECKING, Any, Generator, Optional
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np
@@ -11,6 +11,7 @@ from ._schema import GenData, LegacyEngineCallResponse, LLInterpreterResponse
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
 
+
 class TokenParserException(Exception):
     pass
 
@@ -19,13 +20,10 @@ class InvalidTokenException(TokenParserException):
     def __init__(self, token: int, valid_tokens: list[int]):
         self.token = token
         self.valid_tokens = valid_tokens
-        super().__init__(
-            f"Invalid token {token}, expected one of {valid_tokens}"
-        )
+        super().__init__(f"Invalid token {token}, expected one of {valid_tokens}")
 
 
 class TokenParser:
-
     def __init__(
         self,
         grammar: str,
@@ -57,27 +55,25 @@ class TokenParser:
         self, token_id: Optional[int]
     ) -> tuple[
         int,
-        list[int], 
-        Future[tuple[Optional[bytes], LLInterpreterResponse]], 
+        list[int],
+        Future[tuple[Optional[bytes], LLInterpreterResponse]],
     ]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
-        
+
         return self._generator.send(token_id)
-    
+
     def has_pending_stop(self) -> bool:
         return self._has_pending_stop
 
     def process_prompt(
-        self,
-        prompt_tokens: list[int],
-        ensure_bos_token: bool = True
+        self, prompt_tokens: list[int], ensure_bos_token: bool = True
     ) -> tuple[
-        list[int], # prefix_tokens
-        int,       # backtrack
-        list[int], # ff_tokens
+        list[int],  # prefix_tokens
+        int,  # backtrack
+        list[int],  # ff_tokens
         # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
-        Future[tuple[Optional[bytes], LLInterpreterResponse]]
+        Future[tuple[Optional[bytes], LLInterpreterResponse]],
     ]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
         if (
@@ -98,13 +94,13 @@ class TokenParser:
         prompt_tokens = prefix_tokens + prompt_tokens
         new_prompt_tokens = prefix_tokens + new_prompt_tokens
 
-        # Compute backtrack and ff_tokens s.t. 
+        # Compute backtrack and ff_tokens s.t.
         # new_prompt_tokens == (
-        #       prompt_tokens[:-backtrack] if backtrack > 0 
+        #       prompt_tokens[:-backtrack] if backtrack > 0
         #       else prompt_tokens
         #   ) + ff_tokens
         backtrack = len(prompt_tokens)
-        for (old, new) in zip(prompt_tokens, new_prompt_tokens):
+        for old, new in zip(prompt_tokens, new_prompt_tokens):
             if old != new:
                 break
             backtrack -= 1
@@ -119,22 +115,22 @@ class TokenParser:
         return mask, ll_response
 
     def _parse(
-        self
+        self,
     ) -> Generator[
         tuple[
-            int,        # backtrack
+            int,  # backtrack
             list[int],  # ff_tokens
             # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
             Future[tuple[Optional[bytes], LLInterpreterResponse]],
         ],
         Optional[int],
-        None
+        None,
     ]:
         backtrack = 0
         ff_tokens: list[int] = []
         token_id: Optional[int] = None
         while True:
-            # Note: need to call/set has_pending_stop before spinning up the compute mask 
+            # Note: need to call/set has_pending_stop before spinning up the compute mask
             # future as the two methods cannot be called concurrently
             self._has_pending_stop = self.ll_interpreter.has_pending_stop()
             compute_mask_future = self._threadpool.submit(self.compute_mask)
@@ -159,18 +155,16 @@ class TokenParser:
 
             if token_id is None:
                 raise TokenParserException("Expected token, got None")
-            
+
             if not mask[token_id]:
                 # Note: we could punt this probem to ll_interpreter.post_process,
                 # but it's a bit clearer to handle it here
                 raise InvalidTokenException(
                     token=token_id,
                     valid_tokens=[i for i in range(len(mask)) if mask[i]],
-                )            
+                )
 
-            backtrack, ff_tokens = self.ll_interpreter.commit_token(
-                token_id
-            )
+            backtrack, ff_tokens = self.ll_interpreter.commit_token(token_id)
 
     def cleanup(self):
         # Rather than having our caller send us None at the end, we'll handle that internally
@@ -189,6 +183,7 @@ class TokenParser:
             # TODO: raise specific exceptions for reasons such as MaxTokensTotal
             raise TokenParserException(f"Unexpected stop reason: {stop_reason}")
 
+
 class ByteParserException(Exception):
     def __init__(self, *args, **kwargs):
         self.current_byte = kwargs.pop("current_byte", None)
@@ -204,6 +199,7 @@ class ByteParser:
     ):
         # TODO: figure out this circular import
         from .models._byte_tokenizer import ByteTokenizer
+
         self.tokenizer = ByteTokenizer()
         self.token_parser = TokenParser(grammar, self.tokenizer)
         self.bytes = b""
@@ -224,9 +220,7 @@ class ByteParser:
             return {self.bytes[self.pos : self.pos + 1]}
         if self.gen_data is None:
             return set()
-        return {
-            bytes([t]) for t in self.gen_data.valid_next_tokens if t != self.tokenizer.eos_token_id
-        }
+        return {bytes([t]) for t in self.gen_data.valid_next_tokens if t != self.tokenizer.eos_token_id}
 
     def next_byte_mask(self) -> NDArray[np.uint8]:
         mask = np.zeros(256, dtype=np.uint8)

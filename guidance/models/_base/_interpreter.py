@@ -1,6 +1,8 @@
 import base64
 from abc import ABC, abstractmethod
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterator, Optional, TypeVar
+
+from guidance._schema import SamplingParams
 
 from ..._ast import (
     ASTNode,
@@ -28,9 +30,11 @@ from ._state import State
 
 S = TypeVar("S", bound=State)
 
+
 class Interpreter(Generic[S], ABC):
-    def __init__(self, state: S):
+    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
         self.state = state
+        self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
 
     @abstractmethod
     def get_prompt(self) -> str: ...
@@ -40,9 +44,7 @@ class Interpreter(Generic[S], ABC):
 
     def _role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is not None:
-            raise ValueError(
-                f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open."
-            )
+            raise ValueError(f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open.")
         return self.role_start(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, U
 from pydantic import BaseModel, Discriminator
 from typing_extensions import assert_never
 
+from ..._schema import TokenUsage
 from .._base import State
 
 if TYPE_CHECKING:
@@ -51,7 +52,9 @@ def stringify_content(content: list[Content]) -> str:
 
 class EngineState(ABC, State):
     def __init__(self) -> None:
-        super().__init__()
+        # Initialize with zero token usage rather than default None
+        # since engine can fast-forward tokens
+        super().__init__(token_usage=TokenUsage(ff_tokens=0))
         self.images: list[Any] = []
         self.audio: list[Any] = []
         self.videos: list[Any] = []

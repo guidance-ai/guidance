@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, role, models, select
+from guidance import gen, models, role, select
 
 from ..utils import get_model
 
