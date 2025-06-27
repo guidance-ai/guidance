@@ -60,7 +60,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,
     ) -> None:
         self.echo = echo
@@ -71,6 +71,7 @@ class Model:
 
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
+        self.sampling_params: Optional[SamplingParams] = sampling_params
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -132,7 +133,7 @@ class Model:
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
-        for i, output_attr in enumerate(self._interpreter.run(node)):
+        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params)):
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -291,6 +292,12 @@ class Model:
             return [c["log_prob"] for c in captures]
         else:
             return captures["log_prob"]
+
+    def with_sampling_params(self, sampling_params: SamplingParams) -> Self:
+        """Return a new model with the given sampling parameters set."""
+        self = self.copy()
+        self.sampling_params = sampling_params
+        return self
 
     def __getattribute__(self, name):
         if name == "engine":

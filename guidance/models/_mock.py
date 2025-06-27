@@ -160,7 +160,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo=False,
         force=False,
         **kwargs,
