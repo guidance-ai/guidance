@@ -281,7 +281,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
                 usage.forward_passes += chunk.usage.completion_tokens
-                if chunk.usage.prompt_tokens_details is not None:
+                if getattr(chunk.usage, "prompt_tokens_details", None) is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
                         usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
             if chunk.choices is None or len(chunk.choices) == 0:
