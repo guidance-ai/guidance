@@ -4,7 +4,6 @@ import pytest
 
 import guidance
 from guidance import assistant, gen, system, user
-from guidance._ast import ToolDefinition
 from guidance.tools import Llama3FunctionToolCallHandler, Llama3IPythonToolCallHandler
 
 
