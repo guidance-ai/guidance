@@ -60,7 +60,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams,
         echo: bool = True,
     ) -> None:
         self.echo = echo

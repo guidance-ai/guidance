@@ -178,6 +178,7 @@ class Mock(Model):
         super().__init__(
             interpreter=EngineInterpreter(engine),
             echo=echo,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
         )
 
 

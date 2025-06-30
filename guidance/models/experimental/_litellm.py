@@ -247,6 +247,6 @@ class LiteLLM(Model):
         interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
         super().__init__(
             interpreter=interpreter,
-            sampling_params=sampling_params,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
             echo=echo,
         )

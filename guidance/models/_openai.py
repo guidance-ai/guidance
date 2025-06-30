@@ -66,5 +66,7 @@ class OpenAI(Model):
             interpreter_cls = OpenAIInterpreter
 
         super().__init__(
-            interpreter=interpreter_cls(model, api_key=api_key, **kwargs), sampling_params=sampling_params, echo=echo
+            interpreter=interpreter_cls(model, api_key=api_key, **kwargs),
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+            echo=echo,
         )

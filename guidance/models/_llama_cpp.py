@@ -245,4 +245,8 @@ class LlamaCpp(Model):
             **llama_cpp_kwargs,
         )
         interpreter = EngineInterpreter(engine)
-        super().__init__(interpreter=interpreter, sampling_params=sampling_params, echo=echo)
+        super().__init__(
+            interpreter=interpreter,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+            echo=echo,
+        )
