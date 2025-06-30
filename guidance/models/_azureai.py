@@ -45,10 +45,10 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
     ):
         try:
             import openai
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
+            ) from ie
         client = openai.AzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
@@ -188,10 +188,10 @@ class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMix
     ):
         try:
             import azure.ai.inference
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the azure-ai-inference package  using `pip install azure-ai-inference` in order to use guidance.models.AzureInference!"
-            )
+            ) from ie
         client = azure.ai.inference.ChatCompletionsClient(
             endpoint=endpoint,
             credential=credential,
@@ -236,10 +236,10 @@ def create_azure_aifoundry_model(
     """
     try:
         from azure.core.credentials import AzureKeyCredential, TokenCredential
-    except ImportError:
+    except ImportError as ie:
         raise Exception(
             "Please install the azure-core package using `pip install -U azure-core` in order to use guidance.models.AzureAI!"
-        )
+        ) from ie
 
     credential: Union[AzureKeyCredential, TokenCredential, None] = None
     if api_key and token_credential:
