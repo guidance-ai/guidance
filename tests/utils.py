@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from typing import Optional, Protocol, Set
+from typing import Optional, Protocol
 
 import pytest
 
@@ -127,7 +127,7 @@ def check_match_failure(
     bad_string: str,
     good_bytes: Optional[bytes] = None,
     failure_byte: Optional[bytes] = None,
-    allowed_bytes: Optional[Set[bytes]] = None,
+    allowed_bytes: Optional[set[bytes]] = None,
     grammar: GrammarNode,
 ):
     """

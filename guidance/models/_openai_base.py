@@ -31,9 +31,7 @@ from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
-    from openai import OpenAI
     from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
 
 
 def get_role_start(role: str) -> str:
@@ -476,7 +474,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
             # TODO: just store format on ImageOutput type
             format = pil_image.format
             if format is None:
-                raise ValueError(f"Cannot upload image with unknown format")
+                raise ValueError("Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(

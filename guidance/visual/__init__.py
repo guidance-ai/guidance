@@ -19,3 +19,24 @@ from ._message import (
 )
 from ._renderer import AutoRenderer, JupyterWidgetRenderer, Renderer
 from ._trace import display_trace_tree, trace_node_to_html, trace_node_to_str
+
+__all__ = [
+    "TopicExchange",
+    "GuidanceMessage",
+    "ClientReadyMessage",
+    "ClientReadyAckMessage",
+    "ExecutionCompletedMessage",
+    "ExecutionStartedMessage",
+    "MetricMessage",
+    "OutputRequestMessage",
+    "ResetDisplayMessage",
+    "TraceMessage",
+    "deserialize_message",
+    "serialize_message",
+    "display_trace_tree",
+    "trace_node_to_html",
+    "trace_node_to_str",
+    "AutoRenderer",
+    "JupyterWidgetRenderer",
+    "Renderer",
+]
