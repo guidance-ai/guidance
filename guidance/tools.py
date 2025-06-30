@@ -122,6 +122,44 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
 
+class Qwen3ToolCallHandler(ToolCallHandler):
+    expr = re.compile(r"^<\|tool_call\|>(?P<call>\{(.|\n)*\})<\|/tool_call\|>$")
+
+    def build_grammar(self) -> GrammarNode:
+        # https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json#L230
+        return (
+            SpecialToken("tool_call")
+            + json(
+                schema={
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "const": name},
+                                "arguments": defn.args.model_json_schema(),
+                            },
+                            "required": ["name", "arguments"],
+                        }
+                        for name, defn in self.tools.items()
+                    ]
+                }
+            )
+            + SpecialToken("/tool_call")
+            + SpecialToken("im_end")
+            + "\n"
+        )
+
+    def parse_tool_call(self, text: str) -> RawToolCall:
+        match = self.expr.match(text)
+        if not match:
+            raise ValueError(f"Invalid tool call format: {text}")
+        call_data = loads(match.group("call"))
+        return RawToolCall(name=call_data["name"], args=call_data["arguments"])
+
+    def format_return_value(self, value: Any) -> str:
+        return f"<|im_start|>user\n<tool_response>\n{dumps(value)}\n</tool_response>"
+
+
 class LegacyToolCallHandler(ToolCallHandler):
     expr = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*\(.*\)$")
 
