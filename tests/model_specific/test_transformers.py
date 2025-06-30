@@ -107,38 +107,6 @@ w) 10"""
 # Phi-3 specific tests
 
 
-@pytest.mark.skip("Don't overload the build machines")
-def test_phi3_transformers_orig():
-    import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-
-    torch.random.manual_seed(0)
-    model = AutoModelForCausalLM.from_pretrained(
-        "microsoft/Phi-3-mini-4k-instruct",
-        device_map="mps",
-        trust_remote_code=True,
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
-    pipe = pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-    )
-
-    generation_args = {
-        "max_new_tokens": 5,
-        "return_full_text": True,
-        "temperature": 0.0,
-        "do_sample": False,
-    }
-
-    input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
-    output = pipe(input_text, **generation_args)
-
-    assert "5" in (output[0]["generated_text"])
-
-
 def test_phi3_chat_basic(phi3_model: models.Model):
     lm = phi3_model
 
