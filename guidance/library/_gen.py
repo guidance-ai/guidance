@@ -2,11 +2,10 @@ import logging
 from typing import Optional, Union
 
 from .._ast import ToolCallNode
-from .._grammar import capture, quote_regex, select, with_temperature
+from .._grammar import capture, quote_regex
 from .._grammar import gen as grammar_gen
 from .._grammar import regex as regex_node
 from .._guidance import guidance
-from ._block import block
 
 logger = logging.getLogger(__name__)
 

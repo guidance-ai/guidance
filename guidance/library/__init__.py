@@ -11,10 +11,43 @@ from ._gen import gen, regex
 from ._image import gen_image, image
 from ._json import json
 from ._optional import optional
-from ._role import assistant, role, system, user  # , function, instruction, indent_roles
+from ._role import assistant, role, system, user
 
-# from ..models._model import context_free
 # stateless library functions
 from ._sequences import at_most_n_repeats, exactly_n_repeats, one_or_more, sequence, zero_or_more
 from ._substring import substring
 from ._video import gen_video, video
+
+__all__ = [
+    "select",
+    "string",
+    "token_limit",
+    "with_temperature",
+    "audio",
+    "gen_audio",
+    "block",
+    "capture",
+    "gbnf_to_lark",
+    "lark",
+    "call_tool",
+    "gen",
+    "regex",
+    "gen_image",
+    "image",
+    "json",
+    "optional",
+    "assistant",
+    "role",
+    "system",
+    "user",
+    "at_most_n_repeats",
+    "exactly_n_repeats",
+    "one_or_more",
+    "sequence",
+    "zero_or_more",
+    "substring",
+    "Tool",
+    "gen_video",
+    "video",
+    "lark",
+]
