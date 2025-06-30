@@ -201,14 +201,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     log_probs: bool = True
 
-    def __init__(
-        self,
-        model: str,
-        client: BaseOpenAIClientWrapper,
-        default_sampling_params: Optional[SamplingParams] = None,
-        **kwargs,
-    ):
-        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
+        super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
 
@@ -251,9 +245,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        # only process kwargs that are supported by the OpenAI API
-        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
-            kwargs["top_p"] = self.default_sampling_params["top_p"]
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params:
+            # only process kwargs that are supported by the OpenAI API
+            if "top_p" not in kwargs:
+                kwargs["top_p"] = sampling_params.get("top_p", None)
+
+            if sampling_params.get("top_k", None) is not None:
+                raise ValueError("OpenAI models do not support top_k sampling.")
 
         with self.client.streaming_chat_completions(
             model=self.model,
@@ -274,7 +273,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
-            if chunk.usage is not None:
+            # NOTE: use getattr here as litellm does not return usage
+            if getattr(chunk, "usage", None) is not None:
                 # Update token usage
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
