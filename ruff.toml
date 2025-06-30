@@ -18,4 +18,6 @@ extend-select = [
   "I",        # isort
   "ARG",      # flake8-unused-arguments
   "C4",       # flake8-comprehensions
+  "F401",     # 
+  "F541",
 ]
