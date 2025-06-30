@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, Callable, ContextManager, Iterator, Optional, 
 
 from pydantic import TypeAdapter
 
+from guidance._schema import SamplingParams
+
 from .._ast import (
     JsonNode,
 )
@@ -85,6 +87,7 @@ def create_azure_openai_model(
     azure_ad_token_provider: Optional[Callable[[], str]] = None,
     has_audio_support: bool = False,
     has_image_support: bool = False,
+    sampling_params: Optional[SamplingParams] = None,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -143,7 +146,11 @@ def create_azure_openai_model(
         **kwargs,
     )
 
-    model = Model(interpreter=interpreter, echo=echo)
+    model = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
 
     return model
 
@@ -216,6 +223,7 @@ def create_azure_aifoundry_model(
     model_name: str,
     api_key: Optional[str] = None,
     token_credential: Optional["TokenCredential"] = None,
+    sampling_params: Optional[SamplingParams] = None,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
@@ -257,5 +265,9 @@ def create_azure_aifoundry_model(
         model_name=model_name,
     )
 
-    result = Model(interpreter=interpreter, echo=echo)
+    result = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
     return result
