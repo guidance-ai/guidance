@@ -123,12 +123,12 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
 
 
 class Qwen3ToolCallHandler(ToolCallHandler):
-    expr = re.compile(r"^<tool_call>(?P<call>\{(.|\n)*\})</tool_call><\|im_end\|>$")
+    expr = re.compile(r"^<tool_call>\n(?P<call>\{(.|\n)*\})\n</tool_call><\|im_end\|>$")
 
     def build_grammar(self) -> GrammarNode:
         # https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json#L230
         return (
-            "<tool_call>"  # note: not special
+            "<tool_call>\n"  # note: not special
             + json(
                 schema={
                     "oneOf": [
@@ -144,7 +144,7 @@ class Qwen3ToolCallHandler(ToolCallHandler):
                     ]
                 }
             )
-            + "</tool_call>"
+            + "\n</tool_call>"
             + SpecialToken("im_end")
             + "\n"
         )
