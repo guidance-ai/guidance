@@ -62,7 +62,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
     SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm"]
 
-    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams], **kwargs):
+    def __init__(self, model_description: dict, **kwargs):
         try:
             import litellm
         except ImportError:
@@ -80,9 +80,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         # Otherwise, generation will fail for some endpoints.
         self.log_probs = False
 
-        super().__init__(
-            model=self.model, client=self.client, default_sampling_params=default_sampling_params, **kwargs
-        )
+        super().__init__(model=self.model, client=self.client, **kwargs)
 
     def _check_model(self, model_desc: dict) -> str:
         """Check if the model description is valid."""
@@ -232,24 +230,23 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)
 
     def _process_kwargs(self, **kwargs):
-        if "top_k" not in kwargs and "top_k" in self.default_sampling_params:
-            kwargs["top_k"] = self.default_sampling_params["top_k"]
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params is None:
+            return kwargs
+
+        kwargs["top_p"] = sampling_params.pop("top_p", None)
+        kwargs["top_k"] = sampling_params.pop("top_k", None)
 
         return kwargs
 
 
 class LiteLLM(Model):
     def __init__(
-        self,
-        model_description: dict,
-        default_sampling_params: Optional[SamplingParams] = None,
-        echo: bool = True,
-        **kwargs,
+        self, model_description: dict, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs
     ):
-        interpreter = LiteLLMInterpreter(
-            model_description=model_description, default_sampling_params=default_sampling_params, **kwargs
-        )
+        interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
         super().__init__(
             interpreter=interpreter,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
             echo=echo,
         )

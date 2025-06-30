@@ -160,7 +160,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo=False,
         force=False,
         **kwargs,
@@ -178,6 +178,7 @@ class Mock(Model):
         super().__init__(
             interpreter=EngineInterpreter(engine),
             echo=echo,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
         )
 
 
