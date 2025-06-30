@@ -1,9 +1,7 @@
 import pytest
 
 import guidance
-from guidance import assistant, capture, gen, select, system, user
-
-from ..utils import get_model
+from guidance import assistant, gen, select, system, user
 
 
 def test_lite_llm_basic_openai():

@@ -1,6 +1,6 @@
 import inspect
 import warnings
-from typing import Dict, Union
+from typing import Union
 
 
 class ChatTemplate:
