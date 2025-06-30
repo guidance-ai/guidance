@@ -71,7 +71,7 @@ class Model:
 
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
-        self.sampling_params: Optional[SamplingParams] = sampling_params
+        self.sampling_params: SamplingParams = sampling_params
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
@@ -133,7 +133,8 @@ class Model:
         else:
             self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
 
-        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params)):
+        # NOTE: passing a copy of the sampling parameters to avoid modifying the original
+        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params.copy())):
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?

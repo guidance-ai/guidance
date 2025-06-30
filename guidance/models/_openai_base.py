@@ -253,6 +253,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if "top_p" not in kwargs:
                 kwargs["top_p"] = sampling_params.get("top_p", None)
 
+            if sampling_params.get("top_k", None) is not None:
+                raise ValueError("OpenAI models do not support top_k sampling.")
+
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=self.state.messages,
@@ -272,7 +275,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
-            if chunk.usage is not None:
+            # NOTE: use getattr here as litellm does not return usage
+            if getattr(chunk, "usage", None) is not None:
                 # Update token usage
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
