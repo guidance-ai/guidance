@@ -277,15 +277,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
                 usage.forward_passes += chunk.usage.completion_tokens
-                if chunk.usage.prompt_tokens_details is not None:
+                if getattr(chunk.usage, "prompt_tokens_details", None) is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
                         usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
-            try:
-                choice = chunk.choices[0]
-            except IndexError:
-                # TODO: azure seems to return empty choices sometimes (on first chunk?)
-                # Need to make this more robust
+            if chunk.choices is None or len(chunk.choices) == 0:
+                # Azure seems to return empty choices sometimes (on first chunk?)
+                # OpenAI seems to return None choices sometimes (after giving usage?) (for audio only?)
                 continue
+            choice = chunk.choices[0]
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
