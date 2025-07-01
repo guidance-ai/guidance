@@ -1,7 +1,5 @@
 import base64
-from typing import Generic, Iterator, Optional, TypeVar
-
-from guidance._schema import SamplingParams
+from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,

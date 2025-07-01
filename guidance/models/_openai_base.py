@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, U
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
-from guidance._schema import SamplingParams
-
 from .._ast import (
     ASTNode,
     AudioBlob,
@@ -463,10 +461,10 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
-            )
+            ) from ie
 
         image_bytes = base64.b64decode(node.data)
         with PIL.Image.open(BytesIO(image_bytes)) as pil_image:

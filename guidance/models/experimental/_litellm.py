@@ -65,10 +65,10 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
     def __init__(self, model_description: dict, **kwargs):
         try:
             import litellm
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the litellm package version >= 1.71.0 using `pip install litellm -U` in order to use guidance.models.LiteLLM!"
-            )
+            ) from ie
 
         self.ep_type = self._check_model(model_description)
         # set default model to the first one in the list

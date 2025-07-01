@@ -23,10 +23,10 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
     ):
         try:
             import openai
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
+            ) from ie
 
         client = openai.OpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=OpenAIClientWrapper(client))

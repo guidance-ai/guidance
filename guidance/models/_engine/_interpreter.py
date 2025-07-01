@@ -2,10 +2,10 @@ import re
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
-from typing import Iterator, Optional
+from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken
-from ..._schema import GenTokenExtra, SamplingParams, TokenUsage
+from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
@@ -140,10 +140,10 @@ class Llama3VisionInterpreter(EngineInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
-            )
+            ) from ie
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
@@ -157,10 +157,10 @@ class Phi3VisionInterpreter(EngineInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
-            )
+            ) from ie
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
