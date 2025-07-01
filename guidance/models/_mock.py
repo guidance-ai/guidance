@@ -126,7 +126,6 @@ class MockEngine(Engine):
         # if we have a pattern that matches then force the next token
         bias = 100.0
         if self.byte_patterns is not None:
-            byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
