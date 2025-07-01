@@ -324,6 +324,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 )
                                 for tok in token.top_logprobs
                             ],
+                            is_generated=True,
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
