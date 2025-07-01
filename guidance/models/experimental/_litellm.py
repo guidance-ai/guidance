@@ -236,6 +236,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
         kwargs["top_p"] = sampling_params.pop("top_p", None)
         kwargs["top_k"] = sampling_params.pop("top_k", None)
+        kwargs["min_p"] = sampling_params.pop("min_p", None)
 
         return kwargs
 

@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 
 from ..._parser import TokenParser
 from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
-from ..._utils import apply_top_k_and_top_p_filter, log_init, softmax
+from ..._utils import apply_min_p_filter, apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
@@ -365,11 +365,10 @@ class Engine(ABC):
             return sorted(top_k_tokens, key=lambda x: x.prob, reverse=True)
 
         # compute top-k without masking
-        probs = (
-            softmax(apply_top_k_and_top_p_filter(np.array(logits), sampling_params))
-            if temperature < _TEMPERATURE_EPSILON
-            else softmax(apply_top_k_and_top_p_filter(np.array(logits) / temperature, sampling_params))
-        )
+        filtered_logits = np.array(logits) if temperature < _TEMPERATURE_EPSILON else np.array(logits) / temperature
+        filtered_logits = apply_min_p_filter(filtered_logits, sampling_params)
+        filtered_logits = apply_top_k_and_top_p_filter(filtered_logits, sampling_params)
+        probs = softmax(filtered_logits)
 
         top_k: list[GenToken] = []
         if force_return_unmasked_probs:
@@ -386,6 +385,7 @@ class Engine(ABC):
             else:
                 masked_logits /= temperature
 
+            masked_logits = apply_min_p_filter(masked_logits, sampling_params)
             masked_logits = apply_top_k_and_top_p_filter(masked_logits, sampling_params)
 
             masked_probs = softmax(masked_logits)
