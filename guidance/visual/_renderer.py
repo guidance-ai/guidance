@@ -4,6 +4,7 @@ Our main focus is on jupyter notebooks and later terminal.
 """
 # TODO(nopdive): Implementation for terminals & append-only text displays.
 # NOTE(nopdive): Testing this notebook related components is tricky. Should figure this out at some point.
+# NOTE(nopdive): Double render issue occurs intermittently (https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1056). Likely upstream issue.
 
 import asyncio
 import logging
@@ -466,7 +467,11 @@ class JupyterWidgetRenderer(Renderer):
 
             if self.stitch_widget is not None and self.stitch_widget_observed:
                 self.stitch_widget.unobserve(self._stitch_on_clientmsg, names="clientmsg")
+                # self.stitch_widget.close()
+                # del self.stitch_widget
+
                 self.stitch_widget_observed = False
+
                 logger.debug("RENDERER:widget unobserved (new)")
 
             self.stitch_widget = _create_stitch_widget()
