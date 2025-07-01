@@ -307,7 +307,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     tokens = choice.logprobs.content
                     for token in tokens:
                         yield TokenOutput(
-                            value=token.token,
+                            value=content,
                             # amortized latency
                             latency_ms=latency_ms / len(tokens),
                             token=Token(
