@@ -68,8 +68,8 @@ def test_trace_handler():
     child2 = trace_handler.update_node(2, 0, out)
 
     assert pre_child2 == child2
-    assert child2.input == inp
-    assert child2.output == out
+    assert child2.input == [inp]
+    assert child2.output == [out]
     assert child2.root() == root
     assert child1 not in child2.path()
 

@@ -26,3 +26,6 @@ notebooks/**/*.papermill_out.ipynb
 .mypy_cache/*
 
 **/scratch.*
+
+# Claude Code generated files
+CLAUDE.md

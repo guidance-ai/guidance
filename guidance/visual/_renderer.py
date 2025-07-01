@@ -4,6 +4,7 @@ Our main focus is on jupyter notebooks and later terminal.
 """
 # TODO(nopdive): Implementation for terminals & append-only text displays.
 # NOTE(nopdive): Testing this notebook related components is tricky. Should figure this out at some point.
+# NOTE(nopdive): Double render issue occurs intermittently (https://github.com/ipython-contrib/jupyter_contrib_nbextensions/issues/1056). Likely upstream issue.
 
 import asyncio
 import logging
@@ -18,7 +19,12 @@ from warnings import warn
 from .._topics import DEFAULT_TOPIC
 from .._utils import log_cleanup
 from ..trace import TraceHandler
-from ..visual import ClientReadyMessage, GuidanceMessage, ResetDisplayMessage, TraceMessage
+from ..visual import (
+    ClientReadyMessage,
+    GuidanceMessage,
+    ResetDisplayMessage,
+    TraceMessage,
+)
 from . import MetricMessage
 from ._environment import Environment
 from ._jupyter import ipy_handle_event_once
@@ -45,6 +51,18 @@ if TYPE_CHECKING:
     from stitch import StitchWidget
 
 logger = logging.getLogger(__name__)
+
+
+# Uncomment the following lines to enable file logging
+# import datetime
+#
+# log_filename = f"widget_debug_{datetime.datetime.now().strftime('%H%M%S')}.log"
+# file_handler = logging.FileHandler(log_filename)
+# file_handler.setLevel(logging.DEBUG)
+# formatter = logging.Formatter("%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s", datefmt="%H:%M:%S")
+# file_handler.setFormatter(formatter)
+# logger.addHandler(file_handler)
+# logger.setLevel(logging.DEBUG)
 
 
 class Renderer:
@@ -115,6 +133,7 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
     logger.debug("CELL:executed")
+
     try:
         renderer = renderer_weakref()
         if renderer is None:
@@ -125,7 +144,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
-    except Exception as _:
+    except Exception:
         logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
@@ -252,8 +271,8 @@ class JupyterWidgetRenderer(Renderer):
         weakref.finalize(self, _cleanup, self.recv_queue, self.send_queue, f"renderer({id(self)})", self._on_exchange)
 
     def _on_exchange(self, message: GuidanceMessage) -> None:
-        if not isinstance(message, MetricMessage):  # NOTE(nopdive): Metrics spam at fixed intervals.
-            logger.debug(f"ON_EXCHANGE:{message}")
+        # if not isinstance(message, MetricMessage):  # NOTE(nopdive): Metrics spam at fixed intervals.
+        #     logger.debug(f"RENDERER_ON_EXCHANGE:{message}")
 
         if isinstance(message, MetricMessage):
             self.update(message)
@@ -262,6 +281,42 @@ class JupyterWidgetRenderer(Renderer):
         elif isinstance(message, TraceMessage):
             self.update(message)
 
+    def _trace_path_to_messages(self, trace_id: int) -> list["TraceMessage"]:
+        """Convert trace path from root to given trace_id into TraceMessage objects.
+
+        Args:
+            trace_id: The trace ID to get the path for.
+
+        Returns:
+            List of TraceMessage objects representing the path from root to the given trace_id.
+
+        """
+        from ..registry import get_trace_handler
+
+        trace_handler = get_trace_handler()
+        trace_path = trace_handler.id_node_map[trace_id].path()
+        messages = []
+
+        for trace_node in trace_path:
+            node_trace_id = trace_handler.node_id_map[trace_node]
+            parent_trace_id = None
+            if trace_node.parent is not None:
+                parent_trace_id = trace_handler.node_id_map[trace_node.parent]
+
+            for input_attr in trace_node.input:
+                input_message = TraceMessage(
+                    trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=input_attr
+                )
+                messages.append(input_message)
+
+            for output_attr in trace_node.output:
+                output_message = TraceMessage(
+                    trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=output_attr
+                )
+                messages.append(output_message)
+
+        return messages
+
     def has_divergence(self, message: GuidanceMessage) -> tuple[bool, int]:
         """Checks if message has divergence with current path.
 
@@ -269,10 +324,7 @@ class JupyterWidgetRenderer(Renderer):
             message: Incoming message.
 
         Returns:
-            tuple of (has diverged, shared ancestor index). Index will be -1 if no divergence.
-
-        Raises:
-            Exception if there is no shared ancestor (including root). This should not happen.
+            tuple of (has diverged, shared ancestor index). Index will be -1 if divergence and requires trace replay.
         """
         if not isinstance(message, TraceMessage):
             return False, -1
@@ -305,7 +357,8 @@ class JupyterWidgetRenderer(Renderer):
                 # Trace node was garbage collected, treat as divergence
                 return True, 0
 
-            if last_trace_node not in message_trace_node.path():
+            message_trace_node_path = message_trace_node.path()
+            if last_trace_node not in message_trace_node_path:
                 logger.debug(f"DIVERGENCE:curr:{message_trace_node}")
                 logger.debug(f"DIVERGENCE:prev:{last_trace_node}")
 
@@ -325,24 +378,21 @@ class JupyterWidgetRenderer(Renderer):
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
                     else:
-                        logger.debug("DIVERGENCE:full_reset")
-                        ancestor_idx = 0
+                        logger.debug("DIVERGENCE:full reset (not in messages)")
+                        ancestor_idx = -1
 
                 return True, ancestor_idx
             else:
                 return False, -1
 
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
-        from ..registry import get_bg_async, get_exchange
+        from ..registry import get_bg_async
 
         out_messages: list[GuidanceMessage] = []
 
         # Metrics
         if isinstance(message, MetricMessage):
-            if self._running:
-                # logger.debug(f"RENDERER:metric:{message}")
-                pass
-            else:
+            if not self._running:
                 return
 
         if isinstance(message, ExecutionCompletedMessage):
@@ -350,7 +400,11 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug("RENDERER:execution end")
             self._completed = True
             self._running = False
-            get_exchange().publish(message)
+
+            # Replay all messages on completion
+            out_messages.append(ResetDisplayMessage())
+            out_messages[len(out_messages) :] = self._messages[:]
+            self._messages.clear()
 
             if message.is_err:
                 out_messages.append(MetricMessage(name="status", value="Error"))
@@ -358,15 +412,19 @@ class JupyterWidgetRenderer(Renderer):
                 out_messages.append(MetricMessage(name="status", value="Done"))
         elif not self._running and isinstance(message, TraceMessage):
             # Execution started
-            logger.debug("RENDERER:execution start")
+            logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
+
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value="Running"))
 
-            _, self.last_cell_session_id = ipy_handle_event_once(
+            _, last_cell_session_id = ipy_handle_event_once(
                 partial(_on_cell_completion, weakref.ref(self)), "post_run_cell"
             )
-            self._new_widget_needed = True
+            if last_cell_session_id != self.last_cell_session_id:
+                logger.info(f"RENDERER:cell_id:{self.last_cell_session_id}:{last_cell_session_id}")
+                self._new_widget_needed = True
+            self.last_cell_session_id = last_cell_session_id
             self._running = True
             self._completed = False
 
@@ -376,10 +434,17 @@ class JupyterWidgetRenderer(Renderer):
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
         if diverged:
-            logger.debug("RENDERER:diverged")
+            logger.debug(f"RENDERER:diverged, shared ancestor idx: {shared_ancestor_idx}")
             out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages) :] = self._messages[:shared_ancestor_idx]
-            self._messages.clear()
+            if shared_ancestor_idx >= 0:
+                out_messages[len(out_messages) :] = self._messages[: shared_ancestor_idx + 1]
+                self._messages.clear()
+            else:
+                logger.debug("RENDERER:diverged, but no shared ancestor, replay")
+                # Reconstruct trace messages and replay from root
+                trace_messages = self._trace_path_to_messages(message.trace_id)
+                out_messages.extend(trace_messages)
+                self._messages.clear()
 
         # Check if requested to reset and replay
         if isinstance(message, OutputRequestMessage):
@@ -390,15 +455,14 @@ class JupyterWidgetRenderer(Renderer):
         # Reset if needed
         if self._new_widget_needed:
             logger.debug("RENDERER:new widget needed")
-            # Store existing messages before clearing
-            existing_messages = self._messages[:]
-
-            # Clear messages
-            self._messages = []
 
             if self.stitch_widget is not None and self.stitch_widget_observed:
                 self.stitch_widget.unobserve(self._stitch_on_clientmsg, names="clientmsg")
+                # self.stitch_widget.close()
+                # del self.stitch_widget
+
                 self.stitch_widget_observed = False
+
                 logger.debug("RENDERER:widget unobserved (new)")
 
             self.stitch_widget = _create_stitch_widget()
@@ -409,18 +473,15 @@ class JupyterWidgetRenderer(Renderer):
 
             # Redraw
             display(self.stitch_widget)
+            logger.debug(f"RENDERER:widget displayed")
 
             self._new_widget_needed = False
 
-            # Replay existing messages to the new widget
-            if existing_messages:
-                logger.debug(f"RENDERER:replaying {len(existing_messages)} existing messages")
-                # Add all existing messages to the outgoing queue
-                out_messages.append(ResetDisplayMessage())
-                out_messages.extend(existing_messages)
-
         # Append current message to outgoing
         out_messages.append(message)
+        # logger.debug(
+        #     f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
+        # )
 
         # Send outgoing messages to client
         for out_message in out_messages:
