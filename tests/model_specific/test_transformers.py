@@ -236,3 +236,21 @@ def test_top_p_top_k_filtering():
     transformers_logits = top_p_warp(None, top_k_warp(None, logits))[0].numpy()
     guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k, "top_p": top_p})
     assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k and top_p filtering"
+
+
+def test_min_p_filtering():
+    import numpy as np
+    import torch
+    from transformers.generation.logits_process import MinPLogitsWarper
+
+    from guidance._utils import apply_min_p_filter
+
+    torch.random.manual_seed(0)
+    logits = torch.randn((1, 1000))
+
+    # apply min_p filtering
+    min_p = 0.1
+    min_p_warp = MinPLogitsWarper(min_p)
+    transformers_logits = min_p_warp(None, logits)[0].numpy()
+    guidance_logits = apply_min_p_filter(logits[0].numpy(), {"min_p": min_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after min_p filtering"

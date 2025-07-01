@@ -254,6 +254,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if sampling_params.get("top_k", None) is not None:
                 raise ValueError("OpenAI models do not support top_k sampling.")
 
+            if sampling_params.get("min_p", None) is not None:
+                raise ValueError("OpenAI models do not support min_p sampling.")
+
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=self.state.messages,
