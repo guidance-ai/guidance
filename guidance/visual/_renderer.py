@@ -305,17 +305,13 @@ class JupyterWidgetRenderer(Renderer):
 
             for input_attr in trace_node.input:
                 input_message = TraceMessage(
-                    trace_id=node_trace_id,
-                    parent_trace_id=parent_trace_id,
-                    node_attr=input_attr
+                    trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=input_attr
                 )
                 messages.append(input_message)
 
             for output_attr in trace_node.output:
                 output_message = TraceMessage(
-                    trace_id=node_trace_id,
-                    parent_trace_id=parent_trace_id,
-                    node_attr=output_attr
+                    trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=output_attr
                 )
                 messages.append(output_message)
 
@@ -441,7 +437,7 @@ class JupyterWidgetRenderer(Renderer):
             logger.debug(f"RENDERER:diverged, shared ancestor idx: {shared_ancestor_idx}")
             out_messages.append(ResetDisplayMessage())
             if shared_ancestor_idx >= 0:
-                out_messages[len(out_messages) :] = self._messages[:shared_ancestor_idx+1]
+                out_messages[len(out_messages) :] = self._messages[: shared_ancestor_idx + 1]
                 self._messages.clear()
             else:
                 logger.debug("RENDERER:diverged, but no shared ancestor, replay")
@@ -449,7 +445,6 @@ class JupyterWidgetRenderer(Renderer):
                 trace_messages = self._trace_path_to_messages(message.trace_id)
                 out_messages.extend(trace_messages)
                 self._messages.clear()
-
 
         # Check if requested to reset and replay
         if isinstance(message, OutputRequestMessage):

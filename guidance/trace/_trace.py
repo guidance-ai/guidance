@@ -380,11 +380,15 @@ class TraceHandler(BaseModel):
         if node_attr is not None:
             if isinstance(node_attr, InputAttr):
                 if node.input:
-                    logger.debug(f"Adding additional input to trace node {node.identifier}, now has {len(node.input) + 1} inputs")
+                    logger.debug(
+                        f"Adding additional input to trace node {node.identifier}, now has {len(node.input) + 1} inputs"
+                    )
                 node.input.append(node_attr)
             elif isinstance(node_attr, OutputAttr):
                 if node.output:
-                    logger.debug(f"Adding additional output to trace node {node.identifier}, now has {len(node.output) + 1} outputs")
+                    logger.debug(
+                        f"Adding additional output to trace node {node.identifier}, now has {len(node.output) + 1} outputs"
+                    )
                 node.output.append(node_attr)
             else:
                 raise ValueError(f"Unexpected node attr: {node_attr}")

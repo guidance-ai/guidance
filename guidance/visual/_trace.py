@@ -42,7 +42,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
             if isinstance(output_attr, TextOutput):
                 if active_role is not None:
                     # Find the first RoleOpenerInput in the active role's input list
-                    role_opener_input = next((inp for inp in active_role.input if isinstance(inp, RoleOpenerInput)), None)
+                    role_opener_input = next(
+                        (inp for inp in active_role.input if isinstance(inp, RoleOpenerInput)), None
+                    )
                     if (
                         prettify_roles
                         and role_opener_input is not None
