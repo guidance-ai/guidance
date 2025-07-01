@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, U
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
-from guidance._schema import SamplingParams
-
 from .._ast import (
     ASTNode,
     AudioBlob,

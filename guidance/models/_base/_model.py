@@ -220,8 +220,8 @@ class Model:
     def __getitem__(self, key: str) -> Any:
         try:
             captures = self._interpreter.state.captures[key]
-        except KeyError:
-            raise KeyError(f"Model does not contain the variable '{key}'")
+        except KeyError as ke:
+            raise KeyError(f"Model does not contain the variable '{key}'") from ke
         if isinstance(captures, list):
             return [c["value"] for c in captures]
         else:
@@ -355,7 +355,7 @@ class ModelStream:
             try:
                 self._inner_run(self.model)
                 events.put(None)  # mark that we are done
-            except BaseException as ex:
+            except BaseException as ex:  # noqa: BLE001
                 events.put(ex)
 
         # Start the thread
