@@ -1,13 +1,11 @@
-from typing import TYPE_CHECKING, ContextManager, Iterator, Optional
-
-from pydantic import TypeAdapter
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Optional
 
 from guidance._schema import SamplingParams
 
 from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
-from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter, Message
+from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
@@ -22,7 +20,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     def _wrapped_completion(
         self,
         model: str,
-        messages: list[Message],
+        messages: list[dict[str, Any]],
         log_probs: bool,
         **kwargs,
     ) -> Iterator["ChatCompletionChunk"]:
@@ -30,7 +28,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
         kwargs["stream"] = True  # Ensure we are streaming here
         stream_wrapper = self.router.completion(
             model=model,
-            messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
+            messages=messages,
             logprobs=log_probs,
             **kwargs,
         )
@@ -46,7 +44,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
+        messages: list[dict[str, Any]],
         log_probs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
