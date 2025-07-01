@@ -307,11 +307,11 @@ class JupyterWidgetRenderer(Renderer):
             if trace_node.parent is not None:
                 parent_trace_id = trace_handler.node_id_map[trace_node.parent]
 
-            if trace_node.input is not None:
+            for input_attr in trace_node.input:
                 input_message = TraceMessage(
                     trace_id=node_trace_id,
                     parent_trace_id=parent_trace_id,
-                    node_attr=trace_node.input
+                    node_attr=input_attr
                 )
                 messages.append(input_message)
 

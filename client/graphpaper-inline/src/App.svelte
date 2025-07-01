@@ -160,6 +160,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
     appState = appState;
   };
 
+  let showApp = false;
+  $: {
+    showApp = (appState.components.length > 0);
+  }
   $: if ($state !== undefined && $state.content !== '') {
     // console.log("Client state received.")
     appState = JSON.parse($state.content);
@@ -189,6 +193,17 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
   }
 
+  let requestOutputIfNoMessages = () => {
+    if (appState.components.length === 0) {
+      console.log("No messages received: requesting output.")
+      const msg: StitchMessage = {
+        type: 'clientmsg',
+        content: JSON.stringify({ 'class_name': 'OutputRequestMessage', 'identifier': '' })
+      };
+      clientmsg.set(msg);
+    }
+  };
+
   let showErrorMsg = false;
   onMount(() => {
     const msg: StitchMessage = {
@@ -200,6 +215,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     requestAnimationFrame(() => {
       showErrorMsg = true;
     })
+
+    setTimeout(requestOutputIfNoMessages, 200 * 2);
   });
 </script>
 
@@ -210,7 +227,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full">
+<div class="w-full" class:hidden={!showApp}>
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">

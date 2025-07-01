@@ -102,7 +102,8 @@ export interface ClientReadyAckMessage extends GuidanceMessage {
 }
 
 export interface OutputRequestMessage extends GuidanceMessage {
-    class_name: 'OutputRequestMessage'
+    class_name: 'OutputRequestMessage',
+    identifier: string
 }
 
 export interface MetricMessage extends GuidanceMessage {

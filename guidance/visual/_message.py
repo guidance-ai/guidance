@@ -96,7 +96,7 @@ class ClientReadyAckMessage(GuidanceMessage):
 class OutputRequestMessage(GuidanceMessage):
     """Fired when client requests tokens from server."""
 
-    pass
+    identifier: str = ""
 
 
 def serialize_message(message: GuidanceMessage) -> str:
