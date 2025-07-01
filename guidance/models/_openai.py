@@ -1,11 +1,12 @@
 from typing import Optional
 
+from guidance._schema import SamplingParams
 
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,
-    OpenAIClientWrapper,
     OpenAIAudioMixin,
+    OpenAIClientWrapper,
     OpenAIImageMixin,
     OpenAIJSONMixin,
     OpenAIRegexMixin,
@@ -22,10 +23,11 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
     ):
         try:
             import openai
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
+            ) from ie
+
         client = openai.OpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=OpenAIClientWrapper(client))
 
@@ -34,6 +36,7 @@ class OpenAI(Model):
     def __init__(
         self,
         model: str,
+        sampling_params: Optional[SamplingParams] = None,
         echo: bool = True,
         *,
         api_key: Optional[str] = None,
@@ -56,14 +59,14 @@ class OpenAI(Model):
         """
 
         if "audio-preview" in model:
-            interpreter_cls = type(
-                "OpenAIAudioInterpreter", (OpenAIAudioMixin, OpenAIInterpreter), {}
-            )
+            interpreter_cls = type("OpenAIAudioInterpreter", (OpenAIAudioMixin, OpenAIInterpreter), {})
         elif model.startswith("gpt-4o") or model.startswith("o1"):
-            interpreter_cls = type(
-                "OpenAIImageInterpreter", (OpenAIImageMixin, OpenAIInterpreter), {}
-            )
+            interpreter_cls = type("OpenAIImageInterpreter", (OpenAIImageMixin, OpenAIInterpreter), {})
         else:
             interpreter_cls = OpenAIInterpreter
 
-        super().__init__(interpreter=interpreter_cls(model, api_key=api_key, **kwargs), echo=echo)
+        super().__init__(
+            interpreter=interpreter_cls(model, api_key=api_key, **kwargs),
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+            echo=echo,
+        )

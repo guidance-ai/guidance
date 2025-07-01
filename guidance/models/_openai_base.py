@@ -1,18 +1,18 @@
 import base64
+import time
 import wave
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-import time
-from typing import TYPE_CHECKING, Iterator, Literal, Optional, Union, cast, ContextManager
+from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, Union, cast
 
-from abc import ABC, abstractmethod
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
 
 from .._ast import (
     ASTNode,
-    GenAudio,
     AudioBlob,
+    GenAudio,
     ImageBlob,
     ImageUrl,
     JsonNode,
@@ -22,14 +22,14 @@ from .._ast import (
     RoleStart,
     RuleNode,
 )
+from .._schema import TokenUsage
 from .._utils import bytes_from
-from ..trace import ImageOutput, OutputAttr, TextOutput, TokenOutput, AudioOutput, Token
+from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
     from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
 
 
 def get_role_start(role: str) -> str:
@@ -183,40 +183,35 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
+
         return self.client.chat.completions.create(
             model=model,
             messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
             logprobs=log_probs,
             stream=True,
+            stream_options={"include_usage": True},
             **kwargs,
         )
+
 
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
     log_probs: bool = True
 
-    def __init__(
-        self,
-        model: str,
-        client: BaseOpenAIClientWrapper,
-    ):
-        self.state = OpenAIState()
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
+        super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         if not isinstance(node, RoleStart) and self.state.active_role is None:
-            raise ValueError(
-                "OpenAI models require an active role (e.g. use `with assistant(): ...`)"
-            )
+            raise ValueError("OpenAI models require an active role (e.g. use `with assistant(): ...`)")
         return super().run(node, **kwargs)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
         if node.role not in ["system", "user", "assistant"]:
-            raise ValueError(
-                f"OpenAI models only support roles 'system', 'user', and 'assistant', got {node.role}"
-            )
+            raise ValueError(f"OpenAI models only support roles 'system', 'user', and 'assistant', got {node.role}")
         self.state.active_role = cast(Literal["system", "user", "assistant"], node.role)
         # TODO: drop this and yield nothing. We need to add this for now as a workaround for the
         # fact that current vis code assumes that there is actually a role start message
@@ -238,9 +233,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def _run(self, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
-            raise ValueError(
-                "OpenAI models require chat blocks (e.g. use `with assistant(): ...`)"
-            )
+            raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
         if self.state.active_role != "assistant":
             raise ValueError(
                 "OpenAI models can only generate as the assistant (i.e. inside of `with assistant(): ...`)"
@@ -249,6 +242,18 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             raise ValueError(
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
+
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params:
+            # only process kwargs that are supported by the OpenAI API
+            if "top_p" not in kwargs:
+                kwargs["top_p"] = sampling_params.get("top_p", None)
+
+            if sampling_params.get("top_k", None) is not None:
+                raise ValueError("OpenAI models do not support top_k sampling.")
+
+            if sampling_params.get("min_p", None) is not None:
+                raise ValueError("OpenAI models do not support min_p sampling.")
 
         with self.client.streaming_chat_completions(
             model=self.model,
@@ -259,19 +264,30 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             yield from self._handle_stream(chunks)
 
     def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
+        _t0 = time.time()
+        t0 = _t0
         audio: Optional[AssistantAudio] = None
-        t0 = time.time()
+        # We made another call to the OpenAI API, so we count it as a round trip.
+        usage = TokenUsage(round_trips=1)
         for chunk in chunks:
             t1 = time.time()
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
-            try:
-                choice = chunk.choices[0]
-            except IndexError:
-                # TODO: azure seems to return empty choices sometimes (on first chunk?)
-                # Need to make this more robust
+            # NOTE: use getattr here as litellm does not return usage
+            if getattr(chunk, "usage", None) is not None:
+                # Update token usage
+                usage.input_tokens += chunk.usage.prompt_tokens
+                # Estimate forward passes as number of completion tokens
+                usage.forward_passes += chunk.usage.completion_tokens
+                if getattr(chunk.usage, "prompt_tokens_details", None) is not None:
+                    if chunk.usage.prompt_tokens_details.cached_tokens is not None:
+                        usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
+            if chunk.choices is None or len(chunk.choices) == 0:
+                # Azure seems to return empty choices sometimes (on first chunk?)
+                # OpenAI seems to return None choices sometimes (after giving usage?) (for audio only?)
                 continue
+            choice = chunk.choices[0]
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
@@ -291,27 +307,27 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     tokens = choice.logprobs.content
                     for token in tokens:
                         yield TokenOutput(
-                            value=token.token,
+                            value=content if len(tokens) == 1 else token.token,
                             # amortized latency
-                            latency_ms=latency_ms/len(tokens),
+                            latency_ms=latency_ms / len(tokens),
                             token=Token(
-                                token = token.token,
-                                bytes = b'' if token.bytes is None else base64.b64encode(bytes(token.bytes)),
-                                prob = 2.718**token.logprob,
+                                token=token.token,
+                                bytes=b"" if token.bytes is None else base64.b64encode(bytes(token.bytes)),
+                                prob=2.718**token.logprob,
                             ),
                             # TODO: actually request the top logprobs
-                            top_k = [
+                            top_k=[
                                 Token(
-                                    token = tok.token,
-                                    bytes = b'' if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
-                                    prob = 2.718**tok.logprob,
+                                    token=tok.token,
+                                    bytes=b"" if tok.bytes is None else base64.b64encode(bytes(tok.bytes)),
+                                    prob=2.718**tok.logprob,
                                 )
                                 for tok in token.top_logprobs
-                            ]
+                            ],
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
-            elif (delta_audio:=cast(Optional[dict], getattr(delta, "audio", None))) is not None:
+            elif (delta_audio := cast(Optional[dict], getattr(delta, "audio", None))) is not None:
                 transcript_chunk: Optional[str] = None
                 if audio is None:
                     assert delta_audio.get("id") is not None
@@ -347,8 +363,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
 
-            if choice.finish_reason is not None:
-                break
+            if choice.finish_reason is not None and choice.finish_reason != "stop":
+                # TODO: handle "bad" finish reasons
+                pass
 
         if audio is not None:
             assert self.state.audio is None
@@ -364,6 +381,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             # Get WAV bytes
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
+
+        usage.total_latency_ms += (time.time() - _t0) * 1000
+        self.state.add_usage(usage)
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure client is not copied."""
@@ -426,7 +446,7 @@ class OpenAIJSONMixin(BaseOpenAIInterpreter):
         if node.schema is None:
             response_format = {"type": "json_object"}
         else:
-            response_format={
+            response_format = {
                 "type": "json_schema",
                 "json_schema": {
                     "name": "json_schema",  # TODO?
@@ -444,10 +464,10 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
-            )
+            ) from ie
 
         image_bytes = base64.b64decode(node.data)
         with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
@@ -455,7 +475,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
             # TODO: just store format on ImageOutput type
             format = pil_image.format
             if format is None:
-                raise ValueError(f"Cannot upload image with unknown format")
+                raise ValueError("Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(
@@ -467,12 +487,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
         yield ImageOutput(value=node.data, is_input=True)
 
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
-        self.state.content.append(
-            ImageUrlContent(
-                type="image_url",
-                image_url=ImageUrlContentInner(url=node.url)
-            )
-        )
+        self.state.content.append(ImageUrlContent(type="image_url", image_url=ImageUrlContentInner(url=node.url)))
         image_bytes = bytes_from(node.url, allow_local=False)
         yield ImageOutput(value=base64.b64encode(image_bytes), is_input=True)
 

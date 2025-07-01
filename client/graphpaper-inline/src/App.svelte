@@ -11,6 +11,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GuidanceMessage,
     isAudioOutput,
+    isBacktrack,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
@@ -20,6 +21,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isRoleCloserInput,
     isRoleOpenerInput,
     isTextOutput,
+    isTokenOutput,
     isTraceMessage,
     isVideoOutput,
     kernelmsg,
@@ -43,6 +45,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
     shownMetrics: Array<string>,
     requireFullReplay: boolean,
     currentMessageId: number,
+    backtrackCount: number,
+    resetCount: number,
   }
   let appState: AppState = {
     components: [],
@@ -61,13 +65,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
     },
     requireFullReplay: true,
     currentMessageId: -1,
+    backtrackCount: 0,
+    resetCount: 0,
   };
-  // appState.components = mockNodeAttrs;
 
   let bgField: string = 'Type';
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
+    // console.log("Received GuidanceMessage:", msg);
+
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
       console.log(`Duplicate message detected: ${msg.message_id}`)
@@ -77,34 +84,38 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
 
     if (isTraceMessage(msg)) {
-      if (isTextOutput(msg.node_attr)) {
+      if (isTokenOutput(msg.node_attr)) {
         // console.log(msg.node_attr);
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
+      } else if (isTextOutput(msg.node_attr)) {
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleOpenerInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleCloserInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isAudioOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isImageOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isVideoOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
+      } else if (isBacktrack(msg.node_attr)) {
+        let numBacktrack = msg.node_attr.n_tokens;
+        console.log(`Backtracking ${numBacktrack} tokens.`);
+        appState.components = appState.components.slice(0, -numBacktrack);
+        appState.backtrackCount += 1;
+      } else {
+        // console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
-      if (appState.requireFullReplay) {
-        console.log('Require full replay and went past completion output message.');
-        const msg: StitchMessage = {
-          type: 'clientmsg',
-          content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
-        };
-        clientmsg.set(msg);
-      }
+      // Do nothing -- server will handle replay.
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
+      appState.backtrackCount = 0;
+      appState.resetCount += 1;
     } else if (isMetricMessage(msg)) {
       const name = msg.name;
       const value = msg.value;
@@ -144,9 +155,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
       // console.log(appState.components);
     }
 
-    appState = appState;
+    // Show app (we've received at least one message)
+    if (!showApp && appState.components.length > 0) {
+      showApp = true;
+    }
+
+    // Force reactivity update
+    appState = { ...appState };
   };
 
+  let showApp = false;
   $: if ($state !== undefined && $state.content !== '') {
     // console.log("Client state received.")
     appState = JSON.parse($state.content);
@@ -176,12 +194,30 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
   }
 
+  let requestOutputIfNoMessages = () => {
+    if (appState.components.length === 0) {
+      console.log("No messages received: requesting output.")
+      const msg: StitchMessage = {
+        type: 'clientmsg',
+        content: JSON.stringify({ 'class_name': 'OutputRequestMessage', 'identifier': '' })
+      };
+      clientmsg.set(msg);
+    }
+  };
+
+  let showErrorMsg = false;
   onMount(() => {
     const msg: StitchMessage = {
       type: 'init_stitch',
       content: ''
     };
     clientmsg.set(msg);
+
+    requestAnimationFrame(() => {
+      showErrorMsg = true;
+    })
+
+    setTimeout(requestOutputIfNoMessages, 200 * 2);
   });
 </script>
 
@@ -192,7 +228,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full min-h-72">
+<div class="w-full" class:h-1={!showApp}>
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
@@ -215,10 +251,12 @@ For upcoming features, we won't be able to send all details over the wire, and w
   </nav>
 
   <!-- Content pane -->
-  <section class="w-full">
+  <section class="w-full min-h-40">
     <TokenGrid components={appState.components}
                isCompleted={['Done', 'Error'].includes(appState.status)}
                isError={appState.status === Status.Error}
-               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}" />
+               bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
+               backtrackCount={appState.backtrackCount}
+               resetCount={appState.resetCount} />
   </section>
 </div>

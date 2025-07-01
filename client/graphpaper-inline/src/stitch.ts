@@ -28,8 +28,8 @@ export interface Token {
     masked: boolean,
 }
 
-export interface BacktrackMessage extends NodeAttr {
-    class_name: 'BacktrackMessage',
+export interface Backtrack extends NodeAttr {
+    class_name: 'Backtrack',
     n_tokens: number,
     bytes: string,
 }
@@ -102,7 +102,8 @@ export interface ClientReadyAckMessage extends GuidanceMessage {
 }
 
 export interface OutputRequestMessage extends GuidanceMessage {
-    class_name: 'OutputRequestMessage'
+    class_name: 'OutputRequestMessage',
+    identifier: string
 }
 
 export interface MetricMessage extends GuidanceMessage {
@@ -127,6 +128,11 @@ export function isTraceMessage(o: GuidanceMessage | undefined | null): o is Trac
     return o.class_name === "TraceMessage";
 }
 
+export function isBacktrack(o: NodeAttr | undefined | null): o is Backtrack {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "Backtrack";
+}
+
 export function isRoleOpenerInput(o: NodeAttr | undefined | null): o is RoleOpenerInput {
     if (o === undefined || o === null) return false;
     return o.class_name === "RoleOpenerInput";
@@ -139,7 +145,12 @@ export function isRoleCloserInput(o: NodeAttr | undefined | null): o is RoleClos
 
 export function isTextOutput(o: NodeAttr | undefined | null): o is TextOutput {
     if (o === undefined || o === null) return false;
-    return o.class_name === "TextOutput";
+    return o.class_name === "TextOutput" || o.class_name === "TokenOutput";
+}
+
+export function isTokenOutput(o: NodeAttr | undefined | null): o is TokenOutput {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "TokenOutput";
 }
 
 export function isImageOutput(o: NodeAttr | undefined | null): o is ImageOutput {

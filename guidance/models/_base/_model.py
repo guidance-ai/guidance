@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
 
 from typing_extensions import Self
 
-from ..._ast import ASTNode, Function, _parse_tags
 from ..._ast import (
     ASTNode,
     Function,
@@ -20,6 +19,7 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
+from ..._schema import SamplingParams, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -27,7 +27,6 @@ from ...trace import (
     RoleCloserInput,
     RoleOpenerInput,
     StatelessGuidanceInput,
-    TokenOutput,
     TraceNode,
 )
 from ...trace._trace import AudioInput
@@ -39,9 +38,7 @@ if TYPE_CHECKING:
     from ...library._block import Block
 
 _active_blocks: ContextVar[tuple["Block", ...]] = ContextVar("active_blocks", default=())
-_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar(
-    "event_queues", default=()
-)
+_event_queues: ContextVar[tuple[queue.Queue["Model"], ...]] = ContextVar("event_queues", default=())
 _id_counter: int = 0
 
 
@@ -62,37 +59,46 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
+        sampling_params: SamplingParams,
         echo: bool = True,
     ) -> None:
         self.echo = echo
+        if self.echo:  # NOTE(nopdive): User requests renderer, lazy instantiate.
+            from ...registry import get_renderer
+
+            _ = get_renderer()
+
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
-        self.token_count: int = 0
+        self.sampling_params: SamplingParams = sampling_params
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
-        self._update_trace_node(self._id, self._parent_id, None)
+        self._update_trace_node(self._id, self._parent_id, None, False)
 
     def _update_trace_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None, echo=False
     ) -> None:
-        from ...registry import get_trace_handler, get_renderer
+        from ..._topics import TRACE_TOPIC
+        from ...registry import get_exchange, get_trace_handler
 
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
-        if self.echo:
-            get_renderer().update(
+        if echo:
+            get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
                     parent_trace_id=parent_id,
                     node_attr=node_attr,
                 ),
+                topic=TRACE_TOPIC,
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+        self = self.copy()
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -107,32 +113,30 @@ class Model:
         return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
-        self = self.copy()
+        # self = self.copy()
 
         # Input side of trace handler.
         # TODO: StatefulGuidanceInput up in __add__?
         if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role), self.echo)
         elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role), self.echo)
         elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value), self.echo)
         elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data), self.echo)
         elif isinstance(node, ImageUrl):
             # TODO -- let's avoid downloading it here
             pass
         elif isinstance(node, GenAudio):
             self._update_trace_node(
-                self._id, self._parent_id, AudioInput(value=b"")
+                self._id, self._parent_id, AudioInput(value=b""), self.echo
             )  # TODO -- what goes here?
         else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node), self.echo)
 
-        for i, output_attr in enumerate(self._interpreter.run(node)):
-            if isinstance(output_attr, TokenOutput) and not output_attr.is_input:
-                # TODO: put this elsewhere (inside state?)
-                self.token_count += 1
+        # NOTE: passing a copy of the sampling parameters to avoid modifying the original
+        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params.copy())):
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -140,7 +144,7 @@ class Model:
                 # node into multiple input nodes to be handled sequentially?
                 self._parent_id = self._id
                 self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
+            self._update_trace_node(self._id, self._parent_id, output_attr, self.echo)
             # Stream current model state
             self._send_to_event_queue()
         return self
@@ -155,7 +159,7 @@ class Model:
         return ModelStream(self)
 
     def _apply_blocks(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         global_active_blocks = _active_blocks.get()
         for block, start_index in list(reversed(self._active_blocks.items())):
             # Close blocks that are not globally active anymore
@@ -166,9 +170,7 @@ class Model:
                     if isinstance(closer, str):
                         closer = _parse_tags(closer)
                     if isinstance(closer, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
+                        raise NotImplementedError("Stateful block opener/closer functions are not yet supported")
                     self = self._apply_node(closer)
             # Update capture regardless of whether or not it's been closed
             if block.name is not None:
@@ -183,14 +185,12 @@ class Model:
                     if isinstance(opener, str):
                         opener = _parse_tags(opener)
                     if isinstance(opener, Function):
-                        raise NotImplementedError(
-                            "Stateful block opener/closer functions are not yet supported"
-                        )
+                        raise NotImplementedError("Stateful block opener/closer functions are not yet supported")
                     self = self._apply_node(opener)
         return self
 
     def _update_open_block_captures(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         for block, start_index in self._active_blocks.items():
             if block.name is not None:
                 self = self.set(block.name, str(self)[start_index:])
@@ -223,8 +223,8 @@ class Model:
     def __getitem__(self, key: str) -> Any:
         try:
             captures = self._interpreter.state.captures[key]
-        except KeyError:
-            raise KeyError(f"Model does not contain the variable '{key}'")
+        except KeyError as ke:
+            raise KeyError(f"Model does not contain the variable '{key}'") from ke
         if isinstance(captures, list):
             return [c["value"] for c in captures]
         else:
@@ -277,9 +277,7 @@ class Model:
         self._interpreter.state.captures.pop(key)
         return self
 
-    def log_prob(
-        self, key: str, default: Optional[D] = None
-    ) -> Union[float, list[Union[float, None]], None, D]:
+    def log_prob(self, key: str, default: Optional[D] = None) -> Union[float, list[Union[float, None]], None, D]:
         """Return the log probability of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -298,11 +296,22 @@ class Model:
         else:
             return captures["log_prob"]
 
+    def with_sampling_params(self, sampling_params: SamplingParams) -> Self:
+        """Return a new model with the given sampling parameters set."""
+        self = self.copy()
+        self.sampling_params = sampling_params
+        return self
+
     def __getattribute__(self, name):
         if name == "engine":
             # For legacy model.engine access (mostly for tests...)
             return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
+
+    def _get_usage(self) -> TokenUsage:
+        """Get the token usage for this model."""
+        # TODO(hudson): make this public API once we stabilize the data structure
+        return self._interpreter.state.get_usage()
 
 
 class ModelStream:
@@ -349,7 +358,7 @@ class ModelStream:
             try:
                 self._inner_run(self.model)
                 events.put(None)  # mark that we are done
-            except BaseException as ex:
+            except BaseException as ex:  # noqa: BLE001
                 events.put(ex)
 
         # Start the thread

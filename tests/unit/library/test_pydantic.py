@@ -1,14 +1,16 @@
 import inspect
-from json import dumps as original_json_dumps
 from functools import partial
-from typing import Any, Dict, Generic, List, Literal, Tuple, Type, TypeVar, Union, Set
+from json import dumps as original_json_dumps
+from typing import Any, Generic, Literal, TypeVar, Union
 
 import pydantic
 import pytest
 from pydantic.json_schema import to_jsonable_python as pydantic_to_jsonable_python
 
-from guidance import models, json as gen_json
-from ...utils import check_match_failure as _check_match_failure, generate_and_check as _generate_and_check
+from guidance import json as gen_json
+
+from ...utils import check_match_failure as _check_match_failure
+from ...utils import generate_and_check as _generate_and_check
 
 
 def json_dumps(target: Any) -> str:
@@ -17,44 +19,34 @@ def json_dumps(target: Any) -> str:
     kwarg to json_dumps, which allows json_dumps to dump pydantic
     objects.
     """
-    return original_json_dumps(
-        target, default=pydantic_to_jsonable_python
-    )
+    return original_json_dumps(target, default=pydantic_to_jsonable_python)
 
 
 def validate_obj(
     target_obj: Any,
-    pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if inspect.isclass(pydantic_model) and issubclass(
-        pydantic_model, pydantic.BaseModel
-    ):
+    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate(target_obj, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_python(target_obj, strict=True)
-    raise TypeError(
-        f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}"
-    )
+    raise TypeError(f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}")
 
 
 def validate_string(
     target_str: Any,
-    pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
-    if inspect.isclass(pydantic_model) and issubclass(
-        pydantic_model, pydantic.BaseModel
-    ):
+    if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate_json(target_str, strict=True)
     if isinstance(pydantic_model, pydantic.TypeAdapter):
         return pydantic_model.validate_json(target_str, strict=True)
-    raise TypeError(
-        f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}"
-    )
+    raise TypeError(f"Expected pydantic_model to be a BaseModel or TypeAdapter, got {type(pydantic_model)}")
 
 
 def generate_and_check(
     target_obj: Any,
-    pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     # Sanity check what we're being asked
     target_obj = validate_obj(target_obj, pydantic_model)
@@ -70,8 +62,8 @@ def check_match_failure(
     bad_obj: Any,
     good_bytes: bytes,
     failure_byte: bytes,
-    allowed_bytes: Set[bytes],
-    pydantic_model: Union[Type[pydantic.BaseModel], pydantic.TypeAdapter],
+    allowed_bytes: set[bytes],
+    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
 ):
     bad_string = json_dumps(bad_obj)
     grammar = gen_json(schema=pydantic_model)
@@ -94,7 +86,7 @@ def test_simple_model():
 
 def test_model_with_int_list():
     class MyModel(pydantic.BaseModel):
-        my_list: List[int] = pydantic.Field(default_factory=list)
+        my_list: list[int] = pydantic.Field(default_factory=list)
 
     my_obj = MyModel(my_list=[1, 2, 3, 4])
     generate_and_check(my_obj, MyModel)
@@ -140,22 +132,21 @@ def test_literal(target_obj):
 
 
 class TestTuple:
-
     @pytest.mark.parametrize("target_obj", [(1,), (1, 2), (1, 2, 3, 4, 5)])
     def test_variadic(self, target_obj):
-        model = pydantic.TypeAdapter(Tuple[int, ...])
+        model = pydantic.TypeAdapter(tuple[int, ...])
         generate_and_check(target_obj, model)
 
     def test_homogeneous(self):
-        model = pydantic.TypeAdapter(Tuple[float, float, float])
+        model = pydantic.TypeAdapter(tuple[float, float, float])
         generate_and_check((3.14, 2.718, 1.41), model)
 
     def test_heterogeneous(self):
-        model = pydantic.TypeAdapter(Tuple[int, bool])
+        model = pydantic.TypeAdapter(tuple[int, bool])
         generate_and_check((1, True), model)
 
     def test_maxitems(self):
-        model = pydantic.TypeAdapter(Tuple[int,])
+        model = pydantic.TypeAdapter(tuple[int,])
         check_match_failure(
             bad_obj=(1, 2),
             good_bytes=b"[1",
@@ -167,20 +158,17 @@ class TestTuple:
 
 class TestDict:
     def test_simple(self):
-        model = pydantic.TypeAdapter(Dict[str, int])
+        model = pydantic.TypeAdapter(dict[str, int])
         generate_and_check({"hello": 42}, model)
 
     def test_prevent_non_string_keys(self):
         """
         Test that we catch attempts to generate non-string keys.
         """
-        model = pydantic.TypeAdapter(Dict[int, int])
+        model = pydantic.TypeAdapter(dict[int, int])
         with pytest.raises(TypeError) as exc_info:
             generate_and_check({1: 2}, model)
-        assert (
-            exc_info.value.args[0]
-            == "JSON does not support non-string keys, got type int"
-        )
+        assert exc_info.value.args[0] == "JSON does not support non-string keys, got type int"
 
 
 class TestComposite:
@@ -196,7 +184,7 @@ class TestComposite:
         ],
     )
     def test_list_of_object(self, obj):
-        model = pydantic.TypeAdapter(List[self.Simple])
+        model = pydantic.TypeAdapter(list[self.Simple])
         generate_and_check(obj, model)
 
     @pytest.mark.parametrize(
@@ -208,7 +196,7 @@ class TestComposite:
         ],
     )
     def test_dict_of_object(self, obj):
-        model = pydantic.TypeAdapter(Dict[str, self.Simple])
+        model = pydantic.TypeAdapter(dict[str, self.Simple])
         generate_and_check(obj, model)
 
 
@@ -239,9 +227,7 @@ class TestGeneric:
             (int, False, b"", b"f", {b"-", *{bytes([i]) for i in range(ord("0"), ord("9") + 1)}}),
         ],
     )
-    def test_bad_generic(
-        self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes
-    ):
+    def test_bad_generic(self, my_type, my_obj, good_bytes, failure_byte, allowed_bytes):
         model = self.SimpleGeneric[my_type]
         obj = {"my_obj": my_obj}
         check_match_failure(
@@ -252,32 +238,30 @@ class TestGeneric:
             pydantic_model=model,
         )
 
+
 class TestDiscriminatedUnion:
     """
     https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions-with-str-discriminators
     """
 
     class Cat(pydantic.BaseModel):
-        pet_type: Literal['cat']
+        pet_type: Literal["cat"]
         meows: int
 
-
     class Dog(pydantic.BaseModel):
-        pet_type: Literal['dog']
+        pet_type: Literal["dog"]
         barks: float
 
-
     class Lizard(pydantic.BaseModel):
-        pet_type: Literal['reptile', 'lizard']
+        pet_type: Literal["reptile", "lizard"]
         scales: bool
-
 
     class Model(pydantic.BaseModel):
         pet: Union[
-            'TestDiscriminatedUnion.Cat',
-            'TestDiscriminatedUnion.Dog',
-            'TestDiscriminatedUnion.Lizard',
-        ] = pydantic.Field(..., discriminator='pet_type')
+            "TestDiscriminatedUnion.Cat",
+            "TestDiscriminatedUnion.Dog",
+            "TestDiscriminatedUnion.Lizard",
+        ] = pydantic.Field(..., discriminator="pet_type")
         n: int
 
     def test_good(self):
@@ -289,6 +273,6 @@ class TestDiscriminatedUnion:
             bad_obj={"pet": {"pet_type": "dog"}, "n": 42},
             good_bytes=b'{"pet": {"pet_type": "dog"',
             failure_byte=b"}",
-            allowed_bytes={b","}, # expect a comma to continue the object with "barks"
+            allowed_bytes={b","},  # expect a comma to continue the object with "barks"
             pydantic_model=self.Model,
         )

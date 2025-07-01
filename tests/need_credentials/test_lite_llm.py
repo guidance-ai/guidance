@@ -1,9 +1,7 @@
 import pytest
 
 import guidance
-from guidance import assistant, capture, gen, select, system, user
-
-from ..utils import get_model
+from guidance import assistant, gen, select, system, user
 
 
 def test_lite_llm_basic_openai():
@@ -38,9 +36,7 @@ def test_lite_llm_select():
     except:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Pick a number: "
-    lm += select(
-        ["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number"
-    )
+    lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number")
     assert str(lm)[-1] in "123"
 
 

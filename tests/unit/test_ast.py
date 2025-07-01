@@ -1,7 +1,5 @@
 import pydantic
-
 from llguidance import LLMatcher
-
 
 from guidance._ast import (
     JoinNode,

@@ -47,45 +47,33 @@ def test_stop_quote(selected_model):
     assert not lm["title"].endswith('"')
 
 
-@pytest.mark.xfail(
-    reason="""
-    engine_output_tokens counts forward passes, not actual tokens generated, and it increments even when all inputs are in the KV cache.
-    We now get a forward pass every time text is added to the model (in addition to the extant forward pass any time a grammar is added),
-    causing this test to break. TODO: implement metrics that are more semantically meaningful.
-    """
-)
 def test_metrics_smoke(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
 
     lm += "Generate the next letter: a b c d "
-    print(f"{lm.engine.metrics=}")
     lm += gen("first", max_tokens=1)
-    print(f"{lm.engine.metrics=}")
-    print(f"{str(lm)=}")
-    all_bytes = str(lm).encode()
-    print(f"{lm._interpreter.engine.tokenizer.encode(all_bytes)=}")
-    generated_bytes = lm["first"].encode()
-    print(f"{lm._interpreter.engine.tokenizer.encode(generated_bytes)=}")
-    # Can't be sure of exact count due to token healing
-    assert (
-        lm.engine.metrics.engine_output_tokens == 1 or lm.engine.metrics.engine_output_tokens == 2
-    )
-    assert lm.engine.metrics.engine_input_tokens >= 1
-    last_input_tokens = lm.engine.metrics.engine_input_tokens
+
+    # Can't be sure of exact count due to token healing:
+    # either one after the prompt, or a backtrack causing two
+    usage = lm._get_usage()
+    assert 1 <= usage.forward_passes <= 2
 
     lm += " f g"
     lm += gen("second", max_tokens=1)
-    # Again, trouble with healing
-    assert (
-        lm.engine.metrics.engine_output_tokens >= 2 or lm.engine.metrics.engine_output_tokens <= 4
-    )
-    assert lm.engine.metrics.engine_input_tokens > last_input_tokens
+
+    # Again, trouble with healing:
+    # plus one for the new text
+    # plus one or two for the healing
+    new_usage = lm._get_usage()
+    assert 2 <= new_usage.forward_passes <= 5
+
+    assert new_usage.input_tokens > usage.input_tokens
+    assert new_usage.forward_passes > usage.forward_passes
+    assert new_usage.output_tokens > usage.output_tokens
 
 
 def test_metrics_select(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
 
     lm += "I will "
     lm += select(
@@ -95,14 +83,15 @@ def test_metrics_select(selected_model: models.Model):
             "go for a swim in the ocean",
         ]
     )
-    print(f"lm={str(lm)}")
-    print(f"{lm.engine.metrics=}")
-    assert lm.engine.metrics.engine_input_tokens > 1
-    assert lm.engine.metrics.engine_output_tokens > 0
+
+    usage = lm._get_usage()
+    assert usage.input_tokens > 0
+    assert usage.output_tokens > 0
+
     # Guidance should be able to force the generation after only a couple of tokens
     # so even though the options are long, relatively few output tokens should be
     # needed
-    assert lm.engine.metrics.engine_input_tokens > lm.engine.metrics.engine_output_tokens
+    assert usage.ff_tokens > 0
 
 
 def test_unicode(selected_model: models.Model):
@@ -119,16 +108,15 @@ Step 1''' + gen('steps', list_append=True, stop=['\nStep', '\n\n', '\nAnswer'], 
 
 def test_unicode2(selected_model: models.Model):
     lm = selected_model
-    lm.engine.reset_metrics()
+
     prompt = "Janet’s ducks lay 16 eggs per day"
     lm += prompt + gen(max_tokens=10)
-    assert lm.engine.metrics.engine_input_tokens > 1
+
+    usage = lm._get_usage()
+    assert usage.input_tokens > 1
     # Due to token healing, we can't be sure of the
     # precise output count
-    assert (
-        lm.engine.metrics.engine_output_tokens == 10
-        or lm.engine.metrics.engine_output_tokens == 11
-    )
+    assert 10 <= usage.forward_passes <= 11
 
 
 def test_pattern_kleene(selected_model: models.Model):

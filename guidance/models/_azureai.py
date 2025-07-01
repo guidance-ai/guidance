@@ -1,37 +1,36 @@
 import logging
-
-from typing import Callable, Iterator, Optional, Union, TYPE_CHECKING, ContextManager, cast
+from typing import TYPE_CHECKING, Callable, ContextManager, Iterator, Optional, Union, cast
 
 from pydantic import TypeAdapter
+
+from guidance._schema import SamplingParams
 
 from .._ast import (
     JsonNode,
 )
+from ..trace import OutputAttr
 from ._base import Model
 from ._openai_base import (
-    BaseOpenAIInterpreter,
     BaseOpenAIClientWrapper,
-    OpenAIClientWrapper,
+    BaseOpenAIInterpreter,
+    Message,
     OpenAIAudioMixin,
+    OpenAIClientWrapper,
     OpenAIImageMixin,
-    OpenAIRuleMixin,
     OpenAIJSONMixin,
     OpenAIRegexMixin,
-    Message,
+    OpenAIRuleMixin,
 )
-from ..trace import OutputAttr
 
 if TYPE_CHECKING:
-    from azure.core.credentials import AzureKeyCredential, TokenCredential
     import azure.ai.inference
+    from azure.core.credentials import AzureKeyCredential, TokenCredential
     from openai.types.chat import ChatCompletionChunk
 
 logger = logging.getLogger(__name__)
 
 
-class AzureOpenAIInterpreter(
-    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
-):
+class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     """A basic class for interacting with Azure OpenAI."""
 
     def __init__(
@@ -48,10 +47,10 @@ class AzureOpenAIInterpreter(
     ):
         try:
             import openai
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
+            ) from ie
         client = openai.AzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
@@ -88,6 +87,7 @@ def create_azure_openai_model(
     azure_ad_token_provider: Optional[Callable[[], str]] = None,
     has_audio_support: bool = False,
     has_image_support: bool = False,
+    sampling_params: Optional[SamplingParams] = None,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -125,14 +125,12 @@ def create_azure_openai_model(
         names include `base_url` and `organization`
     """
     if has_audio_support and has_image_support:
-        raise ValueError(f"No known models have both audio and image support")
+        raise ValueError("No known models have both audio and image support")
 
     interpreter_cls: type[AzureOpenAIInterpreter]
     if (model_name and "audio-preview" in model_name) or has_audio_support:
         interpreter_cls = AzureOpenAIAudioInterpreter
-    elif (
-        model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))
-    ) or has_image_support:
+    elif (model_name and (model_name.startswith("gpt-4o") or model_name.startswith("o1"))) or has_image_support:
         interpreter_cls = AzureOpenAIImageInterpreter
     else:
         interpreter_cls = AzureOpenAIInterpreter
@@ -148,7 +146,11 @@ def create_azure_openai_model(
         **kwargs,
     )
 
-    model = Model(interpreter=interpreter, echo=echo)
+    model = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
 
     return model
 
@@ -182,9 +184,8 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
             request,
         )
 
-class AzureInferenceInterpreter(
-    OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter
-):
+
+class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, BaseOpenAIInterpreter):
     def __init__(
         self,
         *,
@@ -194,16 +195,15 @@ class AzureInferenceInterpreter(
     ):
         try:
             import azure.ai.inference
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the azure-ai-inference package  using `pip install azure-ai-inference` in order to use guidance.models.AzureInference!"
-            )
+            ) from ie
         client = azure.ai.inference.ChatCompletionsClient(
             endpoint=endpoint,
             credential=credential,
         )
         super().__init__(model=model_name, client=AzureAIClientWrapper(client))
-
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
@@ -223,6 +223,7 @@ def create_azure_aifoundry_model(
     model_name: str,
     api_key: Optional[str] = None,
     token_credential: Optional["TokenCredential"] = None,
+    sampling_params: Optional[SamplingParams] = None,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
@@ -243,10 +244,10 @@ def create_azure_aifoundry_model(
     """
     try:
         from azure.core.credentials import AzureKeyCredential, TokenCredential
-    except ImportError:
+    except ImportError as ie:
         raise Exception(
             "Please install the azure-core package using `pip install -U azure-core` in order to use guidance.models.AzureAI!"
-        )
+        ) from ie
 
     credential: Union[AzureKeyCredential, TokenCredential, None] = None
     if api_key and token_credential:
@@ -264,5 +265,9 @@ def create_azure_aifoundry_model(
         model_name=model_name,
     )
 
-    result = Model(interpreter=interpreter, echo=echo)
+    result = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
     return result

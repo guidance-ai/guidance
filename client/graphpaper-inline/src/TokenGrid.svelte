@@ -2,6 +2,8 @@
 <script lang="ts">
   import {
     isRoleOpenerInput,
+    isRoleCloserInput,
+    isTokenOutput,
     isTextOutput,
     isAudioOutput,
     type NodeAttr,
@@ -32,15 +34,17 @@
   export let requireFullReplay: boolean = false;
   export let bgField: string = "Token";
   export let underlineField: string = "Probability";
+  export let backtrackCount: number = 0;
+  export let resetCount: number = 0;
 
   let underline: TokenCallback = (_: Token) => "";
   let bg: TokenCallback = (_: Token) => "";
 
   const tokenDisplayValue = (x: Token, s: string) => {
     if (s === "Probability") {
-      return x.prob.toFixed(3);
+      return x.prob?.toFixed(3);
     } else if (s === "Latency (ms)") {
-      return x.latency_ms.toFixed(0);
+      return x.latency_ms?.toFixed(0);
     } else if (s === "Type") {
       if (x.is_input) {
         return "Input";
@@ -113,8 +117,9 @@
     } else if (x.is_generated) {
       color = "rgba(229, 231, 235, 1)";
     } else {
-      console.log(`ERROR: token ${x.text} does not have emit flags.`);
-      color = "rgba(255, 255, 255, 0)";
+      // console.log(`ERROR: token ${x.text} does not have emit flags.`);
+      // Make slightly off white for error detection without console spam
+      color = "rgba(255, 255, 254, 0)";
     }
     return `background-color: ${color};`;
   };
@@ -170,8 +175,41 @@
   let activeCloserRoleText: Array<string> = [];
   let specialSet: Set<string> = new Set<string>();
   let namedRoleSet: Record<string, string> = {};
+  let displayedRoles: Set<string> = new Set<string>();
+  let roleCounters: Record<string, number> = {};
   let currentTokenIndex: number = 0;
   let statCounter: Record<string, number> = {};
+  let lastBacktrackCount: number = 0;
+  let lastResetCount: number = 0;
+  
+  // Reset currentTokenIndex and clear tokens when backtracking occurs
+  $: if (backtrackCount !== lastBacktrackCount) {
+    currentTokenIndex = 0;
+    tokens = [];  // Clear existing tokens
+    multimodalNodes = [];  // Clear existing media
+    activeOpenerRoles = [];  // Reset role tracking
+    activeCloserRoleText = [];  // Reset role tracking
+    specialSet.clear();  // Clear special token set
+    namedRoleSet = {};  // Clear named role mapping
+    displayedRoles.clear();  // Clear displayed roles tracking
+    roleCounters = {};  // Clear role counters
+    lastBacktrackCount = backtrackCount;
+  }
+  
+  // Reset state when ResetDisplayMessage is received
+  $: if (resetCount !== lastResetCount) {
+    currentTokenIndex = 0;
+    tokens = [];
+    multimodalNodes = [];
+    activeOpenerRoles = [];
+    activeCloserRoleText = [];
+    specialSet.clear();
+    namedRoleSet = {};
+    displayedRoles.clear();
+    roleCounters = {};
+    lastResetCount = resetCount;
+  }
+  
   $: {
     if (components.length === 0) {
       // Reset
@@ -181,7 +219,12 @@
       activeCloserRoleText = [];
       specialSet.clear();
       namedRoleSet = {};
+      displayedRoles.clear();
+      roleCounters = {};
       currentTokenIndex = 0;
+    } else if (currentTokenIndex > components.length) {
+      // Handle case where components were removed (e.g., after reset + partial replay)
+      currentTokenIndex = components.length;
     }
 
     for (; currentTokenIndex < components.length; currentTokenIndex += 1) {
@@ -207,13 +250,24 @@
       if (isRoleOpenerInput(nodeAttr)) {
         activeOpenerRoles.push(nodeAttr);
         activeCloserRoleText.push(nodeAttr.closer_text || "");
+        
+        // Increment counter for this role type
+        const roleName = nodeAttr.name || "";
+        roleCounters[roleName] = (roleCounters[roleName] || 0) + 1;
+      } else if (isRoleCloserInput(nodeAttr)) {
+        // Close the most recent role
+        if (activeOpenerRoles.length > 0) {
+          activeOpenerRoles.pop();
+          activeCloserRoleText.pop();
+        }
       } else if (isAudioOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("audio", nodeAttr));
       } else if (isImageOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("image", nodeAttr));
       } else if (isVideoOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("video", nodeAttr));
-      } else if (isTextOutput(nodeAttr)) {
+      } else if (isTokenOutput(nodeAttr) || (isTextOutput(nodeAttr) && !nodeAttr.value.includes("<|im_start|>") && !nodeAttr.value.includes("<|im_end|>"))) {
+        // console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
         if (activeOpenerRoles.length === 0) {
           if (
             activeCloserRoleText.length !== 0 &&
@@ -222,7 +276,7 @@
           ) {
             const token: Token = {
               text: nodeAttr.value,
-              prob: nodeAttr.prob,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
               latency_ms: 0,
               role: "",
               special: true,
@@ -238,7 +292,7 @@
           } else {
             const token = {
               text: nodeAttr.value,
-              prob: nodeAttr.prob,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
               latency_ms: 0,
               role: "",
               special: false,
@@ -252,27 +306,38 @@
         } else {
           const activeOpenerRole =
             activeOpenerRoles[activeOpenerRoles.length - 1];
-          if (
-            activeOpenerRole.text &&
-            activeOpenerRole.text !== nodeAttr.value
-          ) {
-            console.log(
-              `Active role text does not match next text output: ${activeOpenerRole.text} - ${nodeAttr.value}`
-            );
+          
+          // Check if this is a role marker token (like "<|im_start|>assistant\n")
+          const isRoleMarker = nodeAttr.value.includes("<|im_start|>") || 
+                              nodeAttr.value.includes("<|im_end|>");
+          
+          if (isRoleMarker) {
+            // Hide role marker tokens - don't add to display
+            specialSet.add(nodeAttr.value);
+          } else {
+            // Check if we've already displayed this role section
+            const roleName = activeOpenerRole.name || "";
+            const roleCount = roleCounters[roleName] || 0;
+            const roleKey = `${roleName}-${roleCount}`;
+            const shouldShowRole = !displayedRoles.has(roleKey);
+            
+            if (shouldShowRole) {
+              displayedRoles.add(roleKey);
+            }
+            
+            const token = {
+              text: nodeAttr.value, 
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0, 
+              latency_ms: 0, 
+              role: shouldShowRole ? (activeOpenerRole.name || "") : "", 
+              special: false,
+              is_input: nodeAttr.is_input, 
+              is_force_forwarded: nodeAttr.is_force_forwarded,
+              is_generated: nodeAttr.is_generated,
+            };
+            tokens.push(token);
           }
-
-                    const token = {
-                        text: nodeAttr.value, prob: nodeAttr.prob, latency_ms: 0, role: activeOpenerRole.name || "", special: true,
-                        is_input: nodeAttr.is_input, is_force_forwarded: nodeAttr.is_force_forwarded,
-                        is_generated: nodeAttr.is_generated,
-                    };
-                    if (token.role !== "") {
-                        namedRoleSet[nodeAttr.value] = token.role;
-                    }
-                    specialSet.add(token.text);
-                    tokens.push(token);
-                    activeOpenerRoles.pop();
-                }
+        }
             }
         }
         // NOTE(nopdive): Often the closer text is missing at the end of output.
@@ -334,19 +399,41 @@
       const rect = target.getBoundingClientRect();
       tooltipX = rect.left + window.scrollX + rect.width / 2 + positionXOffset;
       tooltipY = rect.bottom + window.scrollY + positionYOffset;
-      tooltip.style.display = "block";
+      
       const indexNum = Number(index);
     //   const node = multimodalNodes[indexNum];
     //   if (node.type === "token") {
       tooltipToken = tokens[indexNum];
-
-      // Adjust if near edge of viewport
-      if (tooltipX + tooltip.offsetWidth > window.innerWidth) {
-        tooltipX = window.innerWidth - tooltip.offsetWidth;
-      }
-      if (tooltipY + tooltip.offsetHeight > window.innerHeight) {
-        tooltipY = window.innerHeight - tooltip.offsetHeight;
-      }
+      
+      // Show tooltip first to get accurate dimensions
+      tooltip.style.display = "block";
+      
+      // Use requestAnimationFrame to ensure dimensions are calculated after render
+      requestAnimationFrame(() => {
+        // Adjust if near edge of viewport
+        const tooltipRect = tooltip.getBoundingClientRect();
+        
+        // Check right edge
+        if (tooltipX + tooltipRect.width > window.innerWidth) {
+          tooltipX = window.innerWidth - tooltipRect.width - 10;
+        }
+        
+        // Check bottom edge - this is the key fix for first hover
+        if (tooltipY + tooltipRect.height > window.innerHeight) {
+          // Position above the element instead of below
+          tooltipY = rect.top + window.scrollY - tooltipRect.height - positionYOffset;
+        }
+        
+        // Ensure tooltip stays within left edge
+        if (tooltipX < 10) {
+          tooltipX = 10;
+        }
+        
+        // Ensure tooltip stays within top edge
+        if (tooltipY < 10) {
+          tooltipY = 10;
+        }
+      });
     }
   };
 
@@ -449,7 +536,7 @@
                   </td>
                   <td class="text-right">
                     <span class="pl-1">
-                      {tokenDisplayValue(tooltipToken, bgField)}
+                      {tokenDisplayValue(tooltipToken, bgField) ?? "None"}
                     </span>
                   </td>
                 </tr>
@@ -463,7 +550,7 @@
                   </td>
                   <td class="text-right">
                     <span>
-                      {tokenDisplayValue(tooltipToken, underlineField)}
+                      {tokenDisplayValue(tooltipToken, underlineField) ?? "None"}
                     </span>
                   </td>
                 </tr>
@@ -503,7 +590,7 @@
                   <td
                     class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    {candidate.prob.toFixed(3)}
+                    {candidate.prob?.toFixed(3)}
                   </td>
                 </tr>
               {/each}
@@ -540,17 +627,13 @@
 
       <!-- Render tokens first -->
       {#each tokens as token, i}
-          {#if token.special === true && token.role !== ""}
-            <!-- Vertical spacing for role -->
-            {#if i === 0}
-              <div class="basis-full h-2"></div>
-            {:else}
-              {#each { length: 2 } as _}
-                <div class="basis-full h-0"></div>
-                <span class="inline-block">&nbsp;</span>
-              {/each}
-              <div class="basis-full h-0"></div>
+          {#if token.role !== ""}
+            <!-- Add spacing before role (except for first) -->
+            {#if i > 0}
+              <div class="basis-full py-3"></div>
             {/if}
+            <!-- Force line break for role header -->
+            <div class="basis-full h-0"></div>
           {/if}
           <TokenGridItem
             token={token}

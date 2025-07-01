@@ -1,22 +1,22 @@
-from typing import List
-import llguidance
 import json
 import textwrap
-import guidance
+
+import llguidance
 import pytest
 from huggingface_hub import hf_hub_download
+
+import guidance
 from guidance import (
-    gen,
-    select,
-    optional,
-    one_or_more,
-    GrammarNode,
-    string,
     capture,
+    gen,
+    one_or_more,
+    optional,
     regex,
+    select,
+    string,
 )
-from guidance.library._subgrammar import as_regular_grammar
-from guidance.library._subgrammar import subgrammar, lexeme
+from guidance._ast import GrammarNode
+from guidance.library._subgrammar import as_regular_grammar, lexeme, subgrammar
 
 log_level = 10
 
@@ -34,20 +34,21 @@ class PhiTokenizer:
             PhiTokenizer._ll_tokenizer = llguidance.LLTokenizer(tokenizer_path)
         return PhiTokenizer._ll_tokenizer
 
-def check_eq(label: str, tokens: List[int], expected_tokens: str):
+
+def check_eq(label: str, tokens: list[int], expected_tokens: str):
     if log_level > 0:
         print(f"Checking {label}: {repr(expected_tokens)}")
     t = PhiTokenizer.ll_tokenizer()
     actual_tokens = t.test_trace_tokens(tokens)
-    assert (
-        actual_tokens == expected_tokens
-    ), f"Tokens mismatch in {label}\n  {repr(actual_tokens)}\n  {repr(expected_tokens)}"
+    assert actual_tokens == expected_tokens, (
+        f"Tokens mismatch in {label}\n  {repr(actual_tokens)}\n  {repr(expected_tokens)}"
+    )
 
 
 def tokenize_trace(s: str):
     if log_level > 0:
         print("Tokenizing", repr(s))
-    r: List[int] = []
+    r: list[int] = []
     for word in s.split("‧"):
         if word == "≺EOS≻":
             r.append(PhiTokenizer.ll_tokenizer().eos_token)
@@ -58,7 +59,7 @@ def tokenize_trace(s: str):
     return r
 
 
-def check_grammar(grm: GrammarNode, output: List[str]):
+def check_grammar(grm: GrammarNode, output: list[str]):
     """
     Check that the grammar generates the expected output.
 
@@ -73,9 +74,7 @@ def check_grammar(grm: GrammarNode, output: List[str]):
     request and post-processing.
     """
     print("\nChecking grammar")
-    interp = llguidance.LLInterpreter(
-        PhiTokenizer.ll_tokenizer(), grm.ll_grammar(), log_level=log_level
-    )
+    interp = llguidance.LLInterpreter(PhiTokenizer.ll_tokenizer(), grm.ll_grammar(), log_level=log_level)
     prompt = interp.process_prompt(PhiTokenizer.ll_tokenizer().tokenize_str(""))
     check_eq("prompt", prompt, output[0])
     idx = 1
@@ -175,11 +174,7 @@ def test_llparser():
     "grm",
     [
         # grammar turned into regex:
-        "Dolphin name: "
-        + as_regular_grammar(
-            '"' + regex(r"[A-Z]") + one_or_more(regex(r"[a-z]")) + '"'
-        )
-        + ",",
+        "Dolphin name: " + as_regular_grammar('"' + regex(r"[A-Z]") + one_or_more(regex(r"[a-z]")) + '"') + ",",
         # regular gen()
         "Dolphin name: " + gen(regex=r'"[A-Z][a-z]+"') + ",",
         # regular gen(), comma in regex
@@ -195,7 +190,7 @@ def test_llparser():
         ['D‧olph‧in‧ name‧:‧ "', 'F‧li‧pper‧",'],  # check that we allow `",` as a single token:
     ],
 )
-def test_ll_dolphin(grm: GrammarNode, output: List[str]):
+def test_ll_dolphin(grm: GrammarNode, output: list[str]):
     check_grammar(grm, output)
 
 
@@ -282,13 +277,7 @@ def test_ll_nice_man():
 
 
 def test_ll_stop_quote_comma():
-    grm = (
-        '{ "items": ["'
-        + gen("i1", regex=r"a+", stop='"')
-        + '",\n   "'
-        + gen("i2", regex=r"b+", stop='"')
-        + '"] }'
-    )
+    grm = '{ "items": ["' + gen("i1", regex=r"a+", stop='"') + '",\n   "' + gen("i2", regex=r"b+", stop='"') + '"] }'
     # make sure we allow ", as a single token; also "]
     check_grammar(grm, ['{‧ "‧items‧":‧ ["', 'a‧",', '\n‧  ‧ "', 'b‧"]', " }"])
     # and as seprate tokens
@@ -318,10 +307,7 @@ def test_ll_max_tokens():
     # string, and gen() runs out of tokens, so the fixed string takes over
     # note how Emily is not repeated
     check_grammar(
-        "Name: "
-        + gen("name", max_tokens=2)
-        + "Emily Carter is great; Height: "
-        + gen("height", max_tokens=3),
+        "Name: " + gen("name", max_tokens=2) + "Emily Carter is great; Height: " + gen("height", max_tokens=3),
         ["Name‧:", " Em‧ily", " Carter‧ is‧ great‧;‧ Height‧:", " ‧5‧'‧6"],
     )
 
@@ -365,7 +351,7 @@ def test_ll_fighter():
                 ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
                 ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
                 "1‧0‧0‧,",
-                '\n‧   ‧ "‧items‧":', # [" should not be forced here (since eg. "" is a token)
+                '\n‧   ‧ "‧items‧":',  # [" should not be forced here (since eg. "" is a token)
                 ' ["‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
                 ",",
                 ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
@@ -393,7 +379,7 @@ def test_ll_fighter():
                 ' "‧I‧ am‧ the‧ storm‧,‧ I‧ am‧ the‧ light‧ning‧,‧ I‧ am‧ the‧ th‧under‧."',
                 ',‧\n‧   ‧ "‧str‧ength‧":‧ ',
                 "1‧0‧0‧,",
-                '\n‧   ‧ "‧items‧":‧ ["', # this is incorrect
+                '\n‧   ‧ "‧items‧":‧ ["',  # this is incorrect
                 's‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
                 ",",
                 ' "‧s‧word‧ of‧ light‧ning‧,‧ shield‧ of‧ th‧under‧,‧ hel‧met‧ of‧ storm‧."',
@@ -402,6 +388,7 @@ def test_ll_fighter():
                 "]‧\n‧}",
             ],
         )
+
 
 if __name__ == "__main__":
     test_llparser()

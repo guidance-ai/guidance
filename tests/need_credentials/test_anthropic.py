@@ -1,9 +1,7 @@
 import pytest
 
 import guidance
-from guidance import assistant, capture, gen, select, system, user
-
-from ..utils import get_model
+from guidance import assistant, gen, select, system, user
 
 
 def test_anthropic_chat():
@@ -29,15 +27,13 @@ def test_anthropic_select():
         lm = guidance.models.Anthropic(model="claude-instant-1.2")
     except:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
-    
+
     # We can't meaningfully test or enforce select on this model
     with pytest.raises(guidance.models._model.ConstraintException):
         with user():
             lm += "Write the next number in the list: 1,2,3,4,5,6,"
         with assistant():
-            lm += select(
-                ["harsha", "scott", "marco"], name="the number"
-            )
+            lm += select(["harsha", "scott", "marco"], name="the number")
 
 
 def test_anthropic_chat_loop():
@@ -48,7 +44,6 @@ def test_anthropic_chat_loop():
         pytest.skip("Skipping Anthropic test because we can't load the model!")
 
     for i in range(2):
-
         with system():
             lm = model + "You will just return whatever number I give you"
 
@@ -57,6 +52,7 @@ def test_anthropic_chat_loop():
 
         with assistant():
             lm += gen(name="answer", max_tokens=2)
+
 
 # def test_direct_anthropic_api():
 #     import anthropic
@@ -73,5 +69,5 @@ def test_anthropic_chat_loop():
 #         for text in stream.text_stream:
 #             print(text, end="", flush=True)
 #             text_list.append(text)
-    
+
 #     assert len(text_list) > 0

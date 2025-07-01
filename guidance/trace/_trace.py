@@ -1,12 +1,13 @@
 # TODO(nopdive): Consider integrating token operations into trace nodes (handles token healing cleaner).
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
+import logging
 import weakref
 from itertools import count
-from typing import Any, Optional, Generator, Dict, Annotated, ClassVar, Union
-import logging
-from pydantic import BaseModel, Field, model_validator, computed_field, Tag, Discriminator, Base64Bytes
-from .._utils import pydantic_no_default_repr, pydantic_no_default_str, log_cleanup
+from typing import Annotated, Any, ClassVar, Generator, Optional, Union
 
+from pydantic import Base64Bytes, BaseModel, Discriminator, Field, Tag, computed_field, model_validator
+
+from .._utils import log_cleanup, pydantic_no_default_repr, pydantic_no_default_str
 
 logger = logging.getLogger(__name__)
 
@@ -15,11 +16,12 @@ class NodeAttr(BaseModel):
     """Attributes of a trace node."""
 
     _subclasses: ClassVar[set[type["NodeAttr"]]] = set()
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         cls._subclasses.add(cls)
 
-    @computed_field # type: ignore[prop-decorator]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def class_name(self) -> str:
         """Class name of the message."""
@@ -28,29 +30,25 @@ class NodeAttr(BaseModel):
     @model_validator(mode="before")
     def validate_class_name(cls, data):
         if isinstance(data, dict):
-            if 'class_name' in data and data['class_name'] != cls.__name__:
+            if "class_name" in data and data["class_name"] != cls.__name__:
                 raise ValueError(f"mismatched class name: {data['class_name']}, expected: {cls.__name__}")
         return data
 
     @classmethod
     def as_discriminated_union(cls) -> type["NodeAttr"]:
         return Annotated[
-            Union[
-                tuple(
-                    Annotated[tp, Tag(tp.__name__)]
-                    for tp in cls._subclasses
-                )
-            ],
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
-            )
-        ] # type: ignore[return-value]
+            ),
+        ]  # type: ignore[return-value]
 
     def __repr__(self):
         return pydantic_no_default_repr(self)
 
     def __str__(self):
         return pydantic_no_default_str(self)
+
 
 class InputAttr(NodeAttr):
     """Input for a guidance program (i.e. literal or guidance grammar)."""
@@ -99,12 +97,14 @@ class ImageInput(InputAttr):
 
 class AudioInput(InputAttr):
     """Audio input."""
+
     value: Base64Bytes
     format: str = "wav"
 
 
 class VideoInput(InputAttr):
     """Video input."""
+
     value: Base64Bytes
     format: str = "mp4"
 
@@ -138,6 +138,7 @@ class RoleCloserInput(InputAttr):
 
 class AudioOutput(OutputAttr):
     """Audio output."""
+
     value: Base64Bytes
     format: str = "wav"
     is_input: bool = False
@@ -145,6 +146,7 @@ class AudioOutput(OutputAttr):
 
 class VideoOutput(OutputAttr):
     """Video output."""
+
     value: Base64Bytes
     format: str = "mp4"
     is_input: bool = False
@@ -170,19 +172,23 @@ class TextOutput(OutputAttr):
     def __str__(self):
         return self.value
 
+
 class Token(BaseModel):
     token: str
     bytes: Base64Bytes
     prob: float = float("nan")
     masked: bool = False
 
+
 class TokenOutput(TextOutput):
     token: Token
     top_k: Optional[list[Token]] = None
 
+
 class Backtrack(OutputAttr):
     n_tokens: int
     bytes: Base64Bytes
+
 
 class CaptureOutput(OutputAttr):
     """Capture variable output as a string.
@@ -239,8 +245,8 @@ class TraceNode(BaseModel):
     identifier: int = Field(default_factory=count().__next__)
     parent: Optional["TraceNode"] = None
     children: list["TraceNode"] = Field(default_factory=WeakRefList)
-    input: Optional[InputAttr] = None
-    output: Optional[OutputAttr] = None
+    input: list[InputAttr] = Field(default_factory=list)
+    output: list[OutputAttr] = Field(default_factory=list)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -335,8 +341,8 @@ class TraceHandler(BaseModel):
     """
 
     # NOTE(nopdive): Type trickery for pydantic.
-    id_node_map: Dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
-    node_id_map: Dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
+    id_node_map: dict[int, TraceNode] = weakref.WeakValueDictionary()  # type: ignore
+    node_id_map: dict[TraceNode, int] = weakref.WeakKeyDictionary()  # type: ignore
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -348,9 +354,7 @@ class TraceHandler(BaseModel):
     def __hash__(self):
         return hash(id(self))
 
-    def update_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
-    ) -> TraceNode:
+    def update_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None) -> TraceNode:
         """Update the trace node with the given identifier.
 
         If the trace node does not exist, it will be created.
@@ -375,11 +379,17 @@ class TraceHandler(BaseModel):
 
         if node_attr is not None:
             if isinstance(node_attr, InputAttr):
-                assert node.input is None
-                node.input = node_attr
+                if node.input:
+                    logger.debug(
+                        f"Adding additional input to trace node {node.identifier}, now has {len(node.input) + 1} inputs"
+                    )
+                node.input.append(node_attr)
             elif isinstance(node_attr, OutputAttr):
-                assert node.output is None
-                node.output = node_attr
+                if node.output:
+                    logger.debug(
+                        f"Adding additional output to trace node {node.identifier}, now has {len(node.output) + 1} outputs"
+                    )
+                node.output.append(node_attr)
             else:
                 raise ValueError(f"Unexpected node attr: {node_attr}")
         return node

@@ -1,5 +1,5 @@
 from json import loads as json_loads
-from typing import Any, Mapping, Optional, Type, Union
+from typing import Any, Mapping, Optional, Union
 
 import pydantic
 
@@ -17,7 +17,7 @@ def json(
         None,
         str,
         JSONSchema,
-        Type[pydantic.BaseModel],
+        type[pydantic.BaseModel],
         pydantic.TypeAdapter[Any],
     ] = None,
     temperature: Optional[float] = None,

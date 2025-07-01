@@ -1,5 +1,5 @@
 import inspect
-from typing import Any, Dict, Type, Union
+from typing import Any, Union
 
 import pydantic
 
@@ -19,15 +19,11 @@ class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
         if schema["type"] == "dict":
             key_type = schema["keys_schema"]["type"]
             if key_type != "str":
-                raise TypeError(
-                    f"JSON does not support non-string keys, got type {key_type}"
-                )
+                raise TypeError(f"JSON does not support non-string keys, got type {key_type}")
         return super().generate_inner(schema)
 
 
-def pydantic_to_json_schema(
-    schema: Union[Type["pydantic.BaseModel"], "pydantic.TypeAdapter[Any]"]
-) -> Dict[str, Any]:
+def pydantic_to_json_schema(schema: Union[type["pydantic.BaseModel"], "pydantic.TypeAdapter[Any]"]) -> dict[str, Any]:
     if inspect.isclass(schema) and issubclass(schema, pydantic.BaseModel):
         return schema.model_json_schema(schema_generator=GenerateJsonSchemaSafe)
     if isinstance(schema, pydantic.TypeAdapter):

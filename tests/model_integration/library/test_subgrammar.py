@@ -1,17 +1,14 @@
-import re
-import numpy as np
-import pytest
-from jsonschema import validate
 import json
+import re
 
 import guidance
 from guidance import (
     gen,
-    select,
-    optional,
     one_or_more,
+    optional,
+    select,
 )
-from guidance.library._subgrammar import subgrammar, lexeme
+from guidance.library._subgrammar import lexeme, subgrammar
 
 
 @guidance(stateless=True)
@@ -56,12 +53,7 @@ def json_array(lm):
 
 @guidance(stateless=True)
 def gen_json_object(lm, name: str, max_tokens=100000000):
-    grm = subgrammar(
-        body=json_object(),
-        name=name,
-        skip_regex=r"[\x20\x0A\x0D\x09]+",
-        max_tokens=max_tokens
-    )
+    grm = subgrammar(body=json_object(), name=name, skip_regex=r"[\x20\x0A\x0D\x09]+", max_tokens=max_tokens)
     return lm + grm
 
 

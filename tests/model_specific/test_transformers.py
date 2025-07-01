@@ -1,7 +1,7 @@
-import pytest
 import jinja2
+import pytest
 
-from guidance import gen, select, models, assistant, system, user, guidance
+from guidance import assistant, gen, guidance, models, select, user
 
 from ..utils import get_model
 
@@ -28,13 +28,11 @@ def test_gpt2():
 
     assert len(str(lm)) > len("this is a test")
 
-def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and fixture stuff works
+
+def test_gpt2_fastforward():  # TODO [HN]: figure out how all the get_model and fixture stuff works
     @guidance
     def ff_prompt(lm):
-        big_opts = [
-            "Lorem ipsum dolor sit amet",
-            "Duis aute irure dolor "
-        ]
+        big_opts = ["Lorem ipsum dolor sit amet", "Duis aute irure dolor "]
         lm += "Example text: " + select(big_opts, name="choice")
         return lm
 
@@ -42,23 +40,21 @@ def test_gpt2_fastforward(): # TODO [HN]: figure out how all the get_model and f
 
     gpt2_noff = models.Transformers("gpt2", enable_backtrack=False, enable_ff_tokens=False)
     gpt2_noff += ff_prompt()
-    noff_count = gpt2_noff.engine.metrics.engine_output_tokens
+    noff_count = gpt2_noff._get_usage().forward_passes
 
     gpt2_nobt = models.Transformers("gpt2", enable_backtrack=False)
     gpt2_nobt += ff_prompt()
-    nobt_count = gpt2_nobt.engine.metrics.engine_output_tokens
+    nobt_count = gpt2_nobt._get_usage().forward_passes
 
     gpt2_ff = models.Transformers("gpt2")
     gpt2_ff += ff_prompt()
-    ff_count = gpt2_ff.engine.metrics.engine_output_tokens
+    ff_count = gpt2_ff._get_usage().forward_passes
 
-    assert nobt_count == 2
-    assert ff_count == 2
+    # 3: 1 fp for the prompt, 1 for the first token of the select, 1 to get probs for the ff_tokens
+    # To future devs, this should be 2 if we turn off the extra fp, e.g. when metrics are disabled
+    assert nobt_count == 3
+    assert ff_count == 3
     assert noff_count > ff_count
-
-
-
-
 
 
 def test_recursion_error():
@@ -69,7 +65,7 @@ def test_recursion_error():
     lm = (
         gpt2
         + f"""Tweak this proverb to apply to model instructions instead.
-    {gen('verse', max_tokens=2)}
+    {gen("verse", max_tokens=2)}
     """
     )
     assert len(str(lm)) > len("Tweak this proverb to apply to model instructions instead.\n\n")
@@ -109,38 +105,6 @@ w) 10"""
 
 
 # Phi-3 specific tests
-
-
-@pytest.mark.skip("Don't overload the build machines")
-def test_phi3_transformers_orig():
-    import torch
-    from transformers import AutoModelForCausalLM, pipeline, AutoTokenizer
-
-    torch.random.manual_seed(0)
-    model = AutoModelForCausalLM.from_pretrained(
-        "microsoft/Phi-3-mini-4k-instruct",
-        device_map="mps",
-        trust_remote_code=True,
-    )
-
-    tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-3-mini-4k-instruct")
-    pipe = pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-    )
-
-    generation_args = {
-        "max_new_tokens": 5,
-        "return_full_text": True,
-        "temperature": 0.0,
-        "do_sample": False,
-    }
-
-    input_text = "You are a counting bot. Just keep counting numbers. 1,2,3,4"
-    output = pipe(input_text, **generation_args)
-
-    assert "5" in (output[0]["generated_text"])
 
 
 def test_phi3_chat_basic(phi3_model: models.Model):
@@ -199,6 +163,7 @@ def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
 
     assert len(lm["five"]) > 0
 
+
 def test_chat_format_smoke(transformers_model: models.Transformers):
     # Retrieve the template string
     if isinstance(transformers_model.engine.tokenizer._orig_tokenizer.chat_template, str):
@@ -215,9 +180,7 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
     # but details about its use are thin on the ground and according to
     # https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
     # it does its own thing internally
-    jinja2_template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(
-        model_chat_template
-    )
+    jinja2_template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(model_chat_template)
     jinja2_render = jinja2_template.render(
         messages=messages,
         bos_token=transformers_model.engine.tokenizer.bos_token.decode(),
@@ -232,18 +195,62 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
 
     # Compare the tokenization of the strings, rather than the strings
     # themselves (e.g. `<|user|>` may tokenize the same as `<|user|>\n`)
-    lm_tokens = lm._interpreter.engine.tokenizer.encode(
-        str(lm).encode()
-    )
-    jinja2_tokens = lm._interpreter.engine.tokenizer.encode(
-        jinja2_render.encode()
-    )
+    lm_tokens = lm._interpreter.engine.tokenizer.encode(str(lm).encode())
+    jinja2_tokens = lm._interpreter.engine.tokenizer.encode(jinja2_render.encode())
 
     # Only check substring due to BOS/EOS tokens, unfinished closing tags
     diff = len(jinja2_tokens) - len(lm_tokens)
     assert diff >= 0
-    for i in range(diff+1):
-        if jinja2_tokens[i:i+len(lm_tokens)] == lm_tokens:
+    for i in range(diff + 1):
+        if jinja2_tokens[i : i + len(lm_tokens)] == lm_tokens:
             break
     else:
         raise AssertionError("lm mismatches jinja template", str(lm), str(jinja2_render))
+
+
+def test_top_p_top_k_filtering():
+    import numpy as np
+    import torch
+    from transformers.generation.logits_process import TopKLogitsWarper, TopPLogitsWarper
+
+    from guidance._utils import apply_top_k_and_top_p_filter
+
+    torch.random.manual_seed(0)
+    logits = torch.randn((1, 1000))
+
+    # apply top_k filtering
+    top_k = 64
+    top_k_warp = TopKLogitsWarper(top_k)
+    transformers_logits = top_k_warp(None, logits)[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k filtering"
+
+    # apply top_p filtering
+    top_p = 0.9
+    top_p_warp = TopPLogitsWarper(top_p)
+    transformers_logits = top_p_warp(None, logits)[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_p": top_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_p filtering"
+
+    # apply both top_k and top_p filtering
+    transformers_logits = top_p_warp(None, top_k_warp(None, logits))[0].numpy()
+    guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k, "top_p": top_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k and top_p filtering"
+
+
+def test_min_p_filtering():
+    import numpy as np
+    import torch
+    from transformers.generation.logits_process import MinPLogitsWarper
+
+    from guidance._utils import apply_min_p_filter
+
+    torch.random.manual_seed(0)
+    logits = torch.randn((1, 1000))
+
+    # apply min_p filtering
+    min_p = 0.1
+    min_p_warp = MinPLogitsWarper(min_p)
+    transformers_logits = min_p_warp(None, logits)[0].numpy()
+    guidance_logits = apply_min_p_filter(logits[0].numpy(), {"min_p": min_p})
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after min_p filtering"

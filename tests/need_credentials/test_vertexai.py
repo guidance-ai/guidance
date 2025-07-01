@@ -1,8 +1,6 @@
 import pytest
 
-from guidance import gen, role, models, select
-
-from ..utils import get_model
+from guidance import gen, models, role
 
 
 def test_palm2_instruct():
@@ -65,7 +63,7 @@ def test_palm2_chat():
 
 
 def test_gemini_chat():
-    from guidance import assistant, gen, models, system, user
+    from guidance import assistant, gen, models, user
 
     try:
         vmodel = models.VertexAI("gemini-pro")

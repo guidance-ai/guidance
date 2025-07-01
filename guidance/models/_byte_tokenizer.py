@@ -1,8 +1,8 @@
 import numpy as np
+
 from ._engine import Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
-from ..chat import load_template_class
-from typing import List
+
 
 class ByteTokenizer(Tokenizer):
     def __init__(self, chat_template=None):
@@ -25,14 +25,14 @@ class ByteTokenizer(Tokenizer):
             bos_token_id=256,
         )
 
-    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> List[int]:
+    def encode(self, byte_string: bytes, *, parse_special: bool = True) -> list[int]:
         """Returns a list of tokens that represent the given byte string."""
         if isinstance(byte_string, str):
             byte_string = byte_string.encode("utf8")
         i = 0
         result = []
         while i < len(byte_string):
-            if parse_special and byte_string[i:i+3] == b'<s>':
+            if parse_special and byte_string[i : i + 3] == b"<s>":
                 result.append(256)
                 i += 3  # Skip the next two characters as part of '<s>'
             else:

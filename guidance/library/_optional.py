@@ -1,5 +1,6 @@
-from .._guidance import guidance
 from .._grammar import repeat
+from .._guidance import guidance
+
 
 @guidance(stateless=True)
 def optional(lm, value):
