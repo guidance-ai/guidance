@@ -2,10 +2,10 @@ import re
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
-from typing import Iterator, Optional
+from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken
-from ..._schema import GenTokenExtra, SamplingParams, TokenUsage
+from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
