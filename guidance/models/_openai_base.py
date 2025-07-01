@@ -31,9 +31,7 @@ from ._base import Interpreter, State
 
 if TYPE_CHECKING:
     import openai
-    from openai import OpenAI
     from openai.types.chat import ChatCompletionChunk
-    from openai.types.chat.chat_completion_chunk import ChoiceLogprobs
 
 
 def get_role_start(role: str) -> str:
@@ -203,14 +201,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     log_probs: bool = True
 
-    def __init__(
-        self,
-        model: str,
-        client: BaseOpenAIClientWrapper,
-        default_sampling_params: Optional[SamplingParams] = None,
-        **kwargs,
-    ):
-        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
+        super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
 
@@ -253,9 +245,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        # only process kwargs that are supported by the OpenAI API
-        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
-            kwargs["top_p"] = self.default_sampling_params["top_p"]
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params:
+            # only process kwargs that are supported by the OpenAI API
+            if "top_p" not in kwargs:
+                kwargs["top_p"] = sampling_params.get("top_p", None)
+
+            if sampling_params.get("top_k", None) is not None:
+                raise ValueError("OpenAI models do not support top_k sampling.")
 
         with self.client.streaming_chat_completions(
             model=self.model,
@@ -276,20 +273,20 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
-            if chunk.usage is not None:
+            # NOTE: use getattr here as litellm does not return usage
+            if getattr(chunk, "usage", None) is not None:
                 # Update token usage
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
                 usage.forward_passes += chunk.usage.completion_tokens
-                if chunk.usage.prompt_tokens_details is not None:
+                if getattr(chunk.usage, "prompt_tokens_details", None) is not None:
                     if chunk.usage.prompt_tokens_details.cached_tokens is not None:
                         usage.cached_input_tokens += chunk.usage.prompt_tokens_details.cached_tokens
-            try:
-                choice = chunk.choices[0]
-            except IndexError:
-                # TODO: azure seems to return empty choices sometimes (on first chunk?)
-                # Need to make this more robust
+            if chunk.choices is None or len(chunk.choices) == 0:
+                # Azure seems to return empty choices sometimes (on first chunk?)
+                # OpenAI seems to return None choices sometimes (after giving usage?) (for audio only?)
                 continue
+            choice = chunk.choices[0]
             delta = choice.delta
             if delta.content is not None:
                 assert audio is None
@@ -477,7 +474,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
             # TODO: just store format on ImageOutput type
             format = pil_image.format
             if format is None:
-                raise ValueError(f"Cannot upload image with unknown format")
+                raise ValueError("Cannot upload image with unknown format")
 
         mime_type = f"image/{format.lower()}"
         self.state.content.append(

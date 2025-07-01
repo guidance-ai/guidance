@@ -2,7 +2,7 @@
 
 import html
 import json
-from typing import Dict, Optional
+from typing import Optional
 
 from ..trace import (
     ImageOutput,
@@ -136,7 +136,7 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
     from anytree import Node, RenderTree  # type: ignore[import-untyped]
 
     root = trace_handler.root()
-    trace_viz_map: Dict[TraceNode, Node] = {}
+    trace_viz_map: dict[TraceNode, Node] = {}
     for node in root.traverse(bfs=False):
         viz_parent = trace_viz_map.get(node.parent, None)
         viz_node = Node(f"{trace_handler.node_id_map[node]}:{node!r}", parent=viz_parent)
