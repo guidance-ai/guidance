@@ -86,25 +86,23 @@ For upcoming features, we won't be able to send all details over the wire, and w
     if (isTraceMessage(msg)) {
       if (isTokenOutput(msg.node_attr)) {
         // console.log(msg.node_attr);
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isTextOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleOpenerInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleCloserInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isAudioOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isImageOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isVideoOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isBacktrack(msg.node_attr)) {
         let numBacktrack = msg.node_attr.n_tokens;
         console.log(`Backtracking ${numBacktrack} tokens.`);
-        for (let i = 0; i < numBacktrack; i++) {
-          appState.components.pop();
-        }
+        appState.components = appState.components.slice(0, -numBacktrack);
         appState.backtrackCount += 1;
       } else {
         // console.log("Unknown trace msg node_attr: ", msg)
@@ -157,13 +155,16 @@ For upcoming features, we won't be able to send all details over the wire, and w
       // console.log(appState.components);
     }
 
-    appState = appState;
+    // Show app (we've received at least one message)
+    if (!showApp && appState.components.length > 0) {
+      showApp = true;
+    }
+
+    // Force reactivity update
+    appState = { ...appState };
   };
 
   let showApp = false;
-  $: {
-    showApp = (appState.components.length > 0);
-  }
   $: if ($state !== undefined && $state.content !== '') {
     // console.log("Client state received.")
     appState = JSON.parse($state.content);
@@ -227,7 +228,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full" class:hidden={!showApp}>
+<div class="w-full" class:h-1={!showApp}>
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
@@ -249,7 +250,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
     </section>
   </nav>
 
-  {#if appState.components.length > 0}
   <!-- Content pane -->
   <section class="w-full min-h-40">
     <TokenGrid components={appState.components}
@@ -259,9 +259,4 @@ For upcoming features, we won't be able to send all details over the wire, and w
                backtrackCount={appState.backtrackCount}
                resetCount={appState.resetCount} />
   </section>
-  {:else}
-  <div class="flex items-center justify-center py-6 duration-1000" class:opacity-100={showErrorMsg} class:opacity-0={!showErrorMsg}>
-    <span class="text-gray-500 text-lg">No messages received: try re-running the cell.</span>
-  </div>
-  {/if}
 </div>
