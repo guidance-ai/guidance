@@ -96,7 +96,7 @@ def gen(
         raise ValueError("Cannot use `regex` with `tools`")
 
     assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
-    assert top_p == 1, "We still need to add support for top_p != 1!"
+    assert top_p == 1, "Please use `model.with_sampling_params` to set top_p."
 
     logger.debug(f'start gen(name="{name}")')
 

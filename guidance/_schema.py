@@ -59,15 +59,10 @@ class TokenUsage(BaseModel):
         return self.total_latency_ms / self.output_tokens
 
     def __add__(self, other: "TokenUsage") -> "TokenUsage":
-        if self.ff_tokens is not None and other.ff_tokens is not None:
-            ff_tokens = self.ff_tokens + other.ff_tokens
-        elif self.ff_tokens is None and other.ff_tokens is not None:
+        if self.ff_tokens is None and other.ff_tokens is None:
             ff_tokens = None
         else:
-            raise ValueError(
-                "Cannot add TokenUsage objects if one of them has ff_tokens"
-                " set to None and the other has it set to a value."
-            )
+            ff_tokens = (self.ff_tokens or 0) + (other.ff_tokens or 0)
 
         return TokenUsage(
             ff_tokens=ff_tokens,

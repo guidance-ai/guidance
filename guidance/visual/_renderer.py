@@ -12,6 +12,7 @@ import traceback
 import weakref
 from asyncio import Queue
 from functools import lru_cache, partial
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Callable, Optional
 from warnings import warn
 
@@ -37,20 +38,14 @@ from ._message import (
 )
 
 try:
-    from IPython import get_ipython
-    from IPython.display import HTML, clear_output, display
+    from IPython.display import display
 
     ipython_imported = True
 except ImportError:
     ipython_imported = False
 
 
-try:
-    import stitch  # type: ignore[import-untyped]
-
-    stitch_installed = True
-except ImportError:
-    stitch_installed = False
+stitch_installed = find_spec("stitch") is not None
 
 if TYPE_CHECKING:
     from stitch import StitchWidget
@@ -137,7 +132,8 @@ def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], cha
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
-    logger.debug(f"CELL_COMPLETE:executed")
+    logger.debug("CELL:executed")
+
     try:
         renderer = renderer_weakref()
         if renderer is None:
@@ -225,7 +221,7 @@ async def _handle_send_messages(
                 # NOTE(nopdive): This at random times, appears to fire two changes instead of one change event.
                 renderer.stitch_widget.kernelmsg = message_json
             else:
-                logger.debug(f"SEND:jupyter:send but no widget")
+                logger.debug("SEND:jupyter:send but no widget")
             renderer.send_queue.task_done()
         except Exception as _:
             logger.error(f"SEND:err:{traceback.format_exc()}")
@@ -386,7 +382,7 @@ class JupyterWidgetRenderer(Renderer):
                     if message_trace_node.parent == last_trace_node.root():  # pragma: no cover
                         ancestor_idx = 0
                     else:
-                        logger.debug(f"DIVERGENCE:full reset (not in messages)")
+                        logger.debug("DIVERGENCE:full reset (not in messages)")
                         ancestor_idx = -1
 
                 return True, ancestor_idx
@@ -508,7 +504,6 @@ class JupyterWidgetRenderer(Renderer):
 
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
-        from ..registry import get_bg_async
 
         self._debug_enabled = True
         self._debug_messages = []  # Clear previous messages

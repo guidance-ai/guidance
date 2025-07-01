@@ -230,7 +230,7 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
@@ -244,5 +244,9 @@ class LlamaCpp(Model):
             enable_monitoring=enable_monitoring,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine, default_sampling_params=default_sampling_params)
-        super().__init__(interpreter=interpreter, echo=echo)
+        interpreter = EngineInterpreter(engine)
+        super().__init__(
+            interpreter=interpreter,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+            echo=echo,
+        )

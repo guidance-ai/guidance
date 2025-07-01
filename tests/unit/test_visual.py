@@ -3,7 +3,6 @@ from base64 import b64encode
 
 import pytest
 
-from guidance._topics import DEFAULT_TOPIC
 from guidance.registry import get_bg_async
 from guidance.trace import Backtrack, LiteralInput, TextOutput, Token, TokenOutput, TraceHandler
 from guidance.visual import (

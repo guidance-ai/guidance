@@ -6,8 +6,6 @@ from guidance.models._azureai import create_azure_aifoundry_model
 from ..model_specific import common_chat_testing
 from ..utils import env_or_fail, slowdown
 
-# pytest.skip("Deployments temporarily deleted", allow_module_level=True)
-
 # How to fill out the environment variables to
 # set up the models
 # Temporarily remove mistral pending endpoint investigation

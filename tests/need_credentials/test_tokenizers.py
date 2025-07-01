@@ -1,6 +1,5 @@
 import pytest
 
-from guidance import models
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS, BaseTestTransformerTokenizers
 
 # Since this is under 'need_credentials' we can assume that HF_TOKEN

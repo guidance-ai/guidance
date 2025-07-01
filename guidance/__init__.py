@@ -3,10 +3,13 @@ __version__ = "0.2.3"
 import sys
 import types
 
-from . import models
-from ._ast import Function, GrammarNode
+from . import library, models
 from ._guidance import guidance
-from ._utils import strip_multiline_string_indents
+
+# we expose all the library functions at the top level of the module
+from .library import *  # noqa: F403
+
+__all__ = ["guidance", "models", "library", *library.__all__]
 
 
 # This makes the guidance module callable
@@ -16,8 +19,3 @@ class _Guidance(types.ModuleType):
 
 
 sys.modules[__name__].__class__ = _Guidance
-
-# we expose all the library functions at the top level of the module
-# widget debug utilities
-from .debug import clear_widget_debug, dump_widget_debug, enable_widget_debug, widget_debug_info
-from .library import *
