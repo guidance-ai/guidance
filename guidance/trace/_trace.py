@@ -246,7 +246,7 @@ class TraceNode(BaseModel):
     parent: Optional["TraceNode"] = None
     children: list["TraceNode"] = Field(default_factory=WeakRefList)
     input: Optional[InputAttr] = None
-    output: Optional[OutputAttr] = None
+    output: list[OutputAttr] = Field(default_factory=list)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -382,8 +382,9 @@ class TraceHandler(BaseModel):
                 assert node.input is None
                 node.input = node_attr
             elif isinstance(node_attr, OutputAttr):
-                assert node.output is None
-                node.output = node_attr
+                if node.output:
+                    logger.debug(f"Adding additional output to trace node {node.identifier}, now has {len(node.output) + 1} outputs")
+                node.output.append(node_attr)
             else:
                 raise ValueError(f"Unexpected node attr: {node_attr}")
         return node

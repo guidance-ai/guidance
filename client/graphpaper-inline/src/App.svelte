@@ -11,7 +11,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GuidanceMessage,
     isAudioOutput,
-    isBacktrackMessage,
+    isBacktrack,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
@@ -99,7 +99,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
         appState.components.push(msg.node_attr);
       } else if (isVideoOutput(msg.node_attr)) {
         appState.components.push(msg.node_attr);
-      } else if (isBacktrackMessage(msg.node_attr)) {
+      } else if (isBacktrack(msg.node_attr)) {
         let numBacktrack = msg.node_attr.n_tokens;
         console.log(`Backtracking ${numBacktrack} tokens.`);
         for (let i = 0; i < numBacktrack; i++) {
@@ -189,12 +189,17 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
   }
 
+  let showErrorMsg = false;
   onMount(() => {
     const msg: StitchMessage = {
       type: 'init_stitch',
       content: ''
     };
     clientmsg.set(msg);
+
+    requestAnimationFrame(() => {
+      showErrorMsg = true;
+    })
   });
 </script>
 
@@ -238,8 +243,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
                resetCount={appState.resetCount} />
   </section>
   {:else}
-  <div class="flex items-center justify-center py-6">
-    <span class="text-gray-500 text-lg">No tokens to display.</span>
+  <div class="flex items-center justify-center py-6 duration-1000" class:opacity-100={showErrorMsg} class:opacity-0={!showErrorMsg}>
+    <span class="text-gray-500 text-lg">No messages received: try re-running the cell.</span>
   </div>
   {/if}
 </div>

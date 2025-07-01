@@ -98,6 +98,7 @@ class Model:
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+        self = self.copy()
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -112,7 +113,7 @@ class Model:
         return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
-        self = self.copy()
+        # self = self.copy()
 
         # Input side of trace handler.
         # TODO: StatefulGuidanceInput up in __add__?
@@ -157,7 +158,7 @@ class Model:
         return ModelStream(self)
 
     def _apply_blocks(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         global_active_blocks = _active_blocks.get()
         for block, start_index in list(reversed(self._active_blocks.items())):
             # Close blocks that are not globally active anymore
@@ -188,7 +189,7 @@ class Model:
         return self
 
     def _update_open_block_captures(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         for block, start_index in self._active_blocks.items():
             if block.name is not None:
                 self = self.set(block.name, str(self)[start_index:])
