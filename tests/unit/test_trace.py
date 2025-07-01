@@ -69,7 +69,7 @@ def test_trace_handler():
 
     assert pre_child2 == child2
     assert child2.input == inp
-    assert child2.output == out
+    assert child2.output == [out]
     assert child2.root() == root
     assert child1 not in child2.path()
 
