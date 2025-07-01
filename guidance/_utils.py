@@ -351,6 +351,23 @@ def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
     return logits
 
 
+def apply_min_p_filter(logits: np.ndarray, sampling_params: Optional["SamplingParams"]) -> np.ndarray:
+    if sampling_params is None:
+        return logits
+
+    min_p = sampling_params.get("min_p", None)
+    if min_p is None:
+        return logits
+
+    probs = softmax(logits, axis=-1)
+    top_probs = np.max(probs, axis=-1)
+    scaled_min_p = min_p * top_probs
+
+    indices_to_remove = probs < scaled_min_p
+    logits[indices_to_remove] = -np.inf
+    return logits
+
+
 def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["SamplingParams"]) -> np.ndarray:
     if sampling_params is None:
         return logits

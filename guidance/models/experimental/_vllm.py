@@ -76,6 +76,10 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         if top_k is not None:
             kwargs["extra_body"]["top_k"] = top_k
 
+        min_p = sampling_params.pop("min_p", None)
+        if min_p is not None:
+            kwargs["extra_body"]["min_p"] = min_p
+
         return kwargs
 
 
