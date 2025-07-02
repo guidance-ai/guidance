@@ -72,7 +72,7 @@ print(f"{lm['lm_response']=}")
 ### Guarantee output syntax with constrained generation
 
 Guidance provides an easy to use, yet immensely powerful syntax for constraining the output of a language model.
-A `gen()` call can be constrained to match a regular expression:
+For example, a `gen()` call can be constrained to match a regular expression:
 
 ```python
 lm = phi_lm
@@ -86,7 +86,7 @@ with user():
 with assistant():
     lm += gen("lm_age", regex=r"\d+", temperature=0.8)
 
-print(f"Model is {lm['lm_age']} years old")
+print(f"The language model is {lm['lm_age']} years old")
 ```
 
 Often, we know that the output has to be an item from a list we know in advance.
@@ -113,4 +113,82 @@ with assistant():
     lm += select(["A", "B", "C", "D"], name="model_selection")
 
 print(f"The model selected {lm['model_selection']}")
+```
+
+The constraint system offered by Guidance is extremely powerful.
+It can ensure that the output conforms to any context free grammar (so long as the backend LLM has full support for Guidance).
+More on this below.
+
+### Create your own Guidance functions
+
+With Guidance, you can create your own Guidance functions which can interact with language models.
+These are marked using the `@guidance` decorator.
+Suppose we wanted to answer lots of multiple choice questions.
+We could do something like the following:
+
+```python
+import guidance
+
+from guidance.models import Model
+
+ASCII_OFFSET = ord("a")
+
+@guidance
+def zero_shot_multiple_choice(
+    language_model: Model,
+    question: str,
+    choices: list[str],
+):
+    with user():
+        language_model += question + "\n"
+        for i, choice in enumerate(choices):
+            language_model += f"{chr(i+ASCII_OFFSET)} : {choice}\n"
+
+    with assistant():
+        language_model += select(
+            [chr(i + ASCII_OFFSET) for i in range(len(choices))], name="string_choice"
+        )
+
+    return language_model
+```
+Now, define some questions:
+```python
+questions = [
+    {
+        "question" : "Which state has the northernmost capital?",
+        "choices" : [
+            "New South Wales",
+            "Northern Territories",
+            "Queensland",
+            "South Australia",
+            "Tasmania",
+            "Victoria",
+            "Western Australia",
+        ],
+        "answer" : 1,
+    },
+    {
+        "question" : "Which of the following is venomous?",
+        "choices" : [
+            "Kangaroo",
+            "Koala Bear",
+            "Platypus",
+        ],
+        "answer" : 2,
+    }
+]
+```
+We can use our decorated function like `gen()` or `select()`.
+The `language_model` argument will be filled in for us automatically:
+```python
+lm = phi_lm
+
+with system():
+    lm += "You are a student taking a multiple choice test."
+
+for mcq in questions:
+    lm_temp = lm + zero_shot_multiple_choice(question=mcq["question"], choices=mcq["choices"])
+    converted_answer = ord(lm_temp["string_choice"]) - ASCII_OFFSET
+    print(lm_temp)
+    print(f"LM Answer: {converted_answer},  Correct Answer: {mcq['answer']}")
 ```
