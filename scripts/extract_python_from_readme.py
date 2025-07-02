@@ -15,6 +15,7 @@ def parse_arguments():
 
 
 def extract_python(markdown_text: str) -> str:
+    # This function contains 95% CoPilot vibes by volume
     START = "```python"
     END = "```"
 
@@ -22,10 +23,11 @@ def extract_python(markdown_text: str) -> str:
 
     matches = re.findall(pattern, markdown_text, flags=re.DOTALL)
 
+    result = ""
     for m in matches:
-        print(m)
+        result += str(m)
 
-    return ""
+    return result
 
 
 def main():
@@ -35,8 +37,14 @@ def main():
 
     with open(args.input_file, "r") as readme_file:
         all_text = readme_file.read()
+    print("Read input")
 
-    extract_python(all_text)
+    output_python = extract_python(all_text)
+    print("Extracted Python code")
+
+    with open(args.output_file, "w") as py_file:
+        py_file.write(output_python)
+    print("Output file written")
 
 
 if __name__ == "__main__":
