@@ -510,13 +510,13 @@
 <!-- Tooltip -->
 <div
   bind:this={tooltip}
-  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50"
+  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white dark:bg-gray-800 shadow border border-gray-300 dark:border-gray-600 pointer-events-none z-50"
   style="top: {tooltipY}px; left: {tooltipX}px; display: none;"
 >
   <div>
     {#if tooltipToken}
       <div class={`col-1 flex flex-col items-center`}>
-        <div class="text-2xl px-1 pb-1 text-left w-full bg-white">
+        <div class="text-2xl px-1 pb-1 text-left w-full bg-white dark:bg-gray-800">
           <div class="mb-5 mt-1">
             <TokenGridItem
               token={tooltipToken}
@@ -559,17 +559,17 @@
           </table>
         </div>
         {#if tooltipToken.top_k !== undefined}
-          <hr class="bg-gray-400 w-full my-2" />
+          <hr class="bg-gray-400 dark:bg-gray-600 w-full my-2" />
           <table class="w-full">
             <thead>
               <tr>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 dark:text-gray-300 tracking-wide`}
                 >
                   Candidate
                 </th>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 dark:text-gray-300 tracking-wide`}
                 >
                   Prob
                 </th>
@@ -578,12 +578,12 @@
             <tbody>
               {#each tooltipToken.top_k as candidate, i}
                 <tr
-                  class={`${i === 5 ? "border-t border-dashed border-gray-300" : ""}`}
+                  class={`${i === 5 ? "border-t border-dashed border-gray-300 dark:border-gray-600" : ""}`}
                 >
                   <td
                     class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    <span class="bg-gray-200">
+                    <span class="bg-gray-200 dark:bg-gray-700">
                       {@html renderText(candidate.text)}
                     </span>
                   </td>
@@ -599,7 +599,7 @@
         {/if}
       </div>
     {:else}
-      <div class="text-sm border-b text-red-700">
+      <div class="text-sm border-b text-red-700 dark:text-red-400">
         Missing tokens will show on completion.
       </div>
     {/if}
@@ -607,7 +607,7 @@
 </div>
 
 <!-- Tokens view -->
-<div class="pt-6 pb-6 flex text-gray-800 font-token">
+<div class="pt-6 pb-6 flex text-gray-800 dark:text-gray-200 font-token">
   <div class="px-4">
     <span
       class="flex flex-wrap text-sm"
@@ -645,7 +645,7 @@
 
       {#if isCompleted === false}
         <span
-          class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse"
+          class="inline-block mt-2 border-b-2 border-white dark:border-gray-900 bg-gray-700 dark:bg-gray-300 animate-cpulse">
         >
           &nbsp;
         </span>

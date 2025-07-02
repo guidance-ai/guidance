@@ -38,6 +38,18 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import type { MetricVal } from './interfaces';
   // import { mockNodeAttrs } from './mocks';
 
+  if (typeof window !== 'undefined') {
+    console.log('[Guidance Widget] Setting up theme detection...');
+    
+    // Listen for theme messages from parent
+    window.addEventListener('message', (event) => {
+      if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
+      }
+    });
+  }
+
   interface AppState {
     components: Array<NodeAttr>,
     status: Status,
@@ -231,17 +243,17 @@ For upcoming features, we won't be able to send all details over the wire, and w
 <div class="w-full" class:h-1={!showApp}>
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
-      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
+      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
         <!-- Controls -->
         <span class="flex mr-2">
-          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200"
+          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200 dark:bg-gray-700"
                   defaultValue={"Type"}
                   on:select={(selected) => bgField = selected.detail} />
-          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400"
+          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400 dark:border-gray-500"
                   defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
         </span>
         <!-- Metrics -->
-        <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
+        <span class="flex mr-4 text-gray-300 dark:text-gray-400 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 dark:scrollbar-track-gray-800 scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
           {#each appState.shownMetrics as name}
             <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}

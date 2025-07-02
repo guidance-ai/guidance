@@ -1,5 +1,6 @@
 /* Custom CSS for web app. */
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
 
 /* Note - Tailwind v4 uses CSS configuration */
 /* Theme customizations */

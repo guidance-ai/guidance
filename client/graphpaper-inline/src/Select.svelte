@@ -27,7 +27,7 @@
 
 <div class="relative" use:clickOutside on:outclick={onOutClick}>
     <button use:clickOutside on:click={onDropdownClick}>
-        <span class={`mr-4 inline-flex justify-between items-center hover:bg-gray-700 hover:text-white ${classes}`}>
+        <span class={`mr-4 inline-flex justify-between items-center hover:bg-gray-700 hover:text-white dark:hover:bg-gray-300 dark:hover:text-gray-900 ${classes}`}>
             <span class="">
                 {selected}
             </span>
@@ -37,9 +37,9 @@
         </span>
     </button>
     {#if showList}
-        <ul role="listbox" class="absolute pt-2 pb-3 z-10 mt-1 bg-white shadow border border-gray-300">
+        <ul role="listbox" class="absolute pt-2 pb-3 z-10 mt-1 bg-white dark:bg-gray-800 shadow border border-gray-300 dark:border-gray-600">
             {#each values as value, i}
-                <li class={`w-full px-4 py-1 ${i === 0 ? "mt-1" : ""} hover:bg-gray-700 hover:text-white text-nowrap`} role="option" aria-selected="false" on:click={(_) => selectOption(value)} on:keypress={(_) => {}}>{value}</li>
+                <li class={`w-full px-4 py-1 ${i === 0 ? "mt-1" : ""} hover:bg-gray-700 hover:text-white dark:hover:bg-gray-300 dark:hover:text-gray-900 text-nowrap`} role="option" aria-selected="false" on:click={(_) => selectOption(value)} on:keypress={(_) => {}}>{value}</li>
             {/each}
         </ul>
     {/if}
