@@ -207,8 +207,8 @@ from pydantic import BaseModel, Field
 from guidance import json as gen_json
 
 class BloodPressure(BaseModel):
-    systolic: int = Field(gt=0, le=300)
-    diastolic: int = Field(gt=0, le=200)
+    systolic: int = Field(gt=300, le=400)
+    diastolic: int = Field(gt=0, le=20)
     location: str = Field(max_length=50)
     model_config = dict(extra="forbid")
 
@@ -233,3 +233,4 @@ print(json.dumps(loaded_json, indent=4))
 result = BloodPressure.model_validate_json(lm["bp"])
 print(result.model_dump_json(indent=8))
 ```
+Note that the generated blood pressure is not one the model will have seen for a human.
