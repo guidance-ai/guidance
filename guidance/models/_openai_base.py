@@ -255,6 +255,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if sampling_params.get("min_p", None) is not None:
                 raise ValueError("OpenAI models do not support min_p sampling.")
 
+            if sampling_params.get("repetition_penalty", None) is not None:
+                raise ValueError("OpenAI models do not support repetition_penalty sampling.")
+
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=self.state.messages,
