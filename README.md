@@ -192,3 +192,42 @@ for mcq in questions:
     print(lm_temp)
     print(f"LM Answer: {converted_answer},  Correct Answer: {mcq['answer']}")
 ```
+
+### Generating JSON
+
+A JSON schema is actually a context free grammar, and hence it can be used to constrain an LLM using Guidance.
+This is a common enough case that Guidance provides special support for it.
+A quick sample, based on a Pydantic model:
+```python
+import json
+from pydantic import BaseModel, Field
+
+from guidance import json as gen_json
+
+class BloodPressure(BaseModel):
+    systolic: int = Field(gt=0, le=300)
+    diastolic: int = Field(gt=0, le=200)
+    location: str = Field(max_length=50)
+    model_config = dict(extra="forbid")
+
+lm = phi_lm
+
+with system():
+    lm += "You are a doctor taking a patient's blood pressure taken from their arm"
+
+with user():
+    lm += "Report the blood pressure"
+
+with assistant():
+    lm += gen_json(name="bp", schema=BloodPressure)
+
+print(f"{lm['bp']=}")
+
+# Use Python's JSON library
+loaded_json = json.loads(lm["bp"])
+print(json.dumps(loaded_json, indent=4))
+
+# Use Pydantic
+result = BloodPressure.model_validate_json(lm["bp"])
+print(result.model_dump_json(indent=8))
+```
