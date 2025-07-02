@@ -27,6 +27,14 @@ pip install guidance
 
 ## Features
 ### Write [pure Python](#basic-generation), with additional LM functionality.
+
+<!--
+```python
+# This should be hidden
+path = "something/on/my/machine"
+```
+-->
+
 ```python
 from guidance import models, gen
 
