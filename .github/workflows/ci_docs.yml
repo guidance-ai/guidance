@@ -15,7 +15,7 @@ on:
         type: string
   schedule:
     # * is a special character in YAML so we quote this string
-    # Run at 09:00 UTC every day
+    # Run at 07:00 UTC every day
     - cron:  '00 07 * * *'
 
 jobs:
