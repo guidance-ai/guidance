@@ -6,7 +6,6 @@ permissions:
 
 
 on:
-  pull_request:
   workflow_dispatch:
     inputs:
       commit_id:
