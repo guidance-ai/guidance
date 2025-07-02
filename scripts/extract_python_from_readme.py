@@ -16,12 +16,12 @@ def parse_arguments():
 
 def extract_python(markdown_text: str) -> str:
     # This function contains 95% CoPilot vibes by volume
-    START = "```python"
-    END = "```"
+    START = "^```python"
+    END = "^```"
 
-    pattern = re.escape(START) + r"(.*?)" + re.escape(END)
+    pattern = START + r"(.*?)" + END
 
-    matches = re.findall(pattern, markdown_text, flags=re.DOTALL)
+    matches = re.findall(pattern, markdown_text, flags=(re.MULTILINE | re.DOTALL))
 
     result = ""
     for m in matches:
