@@ -29,13 +29,17 @@ pip install guidance
 
 ### A Pythonic interface for language models
 
-When using `guidance`, you can work with large language models using Pythonic idioms:
+When using Guidance, you can work with large language models using Pythonic idioms:
 
 ```python
 from guidance import system, user, assistant, gen
 from guidance.models import Transformers
 
-lm = Transformers("microsoft/Phi-4-mini-instruct")
+# Could also do LlamaCpp or many other models
+phi_lm = Transformers("microsoft/Phi-4-mini-instruct")
+
+# Model objects are immutable, so this is a copy
+lm = phi_lm
 
 with system():
     lm += "You are a helpful assistant"
@@ -45,4 +49,68 @@ with user():
 
 with assistant():
     lm += gen(max_tokens=20)
+```
+
+It's also really easy to capture generated text:
+
+```python
+# Get a new copy of the Model
+lm = phi_lm
+
+with system():
+    lm += "You are a helpful assistant"
+
+with user():
+    lm += "Hello. What is your name?"
+
+with assistant():
+    lm += gen(name="lm_response", max_tokens=20)
+
+print(f"{lm['lm_response']=}")
+```
+
+### Guarantee output syntax with constrained generation
+
+Guidance provides an easy to use, yet immensely powerful syntax for constraining the output of a language model.
+A `gen()` call can be constrained to match a regular expression:
+
+```python
+lm = phi_lm
+
+with system():
+    lm += "You are a teenager"
+
+with user():
+    lm += "How old are you?"
+
+with assistant():
+    lm += gen("lm_age", regex=r"\d+", temperature=0.8)
+
+print(f"Model is {lm['lm_age']} years old")
+```
+
+Often, we know that the output has to be an item from a list we know in advance.
+Guidance provides a `select()` function for this scenario:
+
+```python
+from guidance import select
+
+lm = phi_lm
+
+with system():
+    lm += "You are a geography expert"
+
+with user():
+    lm += """What is the capital of Sweden? Answer with the correct letter.
+
+    A) Helsinki
+    B) Reykjavík 
+    C) Stockholm
+    D) Oslo
+    """
+
+with assistant():
+    lm += select(["A", "B", "C", "D"], name="model_selection")
+
+print(f"The model selected {lm['model_selection']}")
 ```
