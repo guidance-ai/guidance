@@ -160,7 +160,7 @@ questions = [
         "question" : "Which state has the northernmost capital?",
         "choices" : [
             "New South Wales",
-            "Northern Territories",
+            "Northern Territory",
             "Queensland",
             "South Australia",
             "Tasmania",
