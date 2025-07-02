@@ -49,6 +49,8 @@ with user():
 
 with assistant():
     lm += gen(max_tokens=20)
+
+print(lm)
 ```
 
 It's also really easy to capture generated text:
