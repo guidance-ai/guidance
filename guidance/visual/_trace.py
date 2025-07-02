@@ -30,26 +30,35 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     active_role: Optional[TraceNode] = None
 
     for node in node_path:
-        if isinstance(node.input, RoleOpenerInput):
-            active_role = node
-        elif isinstance(node.input, RoleCloserInput):
-            active_role = node
-        if isinstance(node.output, TextOutput):
-            if active_role is not None:
-                if (
-                    prettify_roles
-                    and isinstance(active_role.input, RoleOpenerInput)
-                    and (role_name := active_role.input.name) is not None
-                ):
-                    fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
-                    buffer.append(fmt)
-                if not prettify_roles:
-                    buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
+        # Check if any input is a role opener or closer
+        for input_attr in node.input:
+            if isinstance(input_attr, RoleOpenerInput):
+                active_role = node
+                break
+            elif isinstance(input_attr, RoleCloserInput):
+                active_role = node
+                break
+        for output_attr in node.output:
+            if isinstance(output_attr, TextOutput):
+                if active_role is not None:
+                    # Find the first RoleOpenerInput in the active role's input list
+                    role_opener_input = next(
+                        (inp for inp in active_role.input if isinstance(inp, RoleOpenerInput)), None
+                    )
+                    if (
+                        prettify_roles
+                        and role_opener_input is not None
+                        and (role_name := role_opener_input.name) is not None
+                    ):
+                        fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
+                        buffer.append(fmt)
+                    if not prettify_roles:
+                        buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
 
-            if not (active_role and prettify_roles):
-                attr = node.output
-                latency = f"{attr.latency_ms:.2f}"
-                chunk_text = attr.value
+                if not (active_role and prettify_roles):
+                    attr = output_attr
+                    latency = f"{attr.latency_ms:.2f}"
+                    chunk_text = attr.value
 
                 if not isinstance(attr, TokenOutput):
                     if attr.is_generated:
@@ -82,13 +91,15 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
             if active_role is not None:
                 if not prettify_roles:
                     buffer.append("</span>")
-                if isinstance(active_role.input, RoleCloserInput) and prettify_roles:
-                    buffer.append("</div></div>")
+                # Check if any input in active role is a RoleCloserInput
+                has_role_closer = any(isinstance(inp, RoleCloserInput) for inp in active_role.input)
+                if has_role_closer and prettify_roles:
+                    buffer.append(f"</div></div>")
                 active_role = None
-        elif isinstance(node.output, ImageOutput):
-            buffer.append(
-                f'<img src="data:image/png;base64,{node.output.value.decode()}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
-            )
+            elif isinstance(output_attr, ImageOutput):
+                buffer.append(
+                    f'<img src="data:image/png;base64,{output_attr.value.decode()}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
+                )
 
     buffer.insert(
         0,
@@ -110,8 +121,9 @@ def trace_node_to_str(node: TraceNode) -> str:
     """
     buffer = []
     for node in node.path():
-        if isinstance(node.output, TextOutput):
-            buffer.append(str(node.output))
+        for output_attr in node.output:
+            if isinstance(output_attr, TextOutput):
+                buffer.append(str(output_attr))
     return "".join(buffer)
 
 

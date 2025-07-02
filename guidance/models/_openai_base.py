@@ -307,7 +307,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     tokens = choice.logprobs.content
                     for token in tokens:
                         yield TokenOutput(
-                            value=token.token,
+                            value=content if len(tokens) == 1 else token.token,
                             # amortized latency
                             latency_ms=latency_ms / len(tokens),
                             token=Token(
@@ -324,6 +324,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 )
                                 for tok in token.top_logprobs
                             ],
+                            is_generated=True,
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)

@@ -28,7 +28,7 @@ export interface Token {
     masked: boolean,
 }
 
-export interface BacktrackMessage extends NodeAttr {
+export interface Backtrack extends NodeAttr {
     class_name: 'Backtrack',
     n_tokens: number,
     bytes: string,
@@ -102,7 +102,8 @@ export interface ClientReadyAckMessage extends GuidanceMessage {
 }
 
 export interface OutputRequestMessage extends GuidanceMessage {
-    class_name: 'OutputRequestMessage'
+    class_name: 'OutputRequestMessage',
+    identifier: string
 }
 
 export interface MetricMessage extends GuidanceMessage {
@@ -127,7 +128,7 @@ export function isTraceMessage(o: GuidanceMessage | undefined | null): o is Trac
     return o.class_name === "TraceMessage";
 }
 
-export function isBacktrackMessage(o: NodeAttr | undefined | null): o is BacktrackMessage {
+export function isBacktrack(o: NodeAttr | undefined | null): o is Backtrack {
     if (o === undefined || o === null) return false;
     return o.class_name === "Backtrack";
 }
