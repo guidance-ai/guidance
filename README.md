@@ -46,6 +46,10 @@ with assistant():
 print(lm)
 ```
 
+```
+<|system|>You are a helpful assistant<|end|><|user|>Hello. What is your name?<|end|><|assistant|>I am Phi, an AI developed by Microsoft. How can I help you today?
+```
+
 It's also really easy to capture generated text:
 
 ```python
@@ -62,6 +66,10 @@ with assistant():
     lm += gen(name="lm_response", max_tokens=20)
 
 print(f"{lm['lm_response']=}")
+```
+
+```
+lm['lm_response']='I am Phi, an AI developed by Microsoft. How can I help you today?'
 ```
 
 ### Guarantee output syntax with constrained generation
@@ -82,6 +90,10 @@ with assistant():
     lm += gen("lm_age", regex=r"\d+", temperature=0.8)
 
 print(f"The language model is {lm['lm_age']} years old")
+```
+
+```
+The language model is 12 years old
 ```
 
 Often, we know that the output has to be an item from a list we know in advance.
@@ -108,6 +120,10 @@ with assistant():
     lm += select(["A", "B", "C", "D"], name="model_selection")
 
 print(f"The model selected {lm['model_selection']}")
+```
+
+```
+The model selected C
 ```
 
 The constraint system offered by Guidance is extremely powerful.
@@ -186,6 +202,25 @@ for mcq in questions:
     converted_answer = ord(lm_temp["string_choice"]) - ASCII_OFFSET
     print(lm_temp)
     print(f"LM Answer: {converted_answer},  Correct Answer: {mcq['answer']}")
+```
+
+```
+<|system|>You are a student taking a multiple choice test.<|end|><|user|>Which state has the northernmost capital?
+a : New South Wales
+b : Northern Territory
+c : Queensland
+d : South Australia
+e : Tasmania
+f : Victoria
+g : Western Australia
+<|end|><|assistant|>b
+LM Answer: 1,  Correct Answer: 1
+<|system|>You are a student taking a multiple choice test.<|end|><|user|>Which of the following is venomous?
+a : Kangaroo
+b : Koala Bear
+c : Platypus
+<|end|><|assistant|>c
+LM Answer: 2,  Correct Answer: 2
 ```
 
 Guidance functions can be composed, in order to construct a full grammar.
@@ -299,6 +334,19 @@ with assistant():
 print(lm["html_text"])
 ```
 
+```html
+<html>
+<head>
+<title>My Life Story</title>
+</head>
+<body>
+<h1>My Life Story</h1>
+<p>I was born in a small town in the countryside. My parents always encouraged me to pursue my dreams and be independent. I moved to the city to attend college and study business. After graduating, I started my own company and have since expanded it into a successful corporation. I have also traveled the world, experienced different cultures, and volunteered in various communities.</p>
+<p>Overall, I consider my life to be a series of meaningful experiences and opportunities. I am grateful for the people who have supported me along the way, and I look forward to continuing to grow and make a positive impact on the world.</p>
+</body>
+</html>
+```
+
 ### Generating JSON
 
 A JSON schema is actually a context free grammar, and hence it can be used to constrain an LLM using Guidance.
@@ -336,5 +384,18 @@ print(json.dumps(loaded_json, indent=4))
 # Use Pydantic
 result = BloodPressure.model_validate_json(lm["bp"])
 print(result.model_dump_json(indent=8))
+```
+```
+lm['bp']='{"systolic": 301, "diastolic": 15, "location": "arm"}'
+{
+    "systolic": 301,
+    "diastolic": 15,
+    "location": "arm"
+}
+{
+        "systolic": 301,
+        "diastolic": 15,
+        "location": "arm"
+}
 ```
 Note that the generated blood pressure is not one the model will have seen for a human.
