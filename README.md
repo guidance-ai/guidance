@@ -45,12 +45,15 @@ with assistant():
 
 print(lm)
 ```
-
+If run at the command line, this will produce output like:
 ```
 <|system|>You are a helpful assistant<|end|><|user|>Hello. What is your name?<|end|><|assistant|>I am Phi, an AI developed by Microsoft. How can I help you today?
 ```
+However, if running in a Jupyter notebook, then Guidance provides a widget for a richer user experience:
 
-It's also really easy to capture generated text:
+<img src="docs/figures/widget_basic_example_20250703.png" alt="Guidance widget showing HTML generation" />
+
+With Guidance, it's really easy to capture generated text:
 
 ```python
 # Get a new copy of the Model
@@ -333,10 +336,9 @@ with assistant():
     lm += make_html(name="html_text", temperature=0.7)
 ```
 
-Guidance includes a widget which is active in Jupyter notebooks.
-When we run the above code there, we get the following output:
+When running in a Jupyter Notebook so that the widget is active, we get the following output:
 
-<img src="docs/figures/widget_make_html_20250703.png" alt="Guidance widget showing HTML generation" />
+<img src="docs/figures/widget_make_html_20250703.png" alt="Guidance widget showing HTML generation with token fast-forwarding" />
 
 Note the varying highlighting of the generation.
 This is showing another of Guidance's capabilities: fast-forwarding of tokens.
