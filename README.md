@@ -9,21 +9,14 @@
 
    * [Install](#install)
    * [Features](#features)
-   * [Example notebooks](#example-notebooks)
-   * [Basic generation](#basic-generation)
-   * [Constrained generation](#constrained-generation)
-   * [Stateful control + generation](#stateful-control--generation)
 
 
 ## Install
-Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, etc.). To use a specific model see [loading models](#loading-models).
+Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, etc.).
+If you already have the backend required for your model, you can simply run
 ```bash
 pip install guidance
 ```
-
-<!-- For a detailed walkthrough of using Guidance on hosted Phi models, check the [Azure AI specific loading instructions.](#azure-ai) and the [Phi-3 + Guidance cookbook](https://github.com/microsoft/Phi-3CookBook/blob/main/code/01.Introduce/guidance.ipynb). -->
-
-<!-- <a href="https://www.youtube.com/watch?v=9oXjP5IIMzQ"  aria-label="Watch demo"><img alt="Watch demo" src="docs/figures/watch_demo_button.png" width="120"></a> <a href="#get-started" aria-label="Get started"><img alt="Watch demo" src="docs/figures/get_started_button.png" width="120"></a> -->
 
 ## Features
 
