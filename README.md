@@ -93,7 +93,7 @@ print(f"The language model is {lm['lm_age']} years old")
 ```
 
 ```
-The language model is 12 years old
+The language model is 13 years old
 ```
 
 Often, we know that the output has to be an item from a list we know in advance.
