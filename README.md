@@ -223,7 +223,7 @@ c : Platypus
 LM Answer: 2,  Correct Answer: 2
 ```
 
-Guidance functions can be composed, in order to construct a full grammar.
+Guidance functions can be composed, in order to construct a full context free grammar.
 For example, we can create Guidance functions to build a simple HTML webpage (note that this is _not_ a full implementation of HTML).
 We start with a simple function which will generate text which does not contain any HTML tags:
 
