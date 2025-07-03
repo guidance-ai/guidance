@@ -22,7 +22,7 @@ pip install guidance
 
 ### A Pythonic interface for language models
 
-When using Guidance, you can work with large language models using Pythonic idioms:
+When using Guidance, you can work with large language models using common Python idioms:
 
 ```python
 from guidance import system, user, assistant, gen
@@ -225,7 +225,8 @@ LM Answer: 2,  Correct Answer: 2
 
 Guidance functions can be composed, in order to construct a full context free grammar.
 For example, we can create Guidance functions to build a simple HTML webpage (note that this is _not_ a full implementation of HTML).
-We start with a simple function which will generate text which does not contain any HTML tags:
+We start with a simple function which will generate text which does not contain any HTML tags.
+The function is marked as `stateless` to indicate that we intend to use it for composing a grammar:
 
 ```python
 @guidance(stateless=True)
