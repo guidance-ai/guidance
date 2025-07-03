@@ -188,6 +188,117 @@ for mcq in questions:
     print(f"LM Answer: {converted_answer},  Correct Answer: {mcq['answer']}")
 ```
 
+Guidance functions can be composed, in order to construct a full grammar.
+For example, we can create Guidance functions to build a simple HTML webpage (note that this is _not_ a full implementation of HTML).
+We start with a simple function which will generate text which does not contain any HTML tags:
+
+```python
+@guidance(stateless=True)
+def _gen_text(lm: Model):
+    return lm + gen(regex="[^<>]+") 
+```
+
+We can then use this function to generate text within an arbitrary HTML tag:
+```python
+@guidance(stateless=True)
+def _gen_text_in_tag(lm: Model, tag: str):
+    lm += f"<{tag}>"
+    lm += _gen_text()
+    lm += f"</{tag}>"
+    return lm
+```
+Now, let us create the page header. As part of this, we need to generate a page title:
+```python
+@guidance(stateless=True)
+def _gen_header(lm: Model):
+    lm += "<head>\n"
+    lm += _gen_text_in_tag("title") + "\n"
+    lm += "</head>\n"
+    return lm
+```
+The body of the HTML page is going to be filled with headings and paragraphs.
+We can define a function to do each:
+```python
+from guidance.library import one_or_more
+
+@guidance(stateless=True)
+def _gen_heading(lm: Model):
+    lm += select(
+        options=[_gen_text_in_tag("h1"), _gen_text_in_tag("h2"), _gen_text_in_tag("h3")]
+    )
+    lm += "\n"
+    return lm
+
+@guidance(stateless=True)
+def _gen_para(lm: Model):
+    lm += "<p>"
+    lm += one_or_more(
+        select(
+            options=[
+                _gen_text(),
+                _gen_text_in_tag("em"),
+                _gen_text_in_tag("strong"),
+                "<br />",
+            ],
+        )
+    )
+    lm += "</p>\n"
+    return lm
+```
+Now, the function to define the body of the HTML itself:
+```python
+@guidance(stateless=True)
+def _gen_body(lm: Model):
+    lm += "<body>\n"
+    lm += one_or_more(select(options=[_gen_heading(), one_or_more(_gen_para())]))
+    lm += "</body>\n"
+    return lm
+```
+Next, we come to the function which generates the complete HTML page.
+We add the HTML start tag, then generate the header, then body, and then append the ending HTML tag:
+```python
+@guidance(stateless=True)
+def _gen_html(lm: Model):
+    lm += "<html>\n"
+    lm += _gen_header()
+    lm += _gen_body()
+    lm += "</html>\n"
+    return lm
+```
+Finally, we provide a user-friendly wrapper, which will allow us to:
+- Set the temperature of the generation
+- Capture the generated page from the Model object
+```python
+from guidance.library import capture, with_temperature
+
+@guidance(stateless=True)
+def make_html(
+    lm,
+    name: str | None = None,
+    *,
+    temperature: float = 0.0,
+):
+    return lm + capture(
+        with_temperature(_gen_html(), temperature=temperature),
+        name=name,
+    )
+```
+Now, use this to generate a simple webpage:
+```python
+lm = phi_lm
+
+with system():
+    lm += "You are an expert in HTML"
+
+with user():
+    lm += "Create a simple and short web page about your life story."
+
+with assistant():
+    lm += make_html(name="html_text", temperature=0.7)
+
+print(lm["html_text"])
+```
+
 ### Generating JSON
 
 A JSON schema is actually a context free grammar, and hence it can be used to constrain an LLM using Guidance.
