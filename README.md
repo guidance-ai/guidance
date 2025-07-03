@@ -330,22 +330,20 @@ with user():
 
 with assistant():
     lm += make_html(name="html_text", temperature=0.7)
-
-print(lm["html_text"])
 ```
 
-```html
-<html>
-<head>
-<title>My Life Story</title>
-</head>
-<body>
-<h1>My Life Story</h1>
-<p>I was born in a small town in the countryside. My parents always encouraged me to pursue my dreams and be independent. I moved to the city to attend college and study business. After graduating, I started my own company and have since expanded it into a successful corporation. I have also traveled the world, experienced different cultures, and volunteered in various communities.</p>
-<p>Overall, I consider my life to be a series of meaningful experiences and opportunities. I am grateful for the people who have supported me along the way, and I look forward to continuing to grow and make a positive impact on the world.</p>
-</body>
-</html>
-```
+Guidance includes a widget which is active in Jupyter notebooks.
+When we run the above code there, we get the following output:
+
+<img src="docs/figures/widget_make_html_20250703.png" alt="Guidance widget showing HTML generation" />
+
+Note the varying highlighting of the generation.
+This is showing another of Guidance's capabilities: fast-forwarding of tokens.
+The constraints imposed by a grammar often mean that some tokens are known in advance.
+Guidance doesn't need the model to generate these; instead it can insert them into the generation.
+This saves forward passes through the model, and hence reduces GPU usage.
+For example, in the above HTML generation, Guidance always knows the last opening tag.
+If the last opened tag was `<h1>` (for example), then as soon as the model generates `</`, Guidance can fill in `h1>` without needing the model to perform a forward pass.
 
 ### Generating JSON
 
@@ -399,3 +397,4 @@ lm['bp']='{"systolic": 301, "diastolic": 15, "location": "arm"}'
 }
 ```
 Note that the generated blood pressure is not one the model will have seen for a human.
+When generating JSON, a substantial number of tokens can often be fast-forwarded, due to the structural constraints imposed by the schema.
