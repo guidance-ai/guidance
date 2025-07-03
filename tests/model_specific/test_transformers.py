@@ -254,3 +254,26 @@ def test_min_p_filtering():
     transformers_logits = min_p_warp(None, logits)[0].numpy()
     guidance_logits = apply_min_p_filter(logits[0].numpy(), {"min_p": min_p})
     assert np.all(transformers_logits == guidance_logits), "Logits do not match after min_p filtering"
+
+
+def test_repetition_penalty_filtering():
+    import numpy as np
+    import torch
+    from transformers import AutoTokenizer
+    from transformers.generation.logits_process import RepetitionPenaltyLogitsProcessor
+
+    from guidance._utils import apply_repetition_penalty
+
+    tokenizer = AutoTokenizer.from_pretrained("distilbert/distilgpt2")
+
+    torch.random.manual_seed(0)
+    inputs = tokenizer(["I'm not going to be able to do that. I'm going to be able to do that"], return_tensors="pt")
+    logits = torch.randn((1, tokenizer.vocab_size))
+
+    repetition_penalty = 1.2
+    warp = RepetitionPenaltyLogitsProcessor(repetition_penalty)
+    transformers_logits = warp(inputs["input_ids"], logits)[0].numpy()
+    guidance_logits = apply_repetition_penalty(
+        inputs["input_ids"][0].numpy(), logits[0].numpy(), {"repetition_penalty": repetition_penalty}
+    )
+    assert np.all(transformers_logits == guidance_logits), "Logits do not match after repetition penalty filtering"
