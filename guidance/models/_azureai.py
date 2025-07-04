@@ -1,7 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Callable, ContextManager, Iterator, Optional, Union, cast
-
-from pydantic import TypeAdapter
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, Iterator, Optional, Union, cast
 
 from guidance._schema import SamplingParams
 
@@ -13,7 +11,6 @@ from ._base import Model
 from ._openai_base import (
     BaseOpenAIClientWrapper,
     BaseOpenAIInterpreter,
-    Message,
     OpenAIAudioMixin,
     OpenAIClientWrapper,
     OpenAIImageMixin,
@@ -162,14 +159,14 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
+        messages: list[dict[str, Any]],
         log_probs: Optional[int] = None,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         request = self.client.complete(
             body={
                 "model": model,
-                "messages": TypeAdapter(list[Message]).dump_python(messages),
+                "messages": messages,
                 "log_probs": log_probs,
                 "stream": True,
                 **kwargs,
