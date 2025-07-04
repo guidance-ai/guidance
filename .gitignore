@@ -13,6 +13,7 @@ node_modules
 .env
 .DS_Store
 venv/
+.venv/
 
 # Ignore native library built by setup
 guidance/*.so

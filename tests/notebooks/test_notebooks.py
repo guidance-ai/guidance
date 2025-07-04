@@ -57,9 +57,12 @@ class TestModels:
 
     def test_azure_openai(self):
         call_delay_secs = slowdown()
-
         nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
         run_notebook(nb_path, params=dict(call_delay_secs=call_delay_secs))
+
+    def test_openai(self):
+        nb_path = TestModels.BASE_MODEL_PATH / "OpenAI.ipynb"
+        run_notebook(nb_path)
 
 
 class TestArtOfPromptDesign:
