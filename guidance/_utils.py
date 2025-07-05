@@ -342,6 +342,32 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
         return str(_bytes)
 
 
+def apply_repetition_penalty(input_ids: list[int], logits: np.ndarray, sampling_params: Optional["SamplingParams"]):
+    if sampling_params is None:
+        return logits
+
+    penalty = sampling_params.get("repetition_penalty", None)
+    if penalty is None or penalty <= 0:
+        return logits
+
+    # Gather the logits for the input_ids
+    # input_ids: shape (1, seq_len), scores: shape (1, vocab_size)
+    # We want to get the logits for each token in input_ids from scores
+    # For each token in input_ids, get its logit from scores
+    # This is equivalent to: score = scores[0, input_ids[0, :]]
+    input_ids = np.asarray(input_ids)
+
+    score = np.take_along_axis(logits, input_ids, axis=0)
+    # Apply repetition penalty
+    # If score < 0, multiply by penalty; else, divide by penalty
+    score_processed = np.where(score < 0, score * penalty, score / penalty)
+    # Scatter the processed scores back into the scores array
+    # For each position in input_ids, set scores[0, input_ids[0, i]] = score_processed[0, i]
+    scores_processed = logits.copy()
+    np.put_along_axis(scores_processed, input_ids, score_processed, axis=0)
+    return scores_processed
+
+
 def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
     if k <= 0:
         return logits

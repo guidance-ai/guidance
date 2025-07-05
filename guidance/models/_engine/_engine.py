@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 
 from ..._parser import TokenParser
 from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
-from ..._utils import apply_min_p_filter, apply_top_k_and_top_p_filter, log_init, softmax
+from ..._utils import apply_min_p_filter, apply_repetition_penalty, apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 
@@ -365,7 +365,9 @@ class Engine(ABC):
             return sorted(top_k_tokens, key=lambda x: x.prob, reverse=True)
 
         # compute top-k without masking
-        filtered_logits = np.array(logits) if temperature < _TEMPERATURE_EPSILON else np.array(logits) / temperature
+        filtered_logits = np.array(logits)
+        filtered_logits = apply_repetition_penalty(token_ids, filtered_logits, sampling_params)
+        filtered_logits = filtered_logits if temperature < _TEMPERATURE_EPSILON else filtered_logits / temperature
         filtered_logits = apply_min_p_filter(filtered_logits, sampling_params)
         filtered_logits = apply_top_k_and_top_p_filter(filtered_logits, sampling_params)
         probs = softmax(filtered_logits)

@@ -80,6 +80,10 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         if min_p is not None:
             kwargs["extra_body"]["min_p"] = min_p
 
+        repetition_penalty = sampling_params.pop("repetition_penalty", None)
+        if repetition_penalty is not None:
+            kwargs["extra_body"]["repetition_penalty"] = repetition_penalty
+
         return kwargs
 
 

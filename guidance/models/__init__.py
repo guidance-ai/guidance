@@ -1,4 +1,5 @@
 from . import experimental
+from ._azureai import create_azure_aifoundry_model, create_azure_openai_model
 from ._base import Model
 from ._llama_cpp import LlamaCpp
 from ._mock import Mock
@@ -11,5 +12,7 @@ __all__ = [
     "Model",
     "OpenAI",
     "Transformers",
+    "create_azure_aifoundry_model",
+    "create_azure_openai_model",
     "experimental",
 ]
