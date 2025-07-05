@@ -12,8 +12,7 @@ from functools import lru_cache, partial
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Optional
 from warnings import warn
-from weakref import WeakKeyDictionary, WeakValueDictionary
-from weakref import ReferenceType, ref, finalize
+from weakref import ReferenceType, WeakKeyDictionary, WeakValueDictionary, finalize, ref
 
 from .._topics import DEFAULT_TOPIC, VISUAL_TOPIC
 from .._utils import log_cleanup
@@ -31,10 +30,10 @@ from ._message import (
     ClientReadyAckMessage,
     ExecutionCompletedMessage,
     ExecutionStartedMessage,
+    OutputRequestAckMessage,
     OutputRequestMessage,
     deserialize_message,
     serialize_message,
-    OutputRequestAckMessage,
 )
 
 try:

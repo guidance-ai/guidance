@@ -6,10 +6,10 @@ from ._openai import OpenAI
 from ._transformers import Transformers
 
 __all__ = [
+    "LlamaCpp",
+    "Mock",
     "Model",
     "OpenAI",
-    "LlamaCpp",
     "Transformers",
-    "Mock",
     "experimental",
 ]

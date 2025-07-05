@@ -106,6 +106,10 @@ export interface OutputRequestMessage extends GuidanceMessage {
     identifier: string
 }
 
+export interface OutputRequestAckMessage extends GuidanceMessage {
+    class_name: 'OutputRequestAckMessage'
+}
+
 export interface MetricMessage extends GuidanceMessage {
     class_name: 'MetricMessage',
     name: string,
@@ -181,6 +185,11 @@ export function isMetricMessage(o: GuidanceMessage | undefined | null): o is Met
 export function isClientReadyAckMessage(o: GuidanceMessage | undefined | null): o is MetricMessage {
     if (o === undefined || o === null) return false;
     return o.class_name === "ClientReadyAckMessage";
+}
+
+export function isOutputRequestAckMessage(o: GuidanceMessage | undefined | null): o is MetricMessage {
+    if (o === undefined || o === null) return false;
+    return o.class_name === "OutputRequestAckMessage";
 }
 
 export function isExecutionCompletedMessage(o: GuidanceMessage | undefined | null): o is ExecutionCompletedMessage {
