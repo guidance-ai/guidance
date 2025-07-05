@@ -99,6 +99,12 @@ class OutputRequestMessage(GuidanceMessage):
     identifier: str = ""
 
 
+class OutputRequestAckMessage(GuidanceMessage):
+    """Fired when server acknowledges request."""
+
+    pass
+
+
 def serialize_message(message: GuidanceMessage) -> str:
     """Serializes guidance message.
 

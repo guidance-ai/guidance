@@ -7,13 +7,13 @@ Our main focus is on jupyter notebooks and later terminal.
 import asyncio
 import logging
 import traceback
-import weakref
 from asyncio import Queue
 from functools import lru_cache, partial
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Optional
 from warnings import warn
 from weakref import WeakKeyDictionary, WeakValueDictionary
+from weakref import ReferenceType, ref, finalize
 
 from .._topics import DEFAULT_TOPIC, VISUAL_TOPIC
 from .._utils import log_cleanup
@@ -34,6 +34,7 @@ from ._message import (
     OutputRequestMessage,
     deserialize_message,
     serialize_message,
+    OutputRequestAckMessage,
 )
 
 try:
@@ -100,7 +101,7 @@ def _create_stitch_widget() -> "StitchWidget":
     w.initial_width = "100%"
     w.initial_height = "auto"
     w.srcdoc = _get_src_doc_template()
-    weakref.finalize(w, log_cleanup, f"stitch({id(w)})")
+    finalize(w, log_cleanup, f"stitch({id(w)})")
 
     return w
 
@@ -128,14 +129,14 @@ async def _create_queue() -> Queue:
     return Queue()
 
 
-def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], identifier: str, change: dict) -> None:
+def _on_stitch_clientmsg(recv_queue_weakref: ReferenceType["Queue"], identifier: str, change: dict) -> None:
     # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
     queue = recv_queue_weakref()
     if queue is not None:
         _put_nowait_queue(queue, (change["new"], identifier))
 
 
-def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
+def _on_cell_completion(renderer_weakref: ReferenceType["JupyterWidgetRenderer"], info) -> None:
     logger.debug("CELL:executed")
 
     try:
@@ -143,8 +144,10 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
         if renderer is None:
             return
 
+        widget = renderer.widgets[renderer.last_widget_key]
+        last_trace_id = renderer.widget_to_trace_id[widget]
         message = ExecutionCompletedMessage(
-            last_trace_id=renderer.last_trace_id,
+            last_trace_id=last_trace_id,
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
@@ -153,7 +156,7 @@ def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRe
 
 
 async def _handle_recv_messages(
-    renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
+    renderer_weakref: ReferenceType["JupyterWidgetRenderer"], queue_weakref: ReferenceType["Queue"]
 ) -> None:
     logger.debug("RECV:init")
     from ..registry import get_exchange
@@ -180,13 +183,13 @@ async def _handle_recv_messages(
 
             if isinstance(message, OutputRequestMessage):
                 # Add identifier to message
-                logger.debug("RECV:outputrequest")
                 message.identifier = identifier
+                logger.debug(f"RECV:outputrequest({identifier})")
 
             get_exchange().publish(message, VISUAL_TOPIC)
 
             if isinstance(message, ClientReadyMessage):
-                logger.debug("RECV:clientready")
+                logger.debug(f"RECV:clientready({identifier})")
                 get_exchange().publish(ClientReadyAckMessage(), VISUAL_TOPIC)
 
             renderer.recv_queue.task_done()
@@ -195,7 +198,7 @@ async def _handle_recv_messages(
 
 
 async def _handle_send_messages(
-    renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], queue_weakref: weakref.ReferenceType["Queue"]
+    renderer_weakref: ReferenceType["JupyterWidgetRenderer"], queue_weakref: ReferenceType["Queue"]
 ) -> None:
     logger.debug("SEND:init")
     # NOTE(nopdive): Waiting on client cb does not work, client messages received on cell completion.
@@ -283,18 +286,17 @@ class JupyterWidgetRenderer(Renderer):
         from ..registry import get_bg_async, get_exchange
 
         super().__init__()
-        self._widget_to_trace_id: WeakKeyDictionary = WeakKeyDictionary()
-        self.widgets: WeakValueDictionary = WeakValueDictionary()
+        self.widget_to_trace_id: WeakKeyDictionary["StitchWidget", int] = WeakKeyDictionary()
+        self.widget_messages: WeakKeyDictionary["StitchWidget", list[GuidanceMessage]] = WeakKeyDictionary()
+        self.widgets: WeakValueDictionary[str, "StitchWidget"] = WeakValueDictionary()
         self.last_widget_key = ""
+        self.last_widget: Optional[ReferenceType["StitchWidget"]] = None
         self.last_trace_id: Optional[int] = None
         self._last_cell_session_id: Optional[str] = None
 
         self._trace_handler = trace_handler
-        self._messages: list[GuidanceMessage] = []
         self._completed = False
         self._running = False
-        # NOTE: Pins memory
-        self._stitch_on_clientmsg: Optional[Callable[[], None]] = None
 
         # Debug tracking
         self._debug_enabled = False
@@ -305,14 +307,14 @@ class JupyterWidgetRenderer(Renderer):
         self.recv_queue: Queue = get_bg_async().run_async_coroutine(_create_queue()).result()
 
         # Start send/recv message loops
-        recv_coroutine = _handle_recv_messages(weakref.ref(self), weakref.ref(self.recv_queue))
-        send_coroutine = _handle_send_messages(weakref.ref(self), weakref.ref(self.send_queue))
+        recv_coroutine = _handle_recv_messages(ref(self), ref(self.recv_queue))
+        send_coroutine = _handle_send_messages(ref(self), ref(self.send_queue))
         self._recv_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(recv_coroutine)).result()
         self._send_task = get_bg_async().run_async_coroutine(get_bg_async().async_task(send_coroutine)).result()
 
         # Start recv on exchange
         get_exchange().subscribe(self._on_exchange)
-        weakref.finalize(self, _cleanup, self.recv_queue, self.send_queue, f"renderer({id(self)})", self._on_exchange)
+        finalize(self, _cleanup, self.recv_queue, self.send_queue, f"renderer({id(self)})", self._on_exchange)
 
     def _on_exchange(self, message: GuidanceMessage) -> None:
         # if not isinstance(message, MetricMessage):  # NOTE(nopdive): Metrics spam at fixed intervals.
@@ -320,10 +322,10 @@ class JupyterWidgetRenderer(Renderer):
 
         if isinstance(message, MetricMessage):
             self.update(message)
-        elif isinstance(message, OutputRequestMessage):
-            self.update(message)
         elif isinstance(message, TraceMessage):
             self.update(message)
+        elif isinstance(message, OutputRequestMessage):
+            self._replay(message)
 
     def has_divergence(self, message: GuidanceMessage) -> tuple[bool, int]:
         """Checks if message has divergence with current path.
@@ -339,15 +341,16 @@ class JupyterWidgetRenderer(Renderer):
 
         # If we diverge from the model path, truncate and reset
         message_trace_node = self._trace_handler[message.trace_id]
+        widget_messages = self.widget_messages[self.last_widget()]
 
-        prev_trace_messages = [x for x in self._messages if isinstance(x, TraceMessage)]
+        prev_trace_messages = [x for x in widget_messages if isinstance(x, TraceMessage)]
         trace_messages_len = len(prev_trace_messages)
         if trace_messages_len == 0:
             return False, -1
         elif trace_messages_len == 1:
-            if isinstance(self._messages[0], TraceMessage):
+            if isinstance(widget_messages[0], TraceMessage):
                 try:
-                    last_trace_node = self._trace_handler[self._messages[0].trace_id]
+                    last_trace_node = self._trace_handler[widget_messages[0].trace_id]
                     if message_trace_node.parent == last_trace_node:
                         return False, -1
                     else:
@@ -373,7 +376,7 @@ class JupyterWidgetRenderer(Renderer):
                 # Truncate path that is no longer used by current trace node
                 ancestor_idx = -1
                 ancestors = set(message_trace_node.ancestors())
-                for idx, prev_message in enumerate(self._messages):
+                for idx, prev_message in enumerate(widget_messages):
                     if isinstance(prev_message, TraceMessage):
                         try:
                             prev_trace_node = self._trace_handler[prev_message.trace_id]
@@ -393,49 +396,59 @@ class JupyterWidgetRenderer(Renderer):
             else:
                 return False, -1
 
+    def _replay(self, message: OutputRequestMessage, topic=DEFAULT_TOPIC) -> None:
+        out_messages: list[GuidanceMessage] = []
+        logger.debug(f"RENDERER:replay:{message}")
+
+        widget = self.widgets.get(message.identifier, None)
+        if widget is None:
+            logger.debug(f"RENDERER:widget({message.identifier}) already gc")
+            return
+
+        widget_messages = self.widget_messages[widget]
+        out_messages.append(OutputRequestAckMessage())
+        out_messages.append(ResetDisplayMessage())
+        out_messages.extend(widget_messages)
+        widget_messages.clear()
+
+        for out_message in out_messages:
+            if isinstance(out_message, TraceMessage):
+                self.widget_to_trace_id[widget] = out_message.trace_id
+            widget_messages.append(out_message)
+            _put_nowait_queue(self.send_queue, (out_message, widget.model_id))
+
     def update(self, message: GuidanceMessage, topic=DEFAULT_TOPIC) -> None:
         out_messages: list[GuidanceMessage] = []
 
-        # Metrics
+        # Short-circuit for metrics
         if isinstance(message, MetricMessage):
             if not self._running:
                 return
 
-        if isinstance(message, ExecutionCompletedMessage):
-            # Execution completed
-            logger.debug("RENDERER:execution end")
-            self._completed = True
-            self._running = False
-
-            # Replay all messages on completion
-            out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages) :] = self._messages[:]
-            self._messages.clear()
-
-            if message.is_err:
-                out_messages.append(MetricMessage(name="status", value="Error"))
-            else:
-                out_messages.append(MetricMessage(name="status", value="Done"))
-        elif not self._running and isinstance(message, TraceMessage):
+        # Create new widget if not already running (first display when a cell starts execution)
+        if not self._running and isinstance(message, TraceMessage):
             # Execution started
-            logger.debug(f"RENDERER:execution start, currently have {len(self._messages)} stored messages")
-
             started_msg = ExecutionStartedMessage()
             out_messages.append(started_msg)
             out_messages.append(MetricMessage(name="status", value="Running"))
 
             logger.debug("RENDERER:new widget needed")
-            _, last_cell_session_id = ipy_handle_event_once(
-                partial(_on_cell_completion, weakref.ref(self)), "post_run_cell"
-            )
+            _, last_cell_session_id = ipy_handle_event_once(partial(_on_cell_completion, ref(self)), "post_run_cell")
             widget = _create_stitch_widget()
             widget_key = widget.model_id
+            widget_messages = []
+            if self.last_widget is not None:
+                last_widget = self.last_widget()
+                if last_widget is not None:
+                    widget_messages[:] = self.widget_messages[last_widget][:]
             self.widgets[widget_key] = widget
-            self._widget_to_trace_id[widget] = message.trace_id
+            self.widget_messages[widget] = widget_messages
+            self.widget_to_trace_id[widget] = message.trace_id
             self.last_widget_key = widget_key
+            self.last_widget = ref(widget)
 
-            self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self.recv_queue), widget_key)
-            widget.observe(self._stitch_on_clientmsg, names="clientmsg")
+            on_clientmsg = partial(_on_stitch_clientmsg, ref(self.recv_queue), widget_key)
+            widget.observe(on_clientmsg, names="clientmsg")
 
             # Redraw
             display(widget)
@@ -448,47 +461,56 @@ class JupyterWidgetRenderer(Renderer):
             # NOTE(nopdive): Fire off execution immediately to renderer subscribers. Review later.
             _put_nowait_queue(self.recv_queue, (serialize_message(started_msg), self.last_widget_key))
 
+        widget_messages = self.widget_messages[self.last_widget()]
+
+        # This is fired when the cell completes execution
+        if isinstance(message, ExecutionCompletedMessage):
+            # Execution completed
+            logger.debug("RENDERER:execution end")
+            self._completed = True
+            self._running = False
+
+            # Replay all messages on completion
+            out_messages.append(ResetDisplayMessage())
+            out_messages[len(out_messages) :] = widget_messages[:]
+            widget_messages.clear()
+
+            if message.is_err:
+                out_messages.append(MetricMessage(name="status", value="Error"))
+            else:
+                out_messages.append(MetricMessage(name="status", value="Done"))
+
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
         if diverged:
             logger.debug(f"RENDERER:diverged, shared ancestor idx: {shared_ancestor_idx}")
             out_messages.append(ResetDisplayMessage())
             if shared_ancestor_idx >= 0:
-                out_messages[len(out_messages) :] = self._messages[: shared_ancestor_idx + 1]
-                self._messages.clear()
+                out_messages[len(out_messages) :] = widget_messages[: shared_ancestor_idx + 1]
+                widget_messages.clear()
             else:
                 logger.debug("RENDERER:diverged, but no shared ancestor, replay")
                 # Reconstruct trace messages and replay from root
                 trace_messages = _trace_path_to_messages(message.trace_id)
                 out_messages.extend(trace_messages)
-                self._messages.clear()
-
-        # Check if requested to reset and replay
-        if isinstance(message, OutputRequestMessage):
-            logger.debug(f"RENDERER:replay:{message}")
-            out_messages.append(ResetDisplayMessage())
-            out_messages[len(out_messages) :] = self._messages[:]
+                widget_messages.clear()
 
         # Append current message to outgoing
         out_messages.append(message)
-        # logger.debug(
-        #     f"RENDERER:appending message {message.class_name}, will have {len(self._messages) + len(out_messages)} total messages"
-        # )
 
         # Send outgoing messages to client
+        widget = self.widgets[self.last_widget_key]
         for out_message in out_messages:
             if isinstance(out_message, TraceMessage):
-                # logger.debug(f"RENDERER:out:{out_message}")
-                self.last_trace_id = out_message.trace_id
-
-            self._messages.append(out_message)
+                self.widget_to_trace_id[widget] = out_message.trace_id
+            widget_messages.append(out_message)
+            _put_nowait_queue(self.send_queue, (out_message, self.last_widget_key))
 
             # Track for debug if enabled
             if self._debug_enabled:
                 self._debug_messages.append(out_message)
 
-            _put_nowait_queue(self.send_queue, (out_message, self.last_widget_key))
-
+    # TODO(nopdive): I'm not sure how we should debug here with the new changes, Nick to review.
     def enable_debug(self) -> None:
         """Enable debug mode in the widget to capture message history."""
 
