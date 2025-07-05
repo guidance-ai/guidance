@@ -107,6 +107,7 @@ def _create_stitch_widget() -> "StitchWidget":
 
 def _put_nowait_queue(queue: Queue, val: object) -> None:
     from ..registry import get_bg_async
+
     get_bg_async().call_soon_threadsafe(queue.put_nowait, val)
 
 
@@ -115,9 +116,9 @@ def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: 
 
     log_cleanup(log_msg)
     if send_queue is not None:
-        _put_nowait_queue(send_queue, None)
+        _put_nowait_queue(send_queue, (None, None))
     if recv_queue is not None:
-        _put_nowait_queue(recv_queue, None)
+        _put_nowait_queue(recv_queue, (None, None))
 
     get_exchange().unsubscribe(exchange_cb)
 
@@ -127,12 +128,11 @@ async def _create_queue() -> Queue:
     return Queue()
 
 
-def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], change: dict) -> None:
+def _on_stitch_clientmsg(recv_queue_weakref: weakref.ReferenceType["Queue"], identifier: str, change: dict) -> None:
     # NOTE(nopdive): Widget callbacks do not print to stdout/stderr nor module log.
     queue = recv_queue_weakref()
     if queue is not None:
-        _put_nowait_queue(queue, change["new"])
-
+        _put_nowait_queue(queue, (change["new"], identifier))
 
 
 def _on_cell_completion(renderer_weakref: weakref.ReferenceType["JupyterWidgetRenderer"], info) -> None:
@@ -163,8 +163,7 @@ async def _handle_recv_messages(
             queue = queue_weakref()
             if queue is None:
                 break
-            value = await queue.get()
-
+            value, identifier = await queue.get()
             # logger.debug(f"RECV:raw:{value}")
 
             if value is None:
@@ -180,7 +179,9 @@ async def _handle_recv_messages(
                 break
 
             if isinstance(message, OutputRequestMessage):
+                # Add identifier to message
                 logger.debug("RECV:outputrequest")
+                message.identifier = identifier
 
             get_exchange().publish(message, VISUAL_TOPIC)
 
@@ -210,15 +211,12 @@ async def _handle_send_messages(
             queue = queue_weakref()
             if queue is None:
                 break
-            message = await queue.get()
-            widget_key = None
+            message, identifier = await queue.get()
             # logger.debug(f"SEND:msg:{message}")
 
             if message is None:
                 logger.debug("SEND:closing")
                 break
-            elif isinstance(message, tuple):
-                message, widget_key = message
 
             message_json = serialize_message(message)
             # logger.debug(f"SEND:json:{message_json}")
@@ -227,7 +225,7 @@ async def _handle_send_messages(
             if renderer is None:
                 break
             if isinstance(renderer, JupyterWidgetRenderer):
-                widget_key = renderer.last_widget_key if widget_key is None else widget_key
+                widget_key = renderer.last_widget_key if identifier is None else identifier
                 if renderer.widgets.get(widget_key, None) is not None:
                     # NOTE(nopdive): This at random times, appears to fire two changes instead of one change event.
                     renderer.widgets[widget_key].kernelmsg = message_json
@@ -261,9 +259,7 @@ def _trace_path_to_messages(trace_id: int) -> list["TraceMessage"]:
             parent_trace_id = trace_handler.node_id_map[trace_node.parent]
 
         for input_attr in trace_node.input:
-            input_message = TraceMessage(
-                trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=input_attr
-            )
+            input_message = TraceMessage(trace_id=node_trace_id, parent_trace_id=parent_trace_id, node_attr=input_attr)
             messages.append(input_message)
 
         for output_attr in trace_node.output:
@@ -438,7 +434,7 @@ class JupyterWidgetRenderer(Renderer):
             self._widget_to_trace_id[widget] = message.trace_id
             self.last_widget_key = widget_key
 
-            self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self.recv_queue))
+            self._stitch_on_clientmsg = partial(_on_stitch_clientmsg, weakref.ref(self.recv_queue), widget_key)
             widget.observe(self._stitch_on_clientmsg, names="clientmsg")
 
             # Redraw
@@ -450,7 +446,7 @@ class JupyterWidgetRenderer(Renderer):
             self._completed = False
 
             # NOTE(nopdive): Fire off execution immediately to renderer subscribers. Review later.
-            _put_nowait_queue(self.recv_queue, serialize_message(started_msg))
+            _put_nowait_queue(self.recv_queue, (serialize_message(started_msg), self.last_widget_key))
 
         # Check if message has diverged from prev messages
         diverged, shared_ancestor_idx = self.has_divergence(message)
