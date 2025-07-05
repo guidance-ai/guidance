@@ -13,8 +13,12 @@ METRICS_TOPIC = "/metrics"
 # Trace topics
 TRACE_TOPIC = "/trace"
 
+# Visual topics
+VISUAL_TOPIC = "/visual"
+
 __all__ = [
     "DEFAULT_TOPIC",
     "METRICS_TOPIC",
     "TRACE_TOPIC",
+    "VISUAL_TOPIC",
 ]
