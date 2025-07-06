@@ -1,8 +1,8 @@
 <!-- Token(s) within token grid -->
 <script lang="ts">
-    import {type Token} from "./interfaces";
+    import {type FlatToken} from "./interfaces";
 
-    export let token: Token;
+    export let token: FlatToken;
     export let index: number;
     export let underlineStyle: string = "";
     export let bgStyle: string = "";

@@ -12,7 +12,7 @@ export interface MetricDef {
 
 export type MetricVal = string | number | Array<number | string>;
 
-export interface Token {
+export interface FlatToken {
     text: string,
     prob: number,
     latency_ms?: number,
@@ -22,9 +22,9 @@ export interface Token {
     role?: string,
     special?: boolean,
     is_masked?: boolean,
-    top_k?: Array<Token>
+    top_k?: Array<FlatToken>
 }
-export declare type TokenCallback = (token: Token) => string;
+export declare type TokenCallback = (token: FlatToken) => string;
 
 export interface MediaNodeContext {
     roleStack: RoleOpenerInput[];
@@ -41,5 +41,5 @@ export interface MediaNode {
 }
 
 export type MultimodalNode = 
-  | { type: 'token', data: Token }
+  | { type: 'token', data: FlatToken }
   | { type: 'media', data: MediaNode };
