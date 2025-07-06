@@ -15,7 +15,7 @@ export type MetricVal = string | number | Array<number | string>;
 export interface FlatToken {
     text: string,
     prob: number,
-    latency_ms?: number,
+    latency_ms: number,
     is_input?: boolean,
     is_force_forwarded?: boolean,
     is_generated?: boolean,

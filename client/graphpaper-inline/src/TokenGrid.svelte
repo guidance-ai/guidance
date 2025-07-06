@@ -288,6 +288,7 @@
                 text: t.bytes,
                 prob: t.prob,
                 is_masked: t.masked,
+                latency_ms: 0,
               })) : undefined,
             };
             specialSet.add(token.text);
@@ -311,6 +312,7 @@
                 text: t.bytes,
                 prob: t.prob,
                 is_masked: t.masked,
+                latency_ms: 0,
               })) : undefined,
             };
             // multimodalNodes.push({ type: "token", data: token });
@@ -353,6 +355,7 @@
                 text: t.bytes,
                 prob: t.prob,
                 is_masked: t.masked,
+                latency_ms: 0,
               })) : undefined,
             };
             statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
@@ -374,7 +377,7 @@
     } else if (underlineField === "Latency (ms)") {
       underline = (x: FlatToken) =>
         underlineStyle(
-          Math.log(x.latency_ms === undefined ? 0 : x.latency_ms) / Math.log(statCounter["latency.max"])
+          Math.log(x.latency_ms) / Math.log(statCounter["latency.max"])
         );
     } else {
       underline = (_: FlatToken) => "border: none;";
@@ -389,7 +392,7 @@
       bg = (x: FlatToken) => bgStyle(x.prob);
     } else if (bgField === "Latency (ms)") {
       bg = (x: FlatToken) =>
-        bgStyle(Math.log(x.latency_ms === undefined ? 0 : x.latency_ms) / Math.log(statCounter["latency.max"]));
+        bgStyle(Math.log(x.latency_ms) / Math.log(statCounter["latency.max"]));
       console.log(statCounter["latency.max"]);
     } else {
       bg = (_: FlatToken) => "";
