@@ -18,7 +18,7 @@
   import CustomVideo from "./CustomVideo.svelte";
   import TokenGridItem from "./TokenGridItem.svelte";
   import {
-    type Token,
+    type FlatToken,
     type TokenCallback,
     type MultimodalNode,
     type MediaType,
@@ -26,7 +26,7 @@
   import { longhover } from "./longhover";
   import DOMPurify from "dompurify";
 
-    import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
+  import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
 
   export let components: Array<NodeAttr>;
   export let isCompleted: boolean;
@@ -37,10 +37,10 @@
   export let backtrackCount: number = 0;
   export let resetCount: number = 0;
 
-  let underline: TokenCallback = (_: Token) => "";
-  let bg: TokenCallback = (_: Token) => "";
+  let underline: TokenCallback = (_: FlatToken) => "";
+  let bg: TokenCallback = (_: FlatToken) => "";
 
-  const tokenDisplayValue = (x: Token, s: string) => {
+  const tokenDisplayValue = (x: FlatToken, s: string) => {
     if (s === "Probability") {
       return x.prob?.toFixed(3);
     } else if (s === "Latency (ms)") {
@@ -108,7 +108,7 @@
     return `border-bottom-color: ${colorVal};`;
   };
 
-  const bgTokenStyle = (x: Token) => {
+  const bgTokenStyle = (x: FlatToken) => {
     let color = "";
     if (x.is_input) {
       color = "rgba(255, 255, 255, 0)";
@@ -170,7 +170,7 @@
   };
 
   let multimodalNodes: MultimodalNode[] = [];
-  let tokens: Array<Token> = [];
+  let tokens: Array<FlatToken> = [];
   let activeOpenerRoles: Array<RoleOpenerInput> = [];
   let activeCloserRoleText: Array<string> = [];
   let specialSet: Set<string> = new Set<string>();
@@ -274,33 +274,49 @@
             activeCloserRoleText[activeCloserRoleText.length - 1] ===
               nodeAttr.value
           ) {
-            const token: Token = {
+            const token: FlatToken = {
               text: nodeAttr.value,
               prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
-              latency_ms: 0,
+              latency_ms: nodeAttr.latency_ms,
               role: "",
               special: true,
               is_input: nodeAttr.is_input,
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.bytes,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
             specialSet.add(token.text);
             // TODO: handle interleaving tokens with multimodal data
             // multimodalNodes.push({ type: "token", data: token });
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token)
             activeCloserRoleText.pop();
           } else {
-            const token = {
+            const token: FlatToken = {
               text: nodeAttr.value,
               prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
-              latency_ms: 0,
+              latency_ms: nodeAttr.latency_ms,
               role: "",
               special: false,
               is_input: nodeAttr.is_input,
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.bytes,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
             // multimodalNodes.push({ type: "token", data: token });
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token);
           }
         } else {
@@ -325,16 +341,24 @@
               displayedRoles.add(roleKey);
             }
             
-            const token = {
+            const token: FlatToken = {
               text: nodeAttr.value, 
               prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0, 
-              latency_ms: 0, 
-              role: shouldShowRole ? (activeOpenerRole.name || "") : "", 
+              latency_ms: nodeAttr.latency_ms,
+              role: shouldShowRole ? (activeOpenerRole.name || "") : "",
               special: false,
               is_input: nodeAttr.is_input, 
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.bytes,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token);
           }
         }
@@ -347,31 +371,31 @@
 
     // Visual updates
     if (!isCompleted || isError) {
-      underline = (_: Token) => "border: none;";
+      underline = (_: FlatToken) => "border: none;";
     } else if (underlineField === "Probability") {
-      underline = (x: Token) => underlineStyle(x.prob);
+      underline = (x: FlatToken) => underlineStyle(x.prob);
     } else if (underlineField === "Latency (ms)") {
-      underline = (x: Token) =>
+      underline = (x: FlatToken) =>
         underlineStyle(
           Math.log(x.latency_ms) / Math.log(statCounter["latency.max"])
         );
     } else {
-      underline = (_: Token) => "border: none;";
+      underline = (_: FlatToken) => "border: none;";
     }
 
     if (!isCompleted || isError) {
       // bg = (_: Token) => "";
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x);
     } else if (bgField === "Type") {
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x);
     } else if (bgField === "Probability") {
-      bg = (x: Token) => bgStyle(x.prob);
+      bg = (x: FlatToken) => bgStyle(x.prob);
     } else if (bgField === "Latency (ms)") {
-      bg = (x: Token) =>
+      bg = (x: FlatToken) =>
         bgStyle(Math.log(x.latency_ms) / Math.log(statCounter["latency.max"]));
       console.log(statCounter["latency.max"]);
     } else {
-      bg = (_: Token) => "";
+      bg = (_: FlatToken) => "";
     }
 
     // End bookkeeping (svelte)
@@ -385,7 +409,7 @@
   let tooltip: HTMLElement;
   let tooltipX = 0;
   let tooltipY = 0;
-  let tooltipToken: Token;
+  let tooltipToken: FlatToken;
   const mouseLongHoverDuration = 200;
 
   const handleLongMouseOver = (event: CustomEvent<MouseEvent>) => {
