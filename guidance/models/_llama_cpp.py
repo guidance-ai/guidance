@@ -101,7 +101,9 @@ class LlamaCppEngine(Engine):
                 try:
                     with open(os.path.expanduser("~/.llama_cpp_model"), "r") as file:
                         model = file.read().replace("\n", "")
-                except OSError:
+                except FileNotFoundError:
+                    pass
+                except PermissionError:
                     pass
                 if len(model.strip()) == 0:
                     raise ValueError(

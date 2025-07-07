@@ -365,7 +365,9 @@ class TransformersEngine(Engine):
             try:
                 with open(os.path.expanduser("~/.transformers_model"), "r") as file:
                     model = file.read().replace("\n", "")
-            except OSError:
+            except FileNotFoundError:
+                pass
+            except PermissionError:
                 pass
 
         self.model_obj = self._model(model, **kwargs)
