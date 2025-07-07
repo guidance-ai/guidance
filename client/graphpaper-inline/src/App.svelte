@@ -38,12 +38,18 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import type { MetricVal } from './interfaces';
   // import { mockNodeAttrs } from './mocks';
 
+  let isDarkMode = false;
+  
   if (typeof window !== 'undefined') {
     console.log('[Guidance Widget] Setting up theme detection...');
+    
+    // Check if already in dark mode
+    isDarkMode = document.documentElement.classList.contains('dark');
     
     // Listen for theme messages from parent
     window.addEventListener('message', (event) => {
       if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
+        isDarkMode = true;
         document.documentElement.classList.add('dark');
         console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
       }
@@ -246,10 +252,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
         <!-- Controls -->
         <span class="flex mr-2">
-          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200 dark:bg-gray-700"
+          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200 dark:bg-transparent"
                   defaultValue={"Type"}
                   on:select={(selected) => bgField = selected.detail} />
-          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400 dark:border-gray-500"
+          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400 dark:border-gray-500 bg-transparent dark:bg-transparent"
                   defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
         </span>
         <!-- Metrics -->
@@ -269,6 +275,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
                backtrackCount={appState.backtrackCount}
-               resetCount={appState.resetCount} />
+               resetCount={appState.resetCount}
+               isDarkMode={isDarkMode} />
   </section>
 </div>

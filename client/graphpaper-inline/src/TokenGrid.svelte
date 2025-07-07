@@ -36,6 +36,7 @@
   export let underlineField: string = "Probability";
   export let backtrackCount: number = 0;
   export let resetCount: number = 0;
+  export let isDarkMode: boolean = false;
 
   let underline: TokenCallback = (_: Token) => "";
   let bg: TokenCallback = (_: Token) => "";
@@ -108,14 +109,15 @@
     return `border-bottom-color: ${colorVal};`;
   };
 
-  const bgTokenStyle = (x: Token) => {
+  const bgTokenStyle = (x: Token, darkMode: boolean) => {
     let color = "";
+    
     if (x.is_input) {
       color = "rgba(255, 255, 255, 0)";
     } else if (x.is_force_forwarded) {
-      color = "rgba(243, 244, 246, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(243, 244, 246, 1)";
     } else if (x.is_generated) {
-      color = "rgba(229, 231, 235, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(229, 231, 235, 1)";
     } else {
       // console.log(`ERROR: token ${x.text} does not have emit flags.`);
       // Make slightly off white for error detection without console spam
@@ -361,9 +363,9 @@
 
     if (!isCompleted || isError) {
       // bg = (_: Token) => "";
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: Token) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Type") {
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: Token) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Probability") {
       bg = (x: Token) => bgStyle(x.prob);
     } else if (bgField === "Latency (ms)") {
@@ -510,13 +512,13 @@
 <!-- Tooltip -->
 <div
   bind:this={tooltip}
-  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white dark:bg-gray-800 shadow border border-gray-300 dark:border-gray-600 pointer-events-none z-50"
+  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white dark:bg-[#5A5F72] shadow border border-gray-300 dark:border-gray-600 pointer-events-none z-50"
   style="top: {tooltipY}px; left: {tooltipX}px; display: none;"
 >
   <div>
     {#if tooltipToken}
       <div class={`col-1 flex flex-col items-center`}>
-        <div class="text-2xl px-1 pb-1 text-left w-full bg-white dark:bg-gray-800">
+        <div class="text-2xl px-1 pb-1 text-left w-full bg-white dark:bg-[#5A5F72] dark:text-white">
           <div class="mb-5 mt-1">
             <TokenGridItem
               token={tooltipToken}
@@ -526,7 +528,7 @@
             />
           </div>
           <table class="w-full">
-            <tbody class="text-xs tracking-wider">
+            <tbody class="text-xs tracking-wider dark:text-white">
               {#if bgField !== "None"}
                 <tr>
                   <td>
@@ -534,7 +536,7 @@
                       {bgField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span class="pl-1">
                       {tokenDisplayValue(tooltipToken, bgField) ?? "None"}
                     </span>
@@ -548,7 +550,7 @@
                       {underlineField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span>
                       {tokenDisplayValue(tooltipToken, underlineField) ?? "None"}
                     </span>
@@ -564,12 +566,12 @@
             <thead>
               <tr>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 dark:text-gray-300 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 dark:text-white tracking-wide`}
                 >
                   Candidate
                 </th>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 dark:text-gray-300 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 dark:text-white tracking-wide`}
                 >
                   Prob
                 </th>
