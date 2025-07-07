@@ -260,16 +260,12 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if sampling_params.get("repetition_penalty", None) is not None:
                 raise ValueError("OpenAI models do not support repetition_penalty sampling.")
 
-        extra_kwargs = {}
-        if self.log_probs:
-            extra_kwargs["top_logprobs"] = self.top_k
-
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
-            log_probs=self.log_probs,
+            logprobs=self.log_probs,
+            top_logprobs=self.top_k if self.log_probs else None,
             **kwargs,
-            **extra_kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks)
 
