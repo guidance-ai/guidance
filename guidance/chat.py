@@ -101,7 +101,7 @@ class ChatMLTemplate(ChatTemplate):
     def get_role_start(self, role_name):
         return f"<|im_start|>{role_name}\n"
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|im_end|>\n"
 
 
@@ -164,7 +164,7 @@ class Llama3ChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|eot_id|>"
 
 
@@ -192,7 +192,7 @@ class Phi3MiniChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|end|>\n"
 
 
@@ -220,7 +220,7 @@ class Phi3SmallMediumChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|end|>\n"
 
 
@@ -242,7 +242,7 @@ class Phi4MiniChatTemplate(ChatTemplate):
     def get_role_start(self, role_name):
         return f"<|{role_name}|>"
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|end|>"
 
 
@@ -334,7 +334,7 @@ class Qwen2dot5ChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|im_end|>\n"
 
 
@@ -359,7 +359,7 @@ class Qwen3ChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|im_end|>\n"
 
 
@@ -391,7 +391,7 @@ class Llama3dot2ChatTemplate(ChatTemplate):
         else:
             raise UnsupportedRoleException(role_name, self)
 
-    def get_role_end(self, role_name=None):
+    def get_role_end(self, role_name=None):  # noqa ARG002
         return "<|eot_id|>"
 
 
