@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput, SamplingParams
+from .._schema import GenTokenExtra, SamplingParams
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
@@ -101,7 +101,7 @@ class MockEngine(Engine):
         k: int = 1,
         force_return_unmasked_probs: bool = False,
         sampling_params: Optional[SamplingParams] = None,
-    ) -> EngineOutput:
+    ) -> GenTokenExtra:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
             logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params

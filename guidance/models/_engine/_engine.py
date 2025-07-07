@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import EngineOutput, EngineResponse, GenToken, SamplingParams, TokenUsage
+from ..._schema import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage
 from ..._utils import apply_min_p_filter, apply_repetition_penalty, apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
@@ -114,12 +114,12 @@ class Engine(ABC):
         )
 
         last_temperature = 1.0
-        engine_output = None
+        issued_token: Optional[GenToken] = None
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
             recode = False
-            if engine_output is None:
+            if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
                     prompt_tokens=tokens,
                     ensure_bos_token=ensure_bos_token,
@@ -128,7 +128,7 @@ class Engine(ABC):
                     tokens = prefix_tokens + tokens
                     recode = True
             else:
-                backtrack, ff_tokens, mask_fut = parser.advance(token_id=engine_output.issued_token.token_id)
+                backtrack, ff_tokens, mask_fut = parser.advance(token_id=issued_token.token_id)
 
             if backtrack:
                 backtracked_bytes = self.tokenizer.decode(tokens[-backtrack:])
@@ -150,11 +150,7 @@ class Engine(ABC):
             # and we have a pending stop
             if parser.has_pending_stop() and (
                 (not ff_tokens)
-                or (
-                    len(ff_tokens) == 1
-                    and engine_output is not None
-                    and ff_tokens[0] == engine_output.issued_token.token_id
-                )
+                or (len(ff_tokens) == 1 and issued_token is not None and ff_tokens[0] == issued_token.token_id)
             ):
                 logits = None
                 logits_lat_ms = 0.0
@@ -206,7 +202,7 @@ class Engine(ABC):
                 ff_lat_ms -= logits_lat_ms
 
             gen_tokens = []
-            if engine_output is None:
+            if issued_token is None:
                 # Note: intentionally not counting ff_tokens here, as we're counting these
                 # all just as input tokens
                 for i, token_id in enumerate(ff_tokens):
@@ -220,15 +216,15 @@ class Engine(ABC):
                         )
                     )
             else:
-                gen_tokens.append(engine_output.issued_token)
-                if backtrack or ff_tokens[:1] != [engine_output.issued_token.token_id]:
-                    engine_output.issued_token.is_backtracked = True
+                gen_tokens.append(issued_token)
+                if backtrack or ff_tokens[:1] != [issued_token.token_id]:
+                    issued_token.is_backtracked = True
                     ff_start_index = 0
                 else:
                     ff_start_index = 1
                 ff_tokens = ff_tokens[ff_start_index:]
 
-                # Just update ff tokens here -- usage for engine_output has already been
+                # Just update ff tokens here -- usage for issued_token has already been
                 # handled where we got logits above
                 usage.ff_tokens += len(ff_tokens)
                 for i, token_id in enumerate(ff_tokens, start=ff_start_index):
@@ -285,7 +281,7 @@ class Engine(ABC):
             else:
                 mask_for_sampling = mask
 
-            engine_output = self.get_next_token_with_top_k(
+            issued_token = self.get_next_token_with_top_k(
                 logits=logits[-1, :],
                 logits_lat_ms=logits_lat_ms,
                 token_ids=tokens,
@@ -297,10 +293,10 @@ class Engine(ABC):
             )
             last_temperature = ll_response.temperature
 
-            if can_finish_early and not mask[engine_output.issued_token.token_id]:
+            if can_finish_early and not mask[issued_token.token_id]:
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
-                engine_output.issued_token.token_id = self.tokenizer.eos_token_id
+                issued_token.token_id = self.tokenizer.eos_token_id
 
         usage.total_latency_ms += (time.time() - _t0) * 1000
         return usage
@@ -315,7 +311,7 @@ class Engine(ABC):
         k: int = 5,
         force_return_unmasked_probs: bool = False,
         sampling_params: Optional[SamplingParams] = None,
-    ) -> EngineOutput:
+    ) -> GenTokenExtra:
         """Get the next token and associated top-k tokens from the engine.
 
         Parameters
@@ -345,86 +341,87 @@ class Engine(ABC):
             The output from the model.
         """
 
-        def get_top_k(_probs: NDArray, _k: int = 5) -> list[GenToken]:
+        def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
             top_k_indices = _probs.argpartition(-_k)[-_k:]
-            top_k_probs = _probs[top_k_indices]
-
-            top_k_tokens = [
-                GenToken(
-                    token_id=token,
-                    prob=prob,
-                    bytes=self.tokenizer.decode([token]),
-                    latency_ms=logits_lat_ms,
-                    is_generated=True,
-                )
-                for token, prob in zip(top_k_indices, top_k_probs)
-                if prob > 0
-            ]
             # Sort by probability in descending order, as above argpartition
             # does not guarantee order. Sorting the smaller array is faster.
-            return sorted(top_k_tokens, key=lambda x: x.prob, reverse=True)
+            return sorted(top_k_indices, key=lambda idx: _probs[idx], reverse=True)
 
-        # compute top-k without masking
-        filtered_logits = np.array(logits)
-        filtered_logits = apply_repetition_penalty(token_ids, filtered_logits, sampling_params)
-        filtered_logits = filtered_logits if temperature < _TEMPERATURE_EPSILON else filtered_logits / temperature
-        filtered_logits = apply_min_p_filter(filtered_logits, sampling_params)
-        filtered_logits = apply_top_k_and_top_p_filter(filtered_logits, sampling_params)
+        def apply_temp_and_sampling_params(
+            _logits: NDArray,
+            _sampling_params: Optional[SamplingParams],
+        ) -> NDArray:
+            """Apply the sampling parameters to the logits."""
+            if _sampling_params is None:
+                return _logits
+            _logits = apply_repetition_penalty(token_ids, _logits, _sampling_params)
+            _logits = _logits if temperature < _TEMPERATURE_EPSILON else _logits / temperature
+            _logits = apply_min_p_filter(_logits, _sampling_params)
+            _logits = apply_top_k_and_top_p_filter(_logits, _sampling_params)
+            return _logits
+
+        # TODO: only get unmasked probs if we're either echoing or if we have no mask
+        filtered_logits = apply_temp_and_sampling_params(logits, sampling_params)
         probs = softmax(filtered_logits)
 
-        top_k: list[GenToken] = []
+        top_k: list[int] = []
         if force_return_unmasked_probs:
+            # compute top-k without masking
             top_k = get_top_k(probs, k)
 
         # compute top-k with masking
-        masked_top_k: list[GenToken] = []
+        masked_top_k: list[int] = []
+        masked_probs: Optional[NDArray] = None
         if mask is not None:
             mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(mask != 0, logits, -np.inf)
-
-            if temperature < _TEMPERATURE_EPSILON:
-                masked_logits = np.where(masked_logits == np.max(masked_logits), 0, -np.inf)
-            else:
-                masked_logits /= temperature
-
-            masked_logits = apply_min_p_filter(masked_logits, sampling_params)
-            masked_logits = apply_top_k_and_top_p_filter(masked_logits, sampling_params)
-
-            masked_probs = softmax(masked_logits)
-            masked_top_k = get_top_k(masked_probs, k)
+            filtered_masked_logits = apply_temp_and_sampling_params(masked_logits, sampling_params)
+            masked_probs = softmax(filtered_masked_logits)
+            masked_top_k = get_top_k(masked_probs, max(k, 1))  # Ensure at least one token is returned
 
         if temperature < _TEMPERATURE_EPSILON:
-            if len(masked_top_k) > 0:
+            # Greedy sampling
+            if mask is not None:
+                assert len(masked_top_k) > 0, "Masked top-k should not be empty when mask is provided"
                 issued_token = masked_top_k[0]
             else:
                 if len(top_k) == 0:
-                    top_k = get_top_k(probs, k)
+                    top_k = get_top_k(probs, 1)
                 issued_token = top_k[0]
         else:
-            # we need to sample from the probabilities
+            # We need to sample from the probabilities
             if mask is None:
-                sampled_index = np.random.choice(len(probs), p=probs)
-                sampled_prob = probs[sampled_index]
+                issued_token = np.random.choice(len(probs), p=probs)
             else:
-                sampled_index = np.random.choice(len(masked_probs), p=masked_probs)
-                sampled_prob = masked_probs[sampled_index]
+                assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
+                issued_token = np.random.choice(len(masked_probs), p=masked_probs)
 
-            issued_token = GenToken(
-                token_id=sampled_index,
-                prob=sampled_prob,
-                bytes=self.tokenizer.decode([sampled_index]),
+        top_k_tokens = [
+            GenToken(
+                token_id=token_id,
+                prob=prob,
+                bytes=self.tokenizer.decode([token_id]),
                 latency_ms=logits_lat_ms,
                 is_generated=True,
+                is_masked=mask is not None and mask[token_id] == 0,
             )
+            for token_id in masked_top_k + top_k
+            # Use unmasked probs always
+            if (prob := probs[token_id]) > 0
+            # Exclude the issued token from the top-k list
+            and token_id != issued_token
+        ]
+        top_k_tokens = sorted(top_k_tokens, key=lambda t: t.prob, reverse=True)[:k]
 
-        output = EngineOutput(
-            issued_token=issued_token,
-            top_k=top_k,
-            masked_top_k=None if not masked_top_k else masked_top_k,
-            is_backtracked=False,
+        return GenTokenExtra(
+            token_id=issued_token,
+            # Use unmasked probs always (TODO: maybe we can avoid it if echo=False?)
+            prob=probs[issued_token],
+            bytes=self.tokenizer.decode([issued_token]),
+            latency_ms=logits_lat_ms,
+            is_generated=True,
+            top_k=top_k_tokens,
         )
-
-        return output
 
     @abstractmethod
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
