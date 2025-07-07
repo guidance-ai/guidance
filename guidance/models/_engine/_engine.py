@@ -408,8 +408,6 @@ class Engine(ABC):
             for token_id in masked_top_k + top_k
             # Use unmasked probs always
             if (prob := float(probs[token_id])) > 0
-            # Exclude the issued token from the top-k list
-            and token_id != issued_token
         ]
         top_k_tokens = sorted(top_k_tokens, key=lambda t: t.prob, reverse=True)[:k]
 

@@ -285,7 +285,7 @@
               is_generated: nodeAttr.is_generated,
               is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
               top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
-                text: t.bytes,
+                text: t.token,
                 prob: t.prob,
                 is_masked: t.masked,
                 latency_ms: 0,
@@ -309,7 +309,7 @@
               is_generated: nodeAttr.is_generated,
               is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
               top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
-                text: t.bytes,
+                text: t.token,
                 prob: t.prob,
                 is_masked: t.masked,
                 latency_ms: 0,
@@ -342,8 +342,8 @@
             }
             
             const token: FlatToken = {
-              text: nodeAttr.value, 
-              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0, 
+              text: nodeAttr.value,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
               latency_ms: nodeAttr.latency_ms,
               role: shouldShowRole ? (activeOpenerRole.name || "") : "",
               special: false,
@@ -352,7 +352,7 @@
               is_generated: nodeAttr.is_generated,
               is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
               top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
-                text: t.bytes,
+                text: t.token,
                 prob: t.prob,
                 is_masked: t.masked,
                 latency_ms: 0,
