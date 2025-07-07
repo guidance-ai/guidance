@@ -20,7 +20,7 @@ from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.9"]
+llamacpp_requires = ["llama-cpp-python==0.3.12"]
 transformers_requires = ["transformers==4.51.3"]
 
 install_requires = [
@@ -29,7 +29,7 @@ install_requires = [
     "requests",
     "psutil",
     "guidance-stitch==0.1.5",
-    "llguidance==0.7.26",
+    "llguidance==1.0.1",
 ]
 
 # Our basic list of 'extras'

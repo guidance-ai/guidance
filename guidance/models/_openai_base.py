@@ -198,6 +198,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
     log_probs: bool = True
+    # TODO: have top-k be passed programmatically and only if echo=True
+    top_k: Optional[int] = 5
 
     def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
         super().__init__(state=OpenAIState())
@@ -262,6 +264,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             model=self.model,
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
             log_probs=self.log_probs,
+            top_logprobs=self.top_k if self.log_probs else None,
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks)
@@ -318,7 +321,6 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 bytes=b"" if token.bytes is None else base64.b64encode(bytes(token.bytes)),
                                 prob=2.718**token.logprob,
                             ),
-                            # TODO: actually request the top logprobs
                             top_k=[
                                 Token(
                                     token=tok.token,
