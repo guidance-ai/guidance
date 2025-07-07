@@ -208,7 +208,8 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
         raise AssertionError("lm mismatches jinja template", str(lm), str(jinja2_render))
 
 
-def test_top_p_top_k_filtering():
+@pytest.mark.parametrize(["top_k", "top_p"], [[64, 0.95], [128, 0.9], [256, 0.85], [512, 0.8]])
+def test_top_p_top_k_filtering(top_k: int, top_p: float):
     import numpy as np
     import torch
     from transformers.generation.logits_process import TopKLogitsWarper, TopPLogitsWarper
@@ -219,14 +220,12 @@ def test_top_p_top_k_filtering():
     logits = torch.randn((1, 1000))
 
     # apply top_k filtering
-    top_k = 64
     top_k_warp = TopKLogitsWarper(top_k)
     transformers_logits = top_k_warp(None, logits)[0].numpy()
     guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_k": top_k})
     assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k filtering"
 
     # apply top_p filtering
-    top_p = 0.9
     top_p_warp = TopPLogitsWarper(top_p)
     transformers_logits = top_p_warp(None, logits)[0].numpy()
     guidance_logits = apply_top_k_and_top_p_filter(logits[0].numpy(), {"top_p": top_p})
@@ -238,7 +237,8 @@ def test_top_p_top_k_filtering():
     assert np.all(transformers_logits == guidance_logits), "Logits do not match after top_k and top_p filtering"
 
 
-def test_min_p_filtering():
+@pytest.mark.parametrize("min_p", [0.0, 0.1, 1.0])
+def test_min_p_filtering(min_p: float):
     import numpy as np
     import torch
     from transformers.generation.logits_process import MinPLogitsWarper
@@ -249,14 +249,14 @@ def test_min_p_filtering():
     logits = torch.randn((1, 1000))
 
     # apply min_p filtering
-    min_p = 0.1
     min_p_warp = MinPLogitsWarper(min_p)
     transformers_logits = min_p_warp(None, logits)[0].numpy()
     guidance_logits = apply_min_p_filter(logits[0].numpy(), {"min_p": min_p})
     assert np.all(transformers_logits == guidance_logits), "Logits do not match after min_p filtering"
 
 
-def test_repetition_penalty_filtering():
+@pytest.mark.parametrize("repetition_penalty", [0.8, 1.0, 1.2])
+def test_repetition_penalty_filtering(repetition_penalty: float):
     import numpy as np
     import torch
     from transformers import AutoTokenizer
@@ -270,7 +270,6 @@ def test_repetition_penalty_filtering():
     inputs = tokenizer(["I'm not going to be able to do that. I'm going to be able to do that"], return_tensors="pt")
     logits = torch.randn((1, tokenizer.vocab_size))
 
-    repetition_penalty = 1.2
     warp = RepetitionPenaltyLogitsProcessor(repetition_penalty)
     transformers_logits = warp(inputs["input_ids"], logits)[0].numpy()
     guidance_logits = apply_repetition_penalty(
