@@ -403,11 +403,11 @@ class Engine(ABC):
                 bytes=self.tokenizer.decode([token_id]),
                 latency_ms=logits_lat_ms,
                 is_generated=True,
-                is_masked=mask is not None and mask[token_id] == 0,
+                is_masked=mask is not None and bool(mask[token_id] == 0),
             )
             for token_id in masked_top_k + top_k
             # Use unmasked probs always
-            if (prob := probs[token_id]) > 0
+            if (prob := float(probs[token_id])) > 0
             # Exclude the issued token from the top-k list
             and token_id != issued_token
         ]
@@ -416,7 +416,7 @@ class Engine(ABC):
         return GenTokenExtra(
             token_id=issued_token,
             # Use unmasked probs always (TODO: maybe we can avoid it if echo=False?)
-            prob=probs[issued_token],
+            prob=float(probs[issued_token]),
             bytes=self.tokenizer.decode([issued_token]),
             latency_ms=logits_lat_ms,
             is_generated=True,
