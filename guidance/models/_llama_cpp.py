@@ -174,7 +174,8 @@ class LlamaCppEngine(Engine):
             num_cached = num_cached - 1
 
         # clear obsolete parts of kv cache
-        llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
+        kv = llama_cpp.llama_get_memory(self.model_obj.ctx)
+        llama_cpp.llama_memory_seq_rm(kv, -1, num_cached, -1)
 
         # eval the model
         logits_for_each_batch: list[np.ndarray] = []
