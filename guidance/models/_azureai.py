@@ -167,7 +167,7 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
             body={
                 "model": model,
                 "messages": messages,
-                "log_probs": log_probs,
+                "logprobs": log_probs,
                 "stream": True,
                 **kwargs,
             },

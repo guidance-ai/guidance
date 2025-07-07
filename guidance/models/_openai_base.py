@@ -263,7 +263,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
-            logprobs=self.log_probs,
+            log_probs=self.log_probs,
             top_logprobs=self.top_k if self.log_probs else None,
             **kwargs,
         ) as chunks:
