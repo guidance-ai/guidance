@@ -571,7 +571,7 @@ class TransformersEngine(Engine):
                 # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
                 logits_for_each_batch.append(model_out.logits[0, :, : self.tokenizer._vocab_size].float().cpu().numpy())
             except AssertionError:
-                for _, new_token_id in enumerate(new_token_ids):
+                for new_token_id in new_token_ids:
                     input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
 
                     model_out = self.model_obj(
