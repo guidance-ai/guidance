@@ -3,7 +3,7 @@ import requests
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 from guidance import assistant, gen, gen_audio, image, models, system, user
-from guidance.models._azureai import create_azure_openai_model
+from guidance.models import create_azure_openai_model
 
 from ..model_specific import common_chat_testing
 from ..utils import env_or_skip, slowdown

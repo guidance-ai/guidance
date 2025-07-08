@@ -1,7 +1,7 @@
 from .._ast import GrammarNode, RuleNode
 from .._grammar import regex, subgrammar
 
-__all__ = ["subgrammar", "regex", "as_regular_grammar", "lexeme"]
+__all__ = ["as_regular_grammar", "lexeme", "regex", "subgrammar"]
 
 
 def as_regular_grammar(node: GrammarNode, lexeme=False):

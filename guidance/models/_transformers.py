@@ -147,7 +147,9 @@ class TransformersTokenizer(Tokenizer):
             try:
                 cls._check_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
             except ByteDecoderError as e:
-                warnings.warn(f"Tokenizer has a byte_decoder, but it can't be used to construct byte_tokens: {e}")
+                warnings.warn(
+                    f"Tokenizer has a byte_decoder, but it can't be used to construct byte_tokens: {e}", stacklevel=1
+                )
                 pass
             else:
                 return cls._byte_tokens_from_byte_decoder(transformers_tokenizer.byte_decoder, transformers_tokenizer)
@@ -158,7 +160,9 @@ class TransformersTokenizer(Tokenizer):
         try:
             return cls._byte_tokens_by_encoding_token_strings(transformers_tokenizer)
         except ValueError as e:
-            warnings.warn(f"Could not build_byte tokens from the tokenizer by encoding token strings: {e}")
+            warnings.warn(
+                f"Could not build_byte tokens from the tokenizer by encoding token strings: {e}", stacklevel=1
+            )
             pass
 
         fallback_byte_decoder = cls._fallback_byte_decoder()
@@ -361,7 +365,9 @@ class TransformersEngine(Engine):
             try:
                 with open(os.path.expanduser("~/.transformers_model"), "r") as file:
                     model = file.read().replace("\n", "")
-            except:
+            except FileNotFoundError:
+                pass
+            except PermissionError:
                 pass
 
         self.model_obj = self._model(model, **kwargs)
@@ -494,7 +500,7 @@ class TransformersEngine(Engine):
             ):
                 # The __init__ API isn't consistent between different cache types, but there seems to be consistency
                 # between these two types, so we can use the same logic for both.
-                warnings.warn("Cache is too small. Re-initializing cache with larger size.")
+                warnings.warn("Cache is too small. Re-initializing cache with larger size.", stacklevel=1)
                 cache_type = type(past_key_values)
                 config = self.model_obj.config
                 device = self.model_obj.device
@@ -511,7 +517,8 @@ class TransformersEngine(Engine):
                 )
             else:
                 warnings.warn(
-                    f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)})."
+                    f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)}).",
+                    stacklevel=1,
                 )
                 self._past_key_values = None
             past_length = 0
@@ -525,7 +532,8 @@ class TransformersEngine(Engine):
                     self._past_key_values.crop(num_cached)
                 else:
                     warnings.warn(
-                        f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache."
+                        f"Cropping unsupported for cache type: {type(self._past_key_values)}. Resetting cache.",
+                        stacklevel=1,
                     )
                     if hasattr(self._past_key_values, "reset"):
                         # Use built-in reset method if available to avoid constructing/allocating a new cache
@@ -563,7 +571,7 @@ class TransformersEngine(Engine):
                 # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
                 logits_for_each_batch.append(model_out.logits[0, :, : self.tokenizer._vocab_size].float().cpu().numpy())
             except AssertionError:
-                for i, new_token_id in enumerate(new_token_ids):
+                for new_token_id in new_token_ids:
                     input_ids = torch.tensor([new_token_id]).unsqueeze(0).to(self.device)
 
                     model_out = self.model_obj(

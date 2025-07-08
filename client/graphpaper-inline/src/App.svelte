@@ -16,7 +16,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
     isImageOutput,
-    isMetricMessage,
+    isMetricMessage, isOutputRequestAckMessage,
     isResetDisplayMessage,
     isRoleCloserInput,
     isRoleOpenerInput,
@@ -127,6 +127,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
+    } else if (isOutputRequestAckMessage(msg)) {
+      appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
       // Do nothing -- server will handle replay.
     } else if (isResetDisplayMessage(msg)) {
@@ -223,17 +225,12 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
   };
 
-  let showErrorMsg = false;
   onMount(() => {
     const msg: StitchMessage = {
       type: 'init_stitch',
       content: ''
     };
     clientmsg.set(msg);
-
-    requestAnimationFrame(() => {
-      showErrorMsg = true;
-    })
 
     setTimeout(requestOutputIfNoMessages, 200 * 2);
   });

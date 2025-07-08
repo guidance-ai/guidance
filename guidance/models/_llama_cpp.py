@@ -101,7 +101,9 @@ class LlamaCppEngine(Engine):
                 try:
                     with open(os.path.expanduser("~/.llama_cpp_model"), "r") as file:
                         model = file.read().replace("\n", "")
-                except:
+                except FileNotFoundError:
+                    pass
+                except PermissionError:
                     pass
                 if len(model.strip()) == 0:
                     raise ValueError(
@@ -116,7 +118,7 @@ class LlamaCppEngine(Engine):
             # patch over https://github.com/abetlen/llama-cpp-python/issues/729
             try:
                 sys.stdout.fileno()
-            except:
+            except:  # noqa BLE001
                 logger.warning(
                     "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
                 )
@@ -174,7 +176,8 @@ class LlamaCppEngine(Engine):
             num_cached = num_cached - 1
 
         # clear obsolete parts of kv cache
-        llama_cpp.llama_kv_cache_seq_rm(self.model_obj.ctx, -1, num_cached, -1)
+        kv = llama_cpp.llama_get_memory(self.model_obj.ctx)
+        llama_cpp.llama_memory_seq_rm(kv, -1, num_cached, -1)
 
         # eval the model
         logits_for_each_batch: list[np.ndarray] = []
@@ -225,7 +228,6 @@ class LlamaCpp(Model):
         model=None,
         echo=True,
         compute_log_probs=False,
-        api_key=None,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,

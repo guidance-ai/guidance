@@ -4,7 +4,7 @@ import wave
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, Optional, Union, cast
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -163,7 +163,7 @@ class BaseOpenAIClientWrapper(ABC):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
+        messages: list[dict[str, Any]],
         log_probs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
@@ -178,7 +178,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
+        messages: list[dict[str, Any]],
         log_probs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
@@ -186,7 +186,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
 
         return self.client.chat.completions.create(
             model=model,
-            messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
+            messages=messages,
             logprobs=log_probs,
             stream=True,
             stream_options={"include_usage": True},
@@ -198,6 +198,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
     log_probs: bool = True
+    # TODO: have top-k be passed programmatically and only if echo=True
+    top_k: Optional[int] = 5
 
     def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
         super().__init__(state=OpenAIState())
@@ -255,10 +257,14 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             if sampling_params.get("min_p", None) is not None:
                 raise ValueError("OpenAI models do not support min_p sampling.")
 
+            if sampling_params.get("repetition_penalty", None) is not None:
+                raise ValueError("OpenAI models do not support repetition_penalty sampling.")
+
         with self.client.streaming_chat_completions(
             model=self.model,
-            messages=self.state.messages,
+            messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
             log_probs=self.log_probs,
+            top_logprobs=self.top_k if self.log_probs else None,
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks)
@@ -315,7 +321,6 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 bytes=b"" if token.bytes is None else base64.b64encode(bytes(token.bytes)),
                                 prob=2.718**token.logprob,
                             ),
-                            # TODO: actually request the top logprobs
                             top_k=[
                                 Token(
                                     token=tok.token,
@@ -324,6 +329,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 )
                                 for tok in token.top_logprobs
                             ],
+                            is_generated=True,
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
