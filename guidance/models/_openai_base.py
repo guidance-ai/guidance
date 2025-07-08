@@ -197,7 +197,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
-    log_probs: bool = True
+    logprobs: bool = True
     # TODO: have top-k be passed programmatically and only if echo=True
     top_k: Optional[int] = 5
 
@@ -263,8 +263,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
-            logprobs=self.log_probs,
-            top_logprobs=self.top_k if self.log_probs else None,
+            logprobs=self.logprobs,
+            top_logprobs=self.top_k if self.logprobs else None,
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks)
@@ -500,7 +500,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
 
 class OpenAIAudioMixin(BaseOpenAIInterpreter):
     # Audio models don't support logprobs
-    log_probs: bool = False
+    logprobs: bool = False
 
     def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node

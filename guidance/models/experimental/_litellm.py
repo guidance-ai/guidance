@@ -76,7 +76,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
         # Disable log_probs for any remote endpoints by default.
         # Otherwise, generation will fail for some endpoints.
-        self.log_probs = False
+        self.logprobs = False
 
         super().__init__(model=self.model, client=self.client, **kwargs)
 
