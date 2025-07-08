@@ -160,14 +160,14 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
         self,
         model: str,
         messages: list[dict[str, Any]],
-        log_probs: Optional[int] = None,
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         request = self.client.complete(
             body={
                 "model": model,
                 "messages": messages,
-                "log_probs": log_probs,
+                "logprobs": logprobs,
                 "stream": True,
                 **kwargs,
             },

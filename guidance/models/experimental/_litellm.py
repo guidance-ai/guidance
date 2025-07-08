@@ -21,7 +21,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
         self,
         model: str,
         messages: list[dict[str, Any]],
-        log_probs: bool,
+        logprobs: bool,
         **kwargs,
     ) -> Iterator["ChatCompletionChunk"]:
         """Wrapped completion call within a context manager."""
@@ -29,7 +29,7 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
         stream_wrapper = self.router.completion(
             model=model,
             messages=messages,
-            logprobs=log_probs,
+            logprobs=logprobs,
             **kwargs,
         )
 
@@ -45,14 +45,14 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
         self,
         model: str,
         messages: list[dict[str, Any]],
-        log_probs: bool,
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
         return self._wrapped_completion(
             model=model,
             messages=messages,
-            log_probs=log_probs,
+            logprobs=logprobs,
             **kwargs,
         )  # type: ignore[return-value]
 
@@ -76,7 +76,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
         # Disable log_probs for any remote endpoints by default.
         # Otherwise, generation will fail for some endpoints.
-        self.log_probs = False
+        self.logprobs = False
 
         super().__init__(model=self.model, client=self.client, **kwargs)
 
