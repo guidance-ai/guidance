@@ -164,7 +164,7 @@ class BaseOpenAIClientWrapper(ABC):
         self,
         model: str,
         messages: list[dict[str, Any]],
-        log_probs: bool,
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
@@ -179,7 +179,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         self,
         model: str,
         messages: list[dict[str, Any]],
-        log_probs: bool,
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
@@ -187,7 +187,7 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
         return self.client.chat.completions.create(
             model=model,
             messages=messages,
-            logprobs=log_probs,
+            logprobs=logprobs,
             stream=True,
             stream_options={"include_usage": True},
             **kwargs,
@@ -263,7 +263,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         with self.client.streaming_chat_completions(
             model=self.model,
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
-            log_probs=self.log_probs,
+            logprobs=self.log_probs,
             top_logprobs=self.top_k if self.log_probs else None,
             **kwargs,
         ) as chunks:
