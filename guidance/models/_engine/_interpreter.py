@@ -66,7 +66,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             state=self.state,
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
-            echo=False,
+            echo=True,  # TODO: don't echo unless we're in visual context
             sampling_params=kwargs.pop("sampling_params", None),
         )
 
