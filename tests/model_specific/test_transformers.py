@@ -208,7 +208,7 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
         raise AssertionError("lm mismatches jinja template", str(lm), str(jinja2_render))
 
 
-@pytest.mark.parametrize(["top_k", "top_p"], [[64, 0.95], [128, 0.9], [256, 0.85], [512, 0.8]])
+@pytest.mark.parametrize(["top_k", "top_p"], [[64, 0.0], [128, 0.9], [256, 1.0]])
 def test_top_p_top_k_filtering(top_k: int, top_p: float):
     import numpy as np
     import torch
