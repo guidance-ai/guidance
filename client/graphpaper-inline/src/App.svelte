@@ -175,16 +175,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
       // console.log(appState.components);
     }
 
-    // Show app (we've received at least one message)
-    if (!showApp && appState.components.length > 0) {
-      showApp = true;
-    }
-
     // Force reactivity update
     appState = { ...appState };
   };
 
-  let showApp = false;
   $: if ($state !== undefined && $state.content !== '') {
     // console.log("Client state received.")
     appState = JSON.parse($state.content);
@@ -243,7 +237,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full" class:h-1={!showApp}>
+<div class="w-full">
   <nav class="sticky top-0 z-50 opacity-90">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
@@ -256,7 +250,9 @@ For upcoming features, we won't be able to send all details over the wire, and w
                   defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
         </span>
         <!-- Metrics -->
-        <span class="flex mr-4 text-gray-300 dark:text-gray-400 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 dark:scrollbar-track-gray-800 scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+        <!-- Commenting out scrollbar until it seems like it's actually necessary. Shows up all the time and looks ugly on website. -->
+        <!-- <span class="flex mr-4 text-gray-300 dark:text-gray-400 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 dark:scrollbar-track-gray-800 scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700"> -->
+        <span class="flex mr-4 text-gray-300 dark:text-gray-400">
           {#each appState.shownMetrics as name}
             <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
