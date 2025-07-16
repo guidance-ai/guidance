@@ -36,6 +36,7 @@
   export let underlineField: string = "Probability";
   export let backtrackCount: number = 0;
   export let resetCount: number = 0;
+  export let isDarkMode: boolean = false;
 
   let underline: TokenCallback = (_: FlatToken) => "";
   let bg: TokenCallback = (_: FlatToken) => "";
@@ -108,14 +109,15 @@
     return `border-bottom-color: ${colorVal};`;
   };
 
-  const bgTokenStyle = (x: FlatToken) => {
+  const bgTokenStyle = (x: FlatToken, darkMode: boolean) => {
     let color = "";
+    
     if (x.is_input) {
       color = "rgba(255, 255, 255, 0)";
     } else if (x.is_force_forwarded) {
-      color = "rgba(243, 244, 246, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(243, 244, 246, 1)";
     } else if (x.is_generated) {
-      color = "rgba(229, 231, 235, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(229, 231, 235, 1)";
     } else {
       // console.log(`ERROR: token ${x.text} does not have emit flags.`);
       // Make slightly off white for error detection without console spam
@@ -385,9 +387,9 @@
 
     if (!isCompleted || isError) {
       // bg = (_: Token) => "";
-      bg = (x: FlatToken) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Type") {
-      bg = (x: FlatToken) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Probability") {
       bg = (x: FlatToken) => bgStyle(x.prob);
     } else if (bgField === "Latency (ms)") {
@@ -534,13 +536,13 @@
 <!-- Tooltip -->
 <div
   bind:this={tooltip}
-  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50"
+  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white dark:bg-[#5A5F72] shadow border border-gray-300 dark:border-gray-600 pointer-events-none z-50"
   style="top: {tooltipY}px; left: {tooltipX}px; display: none;"
 >
   <div>
     {#if tooltipToken}
       <div class={`col-1 flex flex-col items-center`}>
-        <div class="text-2xl px-1 pb-1 text-left w-full bg-white">
+        <div class="text-2xl px-1 pb-1 text-left w-full bg-white dark:bg-[#5A5F72] dark:text-white">
           <div class="mb-5 mt-1">
             <TokenGridItem
               token={tooltipToken}
@@ -550,7 +552,7 @@
             />
           </div>
           <table class="w-full">
-            <tbody class="text-xs tracking-wider">
+            <tbody class="text-xs tracking-wider dark:text-white">
               {#if bgField !== "None"}
                 <tr>
                   <td>
@@ -558,7 +560,7 @@
                       {bgField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span class="pl-1">
                       {tokenDisplayValue(tooltipToken, bgField) ?? "None"}
                     </span>
@@ -572,7 +574,7 @@
                       {underlineField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span>
                       {tokenDisplayValue(tooltipToken, underlineField) ?? "None"}
                     </span>
@@ -583,17 +585,17 @@
           </table>
         </div>
         {#if tooltipToken.top_k !== undefined}
-          <hr class="bg-gray-400 w-full my-2" />
+          <hr class="bg-gray-400 dark:bg-gray-600 w-full my-2" />
           <table class="w-full">
             <thead>
               <tr>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 dark:text-white tracking-wide`}
                 >
                   Candidate
                 </th>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 dark:text-white tracking-wide`}
                 >
                   Prob
                 </th>
@@ -602,17 +604,17 @@
             <tbody>
               {#each tooltipToken.top_k as candidate, i}
                 <tr
-                  class={`${i === 5 ? "border-t border-dashed border-gray-300" : ""}`}
+                  class={`${i === 5 ? "border-t border-dashed border-gray-300 dark:border-gray-600" : ""}`}
                 >
                   <td
                     class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    <span class="bg-gray-200">
+                    <span class="bg-gray-200 dark:bg-gray-700 dark:text-white">
                       {@html renderText(candidate.text)}
                     </span>
                   </td>
                   <td
-                    class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
+                    class={`px-1 text-right font-mono text-sm decoration-2 dark:text-white ${candidate.is_masked ? "line-through" : ""}`}
                   >
                     {candidate.prob?.toFixed(3)}
                   </td>
@@ -623,7 +625,7 @@
         {/if}
       </div>
     {:else}
-      <div class="text-sm border-b text-red-700">
+      <div class="text-sm border-b text-red-700 dark:text-red-400">
         Missing tokens will show on completion.
       </div>
     {/if}
@@ -631,7 +633,7 @@
 </div>
 
 <!-- Tokens view -->
-<div class="pt-6 pb-6 flex text-gray-800 font-token">
+<div class="pt-6 pb-6 flex text-gray-800 dark:text-gray-200 font-token">
   <div class="px-4">
     <span
       class="flex flex-wrap text-sm"
@@ -669,7 +671,7 @@
 
       {#if isCompleted === false}
         <span
-          class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse"
+          class="inline-block mt-2 border-b-2 border-white dark:border-gray-900 bg-gray-700 dark:bg-gray-300 animate-cpulse">
         >
           &nbsp;
         </span>

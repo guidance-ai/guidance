@@ -29,10 +29,10 @@
   }))
 </script>
 
-<div class="inline-block font-medium text-gray-700" bind:clientHeight={height} bind:clientWidth={width}>
+<div class="inline-block font-medium text-gray-700 dark:text-gray-300" bind:clientHeight={height} bind:clientWidth={width}>
   <svg class={svgClass}>
     <g>
-      <path d="{pathData.map((v, i) => `${i === 0 ? 'M' : 'L'} ${v.x} ${v.y}`).join(' ')}" fill="none" stroke-width="1.25" stroke="#374151"/>
+      <path d="{pathData.map((v, i) => `${i === 0 ? 'M' : 'L'} ${v.x} ${v.y}`).join(' ')}" fill="none" stroke-width="1.25" stroke="#374151" class="stroke-gray-700 dark:stroke-gray-300"/>
     </g>
   </svg>
 </div>
