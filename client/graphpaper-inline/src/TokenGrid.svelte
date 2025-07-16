@@ -609,12 +609,12 @@
                   <td
                     class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    <span class="bg-gray-200 dark:bg-gray-700">
+                    <span class="bg-gray-200 dark:bg-gray-700 dark:text-white">
                       {@html renderText(candidate.text)}
                     </span>
                   </td>
                   <td
-                    class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
+                    class={`px-1 text-right font-mono text-sm decoration-2 dark:text-white ${candidate.is_masked ? "line-through" : ""}`}
                   >
                     {candidate.prob?.toFixed(3)}
                   </td>

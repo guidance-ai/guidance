@@ -238,7 +238,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
 <StitchHandler />
 <ResizeListener />
 <div class="w-full">
-  <nav class="sticky top-0 z-50 opacity-90">
+  <nav class="sticky top-0 z-50 bg-white dark:bg-gray-900">
     <section class="">
       <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
         <!-- Controls -->
