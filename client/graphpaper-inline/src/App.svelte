@@ -40,22 +40,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
   let isDarkMode = false;
   
-  if (typeof window !== 'undefined') {
-    console.log('[Guidance Widget] Setting up theme detection...');
-    
-    // Check if already in dark mode
-    isDarkMode = document.documentElement.classList.contains('dark');
-    
-    // Listen for theme messages from parent
-    window.addEventListener('message', (event) => {
-      if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
-        isDarkMode = true;
-        document.documentElement.classList.add('dark');
-        console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
-      }
-    });
-  }
-
   interface AppState {
     components: Array<NodeAttr>,
     status: Status,
@@ -227,6 +211,21 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg.set(msg);
 
     setTimeout(requestOutputIfNoMessages, 200 * 2);
+
+    // Listen for theme messages from parent
+    const handleThemeMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
+        isDarkMode = true;
+        document.documentElement.classList.add('dark');
+        console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
+      }
+    };
+    
+    window.addEventListener('message', handleThemeMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleThemeMessage);
+    };
   });
 </script>
 
