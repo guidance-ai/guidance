@@ -362,11 +362,10 @@ class Engine(ABC):
             _logits = apply_top_k_and_top_p_filter(_logits, _sampling_params)
             return _logits
 
-        # TODO: only get unmasked probs if we're either echoing or if we have no mask
-        # NOTE: we clone logits here to avoid modifying the original logits twice
         probs: Optional[NDArray] = None
         top_k: list[int] = []
         if compute_unmasked_probs or mask is None:
+            # NOTE: we clone logits here to avoid modifying the original logits twice
             filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
             probs = softmax(filtered_logits)
             # Get the top-k tokens from the unmasked logits
