@@ -414,7 +414,7 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["
         indices_to_remove = sorted_logits[:-top_k]
         logits[indices_to_remove] = -float("inf")
 
-    if top_p is not None and top_p > 0:
+    if top_p is not None and top_p >= 0:
         sorted_indices = sorted_logits[::-1]
         sorted_logits = logits[sorted_indices]
         probs = softmax(sorted_logits)
