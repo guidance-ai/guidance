@@ -344,6 +344,8 @@ class Engine(ABC):
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
+            if _k <= 0:
+                return []
             top_k_indices = _probs.argpartition(-_k)[-_k:]
             # Sort by probability in descending order, as above argpartition
             # does not guarantee order. Sorting the smaller array is faster.
