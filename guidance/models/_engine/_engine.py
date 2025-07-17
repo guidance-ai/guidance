@@ -74,7 +74,6 @@ class Engine(ABC):
         state: EngineState,
         grammar: str,
         ensure_bos_token: bool = True,
-        echo: bool = True,
         sampling_params: Optional[SamplingParams] = None,
     ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
@@ -287,8 +286,8 @@ class Engine(ABC):
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
-                k=self._top_k if echo else 0,
-                compute_unmasked_probs=echo,
+                k=self._top_k if self.enable_monitoring else 0,
+                compute_unmasked_probs=self.enable_monitoring,
                 sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
