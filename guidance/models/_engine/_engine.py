@@ -288,6 +288,7 @@ class Engine(ABC):
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
                 k=self._top_k if echo else 0,
+                compute_unmasked_probs=echo,
                 sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
@@ -307,8 +308,9 @@ class Engine(ABC):
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 5,
-        sampling_params: Optional[SamplingParams] = None,
+        k: int,
+        compute_unmasked_probs: bool,
+        sampling_params: Optional[SamplingParams],
     ) -> GenTokenExtra:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -338,6 +340,8 @@ class Engine(ABC):
         EngineOutput
             The output from the model.
         """
+        if k > 0 and not compute_unmasked_probs:
+            raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
             top_k_indices = _probs.argpartition(-_k)[-_k:]
@@ -360,11 +364,13 @@ class Engine(ABC):
 
         # TODO: only get unmasked probs if we're either echoing or if we have no mask
         # NOTE: we clone logits here to avoid modifying the original logits twice
-        filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
-        probs = softmax(filtered_logits)
-
-        # Get the top-k tokens from the unmasked logits
-        top_k = get_top_k(probs, k)
+        probs: Optional[NDArray] = None
+        top_k: list[int] = []
+        if compute_unmasked_probs or mask is None:
+            filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
+            probs = softmax(filtered_logits)
+            # Get the top-k tokens from the unmasked logits
+            top_k = get_top_k(probs, k)
 
         masked_probs: Optional[NDArray] = None
         if mask is not None:
@@ -377,16 +383,19 @@ class Engine(ABC):
         if temperature < _TEMPERATURE_EPSILON:
             # Greedy sampling
             if mask is None:
+                assert probs is not None, "Probs should not be None when mask is None"
                 if len(top_k) == 0:
                     issued_token = np.argmax(probs)
                 else:
                     # If we have top_k, we can just return the first one
                     issued_token = top_k[0]
             else:
+                assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
                 issued_token = np.argmax(masked_probs)
         else:
             # We need to sample from the probabilities
             if mask is None:
+                assert probs is not None, "Probs should not be None when mask is None"
                 issued_token = np.random.choice(len(probs), p=probs)
             else:
                 assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
@@ -395,8 +404,7 @@ class Engine(ABC):
         top_k_tokens = [
             GenToken(
                 token_id=token_id,
-                # Use unmasked probs always (TODO: maybe we can avoid it if echo=False?)
-                prob=float(probs[token_id]),
+                prob=float("nan") if probs is None else float(probs[token_id]),
                 bytes=self.tokenizer.decode([token_id]),
                 latency_ms=logits_lat_ms,
                 is_generated=True,
@@ -408,8 +416,7 @@ class Engine(ABC):
 
         return GenTokenExtra(
             token_id=issued_token,
-            # Use unmasked probs always (TODO: maybe we can avoid it if echo=False?)
-            prob=float(probs[issued_token]),
+            prob=float("nan") if probs is None else float(probs[issued_token]),
             bytes=self.tokenizer.decode([issued_token]),
             latency_ms=logits_lat_ms,
             is_generated=True,
