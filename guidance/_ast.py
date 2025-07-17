@@ -335,7 +335,7 @@ class SpecialToken(GrammarNode):
 
     def format(self) -> str:
         if self.text is not None:
-            return f"<|{self.text}|>"
+            return f"<{self.text}>"
         if self.id is not None:
             return f"<[{self.id}]>"
         if self.range is not None:
