@@ -401,6 +401,11 @@ class Engine(ABC):
                 assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
                 issued_token = np.random.choice(len(masked_probs), p=masked_probs)
 
+        if issued_token not in top_k:
+            # This ensures that the issued token is always included in the top-k tokens
+            # Note: needs to be added to the end in order to maintain sorted order
+            top_k.append(issued_token)
+
         top_k_tokens = [
             GenToken(
                 token_id=token_id,
@@ -410,9 +415,8 @@ class Engine(ABC):
                 is_generated=True,
                 is_masked=mask is not None and bool(mask[token_id] == 0),
             )
-            for token_id in (set(top_k) | {issued_token})  # Ensure issued_token is always included
+            for token_id in top_k
         ]
-        top_k_tokens = sorted(top_k_tokens, key=lambda t: t.prob, reverse=True)
 
         return GenTokenExtra(
             token_id=issued_token,
