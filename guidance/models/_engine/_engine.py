@@ -361,7 +361,7 @@ class Engine(ABC):
             return _logits
 
         # TODO: only get unmasked probs if we're either echoing or if we have no mask
-        filtered_logits = apply_temp_and_sampling_params(logits, sampling_params)
+        filtered_logits = apply_temp_and_sampling_params(np.array(logits), sampling_params)
         probs = softmax(filtered_logits)
 
         top_k: list[int] = []
