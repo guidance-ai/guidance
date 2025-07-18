@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import EngineOutput, SamplingParams
+from .._schema import GenTokenExtra, SamplingParams
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
@@ -98,13 +98,20 @@ class MockEngine(Engine):
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 1,
-        force_return_unmasked_probs: bool = False,
-        sampling_params: Optional[SamplingParams] = None,
-    ) -> EngineOutput:
+        k: int,
+        compute_unmasked_probs: bool,
+        sampling_params: Optional[SamplingParams],
+    ) -> GenTokenExtra:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
-            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
+            logits=logits,
+            logits_lat_ms=logits_lat_ms,
+            token_ids=token_ids,
+            mask=mask,
+            temperature=temperature,
+            k=k,
+            compute_unmasked_probs=compute_unmasked_probs,
+            sampling_params=sampling_params,
         )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
@@ -126,7 +133,6 @@ class MockEngine(Engine):
         # if we have a pattern that matches then force the next token
         bias = 100.0
         if self.byte_patterns is not None:
-            byte_string
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
@@ -160,7 +166,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: Optional[SamplingParams] = None,
         echo=False,
         force=False,
         **kwargs,
@@ -178,6 +184,7 @@ class Mock(Model):
         super().__init__(
             interpreter=EngineInterpreter(engine),
             echo=echo,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
         )
 
 

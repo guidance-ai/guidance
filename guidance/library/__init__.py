@@ -33,7 +33,6 @@ __all__ = [
     "image",
     "json",
     "lark",
-    "lark",
     "one_or_more",
     "optional",
     "regex",

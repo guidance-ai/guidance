@@ -1,7 +1,5 @@
 import base64
-from typing import Generic, Iterator, Optional, TypeVar
-
-from guidance._schema import SamplingParams
+from typing import Generic, Iterator, TypeVar
 
 from ..._ast import (
     ASTNode,
@@ -32,9 +30,8 @@ S = TypeVar("S", bound=State)
 
 
 class Interpreter(Generic[S]):
-    def __init__(self, state: S, default_sampling_params: Optional[SamplingParams] = None):
+    def __init__(self, state: S):
         self.state = state
-        self.default_sampling_params = SamplingParams() if default_sampling_params is None else default_sampling_params
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         yield from node.simplify()._run(self, **kwargs)
@@ -44,7 +41,7 @@ class Interpreter(Generic[S]):
             raise ValueError(f"Cannot open role {node.role!r}: {self.state.active_role!r} is already open.")
         return self.role_start(node, **kwargs)
 
-    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
+    def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
     def _role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
@@ -54,20 +51,20 @@ class Interpreter(Generic[S]):
             raise ValueError(f"Cannot close role {node.role!r}: {self.state.active_role!r} is open.")
         return self.role_end(node, **kwargs)
 
-    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:
+    def role_end(self, node: RoleEnd, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:
+    def text(self, node: LiteralNode, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
+    def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
     def image_url(self, node: ImageUrl, **kwargs) -> Iterator[OutputAttr]:
         image_bytes = bytes_from(node.url, allow_local=False)
         return self.image_blob(ImageBlob(data=base64.b64encode(image_bytes)), **kwargs)
 
-    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
+    def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
     def regex(self, node: RegexNode, **kwargs) -> Iterator[OutputAttr]:
@@ -97,10 +94,10 @@ class Interpreter(Generic[S]):
     def lark(self, node: LarkNode, **kwargs) -> Iterator[OutputAttr]:
         return self.grammar(node, **kwargs)
 
-    def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
+    def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
-    def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:
+    def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
         raise UnsupportedNodeError(interpreter=self, node=node)
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:

@@ -15,8 +15,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": true,
     "is_generated": false,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "TextOutput",
@@ -24,8 +23,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": true,
     "is_generated": false,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "RoleCloserInput",
@@ -38,8 +36,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": true,
     "is_generated": false,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "RoleOpenerInput",
@@ -53,8 +50,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": true,
     "is_generated": false,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "TextOutput",
@@ -62,8 +58,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -71,8 +66,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -80,8 +74,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -89,8 +82,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -98,8 +90,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -107,8 +98,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -116,8 +106,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": true,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "TextOutput",
@@ -125,8 +114,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -134,8 +122,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -143,8 +130,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -152,8 +138,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -161,8 +146,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -170,8 +154,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -179,8 +162,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -188,8 +170,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -197,8 +178,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -206,8 +186,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -215,8 +194,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -224,8 +202,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -233,8 +210,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -242,8 +218,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -251,8 +226,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -260,8 +234,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -269,8 +242,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -278,8 +250,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -287,8 +258,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -296,8 +266,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -305,8 +274,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": true,
     "is_force_forwarded": false,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0,
   },
   {
     "class_name": "TextOutput",
@@ -314,8 +282,7 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   },
   {
     "class_name": "TextOutput",
@@ -323,7 +290,6 @@ export const mockNodeAttrs: Array<RoleCloserInput | RoleOpenerInput | TextOutput
     "is_input": false,
     "is_generated": false,
     "is_force_forwarded": true,
-    "token_count": 0,
-    "prob": 0
+    "latency_ms": 0
   }
 ];

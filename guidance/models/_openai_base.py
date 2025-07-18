@@ -5,12 +5,10 @@ import wave
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, ContextManager, Iterator, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, Optional, Union, cast
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
-
-from guidance._schema import SamplingParams
 
 from .._ast import (
     ASTNode,
@@ -199,8 +197,8 @@ class BaseOpenAIClientWrapper(ABC):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
-        log_probs: bool,
+        messages: list[dict[str, Any]],
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
@@ -214,16 +212,16 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
-        log_probs: bool,
+        messages: list[dict[str, Any]],
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
 
         return self.client.chat.completions.create(
             model=model,
-            messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
-            logprobs=log_probs,
+            messages=messages,
+            logprobs=logprobs,
             stream=True,
             stream_options={"include_usage": True},
             **kwargs,
@@ -233,16 +231,12 @@ class OpenAIClientWrapper(BaseOpenAIClientWrapper):
 class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     """Base class for interacting with OpenAI models."""
 
-    log_probs: bool = True
+    logprobs: bool = True
+    # TODO: have top-k be passed programmatically and only if echo=True
+    top_k: Optional[int] = 5
 
-    def __init__(
-        self,
-        model: str,
-        client: BaseOpenAIClientWrapper,
-        default_sampling_params: Optional[SamplingParams] = None,
-        **kwargs,
-    ):
-        super().__init__(state=OpenAIState(), default_sampling_params=default_sampling_params)
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
+        super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
 
@@ -285,14 +279,26 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 f"OpenAI models do not support pre-filled assistant messages: got data {self.state.content}."
             )
 
-        # only process kwargs that are supported by the OpenAI API
-        if "top_p" not in kwargs and "top_p" in self.default_sampling_params:
-            kwargs["top_p"] = self.default_sampling_params["top_p"]
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params:
+            # only process kwargs that are supported by the OpenAI API
+            if "top_p" not in kwargs:
+                kwargs["top_p"] = sampling_params.get("top_p", None)
+
+            if sampling_params.get("top_k", None) is not None:
+                raise ValueError("OpenAI models do not support top_k sampling.")
+
+            if sampling_params.get("min_p", None) is not None:
+                raise ValueError("OpenAI models do not support min_p sampling.")
+
+            if sampling_params.get("repetition_penalty", None) is not None:
+                raise ValueError("OpenAI models do not support repetition_penalty sampling.")
 
         with self.client.streaming_chat_completions(
             model=self.model,
-            messages=self.state.messages,
-            log_probs=self.log_probs,
+            messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
+            logprobs=self.logprobs,
+            top_logprobs=self.top_k if self.logprobs else None,
             tools=(
                 [
                     {
@@ -329,7 +335,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             latency_ms = (t1 - t0) * 1000
             t0 = t1
 
-            if chunk.usage is not None:
+            # NOTE: use getattr here as litellm does not return usage
+            if getattr(chunk, "usage", None) is not None:
                 # Update token usage
                 usage.input_tokens += chunk.usage.prompt_tokens
                 # Estimate forward passes as number of completion tokens
@@ -361,7 +368,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     tokens = choice.logprobs.content
                     for token in tokens:
                         yield TokenOutput(
-                            value=token.token,
+                            value=content if len(tokens) == 1 else token.token,
                             # amortized latency
                             latency_ms=latency_ms / len(tokens),
                             token=Token(
@@ -369,7 +376,6 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 bytes=b"" if token.bytes is None else base64.b64encode(bytes(token.bytes)),
                                 prob=2.718**token.logprob,
                             ),
-                            # TODO: actually request the top logprobs
                             top_k=[
                                 Token(
                                     token=tok.token,
@@ -378,6 +384,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                                 )
                                 for tok in token.top_logprobs
                             ],
+                            is_generated=True,
                         )
                 else:
                     yield TextOutput(value=delta.content, is_generated=True, latency_ms=latency_ms)
@@ -567,10 +574,10 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with OpenAI!"
-            )
+            ) from ie
 
         image_bytes = base64.b64decode(node.data)
         with PIL.Image.open(BytesIO(image_bytes)) as pil_image:
@@ -597,7 +604,7 @@ class OpenAIImageMixin(BaseOpenAIInterpreter):
 
 class OpenAIAudioMixin(BaseOpenAIInterpreter):
     # Audio models don't support logprobs
-    log_probs: bool = False
+    logprobs: bool = False
 
     def audio_blob(self, node: AudioBlob, **kwargs) -> Iterator[OutputAttr]:
         format = "wav"  # TODO: infer from node

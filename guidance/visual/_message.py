@@ -96,6 +96,12 @@ class ClientReadyAckMessage(GuidanceMessage):
 class OutputRequestMessage(GuidanceMessage):
     """Fired when client requests tokens from server."""
 
+    identifier: str = ""
+
+
+class OutputRequestAckMessage(GuidanceMessage):
+    """Fired when server acknowledges request."""
+
     pass
 
 

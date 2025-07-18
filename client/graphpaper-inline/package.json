@@ -29,7 +29,7 @@
         "sirv-cli": "^2.0.2",
         "svelte": "^4.2.18",
         "svelte-preprocess": "^6.0.2",
-        "tailwindcss": "^4.1.8",
+        "tailwindcss": "^4.1.11",
         "tslib": "^2.6.3",
         "typescript": "^5.5.4"
     },

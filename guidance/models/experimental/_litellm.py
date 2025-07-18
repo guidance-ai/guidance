@@ -1,13 +1,11 @@
-from typing import TYPE_CHECKING, ContextManager, Iterator, Optional
-
-from pydantic import TypeAdapter
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Optional
 
 from guidance._schema import SamplingParams
 
 from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
-from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter, Message
+from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionChunk
@@ -22,16 +20,16 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     def _wrapped_completion(
         self,
         model: str,
-        messages: list[Message],
-        log_probs: bool,
+        messages: list[dict[str, Any]],
+        logprobs: bool,
         **kwargs,
     ) -> Iterator["ChatCompletionChunk"]:
         """Wrapped completion call within a context manager."""
         kwargs["stream"] = True  # Ensure we are streaming here
         stream_wrapper = self.router.completion(
             model=model,
-            messages=TypeAdapter(list[Message]).dump_python(messages),  # type: ignore[arg-type]
-            logprobs=log_probs,
+            messages=messages,
+            logprobs=logprobs,
             **kwargs,
         )
 
@@ -46,15 +44,15 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
-        log_probs: bool,
+        messages: list[dict[str, Any]],
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         """Streaming chat completions."""
         return self._wrapped_completion(
             model=model,
             messages=messages,
-            log_probs=log_probs,
+            logprobs=logprobs,
             **kwargs,
         )  # type: ignore[return-value]
 
@@ -62,13 +60,13 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
     SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm"]
 
-    def __init__(self, model_description: dict, default_sampling_params: Optional[SamplingParams], **kwargs):
+    def __init__(self, model_description: dict, **kwargs):
         try:
             import litellm
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the litellm package version >= 1.71.0 using `pip install litellm -U` in order to use guidance.models.LiteLLM!"
-            )
+            ) from ie
 
         self.ep_type = self._check_model(model_description)
         # set default model to the first one in the list
@@ -78,11 +76,9 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
         # Disable log_probs for any remote endpoints by default.
         # Otherwise, generation will fail for some endpoints.
-        self.log_probs = False
+        self.logprobs = False
 
-        super().__init__(
-            model=self.model, client=self.client, default_sampling_params=default_sampling_params, **kwargs
-        )
+        super().__init__(model=self.model, client=self.client, **kwargs)
 
     def _check_model(self, model_desc: dict) -> str:
         """Check if the model description is valid."""
@@ -232,24 +228,25 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                     yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)
 
     def _process_kwargs(self, **kwargs):
-        if "top_k" not in kwargs and "top_k" in self.default_sampling_params:
-            kwargs["top_k"] = self.default_sampling_params["top_k"]
+        sampling_params = kwargs.pop("sampling_params", None)
+        if sampling_params is None:
+            return kwargs
+
+        kwargs["top_p"] = sampling_params.pop("top_p", None)
+        kwargs["top_k"] = sampling_params.pop("top_k", None)
+        kwargs["min_p"] = sampling_params.pop("min_p", None)
+        kwargs["repetition_penalty"] = sampling_params.pop("repetition_penalty", None)
 
         return kwargs
 
 
 class LiteLLM(Model):
     def __init__(
-        self,
-        model_description: dict,
-        default_sampling_params: Optional[SamplingParams] = None,
-        echo: bool = True,
-        **kwargs,
+        self, model_description: dict, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs
     ):
-        interpreter = LiteLLMInterpreter(
-            model_description=model_description, default_sampling_params=default_sampling_params, **kwargs
-        )
+        interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
         super().__init__(
             interpreter=interpreter,
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
             echo=echo,
         )

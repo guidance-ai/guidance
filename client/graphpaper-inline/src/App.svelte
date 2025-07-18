@@ -11,12 +11,12 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg,
     type GuidanceMessage,
     isAudioOutput,
-    isBacktrackMessage,
+    isBacktrack,
     isClientReadyAckMessage,
     isExecutionCompletedMessage,
     isExecutionStartedMessage,
     isImageOutput,
-    isMetricMessage,
+    isMetricMessage, isOutputRequestAckMessage,
     isResetDisplayMessage,
     isRoleCloserInput,
     isRoleOpenerInput,
@@ -38,6 +38,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import type { MetricVal } from './interfaces';
   // import { mockNodeAttrs } from './mocks';
 
+  let isDarkMode = false;
+  
   interface AppState {
     components: Array<NodeAttr>,
     status: Status,
@@ -73,7 +75,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
   let underlineField: string = 'Probability';
 
   const handleMessage = (msg: GuidanceMessage): void => {
-      console.log("Received GuidanceMessage:", msg);
+    // console.log("Received GuidanceMessage:", msg);
 
     // Duplicates can randomly occur from ipywidget layer.
     if (appState.currentMessageId === msg.message_id) {
@@ -86,40 +88,33 @@ For upcoming features, we won't be able to send all details over the wire, and w
     if (isTraceMessage(msg)) {
       if (isTokenOutput(msg.node_attr)) {
         // console.log(msg.node_attr);
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isTextOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleOpenerInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isRoleCloserInput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isAudioOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isImageOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
+        appState.components = [...appState.components, msg.node_attr];
       } else if (isVideoOutput(msg.node_attr)) {
-        appState.components.push(msg.node_attr);
-      } else if (isBacktrackMessage(msg.node_attr)) {
+        appState.components = [...appState.components, msg.node_attr];
+      } else if (isBacktrack(msg.node_attr)) {
         let numBacktrack = msg.node_attr.n_tokens;
         console.log(`Backtracking ${numBacktrack} tokens.`);
-        for (let i = 0; i < numBacktrack; i++) {
-          appState.components.pop();
-        }
+        appState.components = appState.components.slice(0, -numBacktrack);
         appState.backtrackCount += 1;
       } else {
-        console.log("Unknown trace msg node_attr: ", msg)
+        // console.log("Unknown trace msg node_attr: ", msg)
       }
     } else if (isExecutionStartedMessage(msg)) {
       appState.requireFullReplay = false;
+    } else if (isOutputRequestAckMessage(msg)) {
+      appState.requireFullReplay = false;
     } else if (isClientReadyAckMessage(msg)) {
-      if (appState.requireFullReplay) {
-        console.log('Require full replay and went past completion output message.');
-        const msg: StitchMessage = {
-          type: 'clientmsg',
-          content: JSON.stringify({ 'class_name': 'OutputRequestMessage' })
-        };
-        clientmsg.set(msg);
-      }
+      // Do nothing -- server will handle replay.
     } else if (isResetDisplayMessage(msg)) {
       appState.components = [];
       appState.status = appState.status !== Status.Error ? Status.Running : appState.status;
@@ -164,7 +159,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
       // console.log(appState.components);
     }
 
-    appState = appState;
+    // Force reactivity update
+    appState = { ...appState };
   };
 
   $: if ($state !== undefined && $state.content !== '') {
@@ -196,12 +192,40 @@ For upcoming features, we won't be able to send all details over the wire, and w
     }
   }
 
+  let requestOutputIfNoMessages = () => {
+    if (appState.components.length === 0) {
+      console.log("No messages received: requesting output.")
+      const msg: StitchMessage = {
+        type: 'clientmsg',
+        content: JSON.stringify({ 'class_name': 'OutputRequestMessage', 'identifier': '' })
+      };
+      clientmsg.set(msg);
+    }
+  };
+
   onMount(() => {
     const msg: StitchMessage = {
       type: 'init_stitch',
       content: ''
     };
     clientmsg.set(msg);
+
+    setTimeout(requestOutputIfNoMessages, 200 * 2);
+
+    // Listen for theme messages from parent
+    const handleThemeMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
+        isDarkMode = true;
+        document.documentElement.classList.add('dark');
+        console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
+      }
+    };
+    
+    window.addEventListener('message', handleThemeMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleThemeMessage);
+    };
   });
 </script>
 
@@ -213,19 +237,21 @@ For upcoming features, we won't be able to send all details over the wire, and w
 <StitchHandler />
 <ResizeListener />
 <div class="w-full">
-  <nav class="sticky top-0 z-50 opacity-90">
+  <nav class="sticky top-0 z-50 bg-white dark:bg-gray-900">
     <section class="">
-      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
+      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
         <!-- Controls -->
         <span class="flex mr-2">
-          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200"
+          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200 dark:bg-transparent"
                   defaultValue={"Type"}
                   on:select={(selected) => bgField = selected.detail} />
-          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400"
+          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400 dark:border-gray-500 bg-transparent dark:bg-transparent"
                   defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
         </span>
         <!-- Metrics -->
-        <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
+        <!-- Commenting out scrollbar until it seems like it's actually necessary. Shows up all the time and looks ugly on website. -->
+        <!-- <span class="flex mr-4 text-gray-300 dark:text-gray-400 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 dark:scrollbar-track-gray-800 scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700"> -->
+        <span class="flex mr-4 text-gray-300 dark:text-gray-400">
           {#each appState.shownMetrics as name}
             <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
@@ -234,7 +260,6 @@ For upcoming features, we won't be able to send all details over the wire, and w
     </section>
   </nav>
 
-  {#if appState.components.length > 0}
   <!-- Content pane -->
   <section class="w-full min-h-40">
     <TokenGrid components={appState.components}
@@ -242,11 +267,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
                backtrackCount={appState.backtrackCount}
-               resetCount={appState.resetCount} />
+               resetCount={appState.resetCount}
+               isDarkMode={isDarkMode} />
   </section>
-  {:else}
-  <div class="flex items-center justify-center py-6">
-    <span class="text-gray-500 text-lg">No tokens to display.</span>
-  </div>
-  {/if}
 </div>

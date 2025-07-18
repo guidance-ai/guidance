@@ -18,7 +18,7 @@
   import CustomVideo from "./CustomVideo.svelte";
   import TokenGridItem from "./TokenGridItem.svelte";
   import {
-    type Token,
+    type FlatToken,
     type TokenCallback,
     type MultimodalNode,
     type MediaType,
@@ -26,7 +26,7 @@
   import { longhover } from "./longhover";
   import DOMPurify from "dompurify";
 
-    import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
+  import {interpolateGreens, interpolateBlues} from "d3-scale-chromatic";
 
   export let components: Array<NodeAttr>;
   export let isCompleted: boolean;
@@ -36,11 +36,12 @@
   export let underlineField: string = "Probability";
   export let backtrackCount: number = 0;
   export let resetCount: number = 0;
+  export let isDarkMode: boolean = false;
 
-  let underline: TokenCallback = (_: Token) => "";
-  let bg: TokenCallback = (_: Token) => "";
+  let underline: TokenCallback = (_: FlatToken) => "";
+  let bg: TokenCallback = (_: FlatToken) => "";
 
-  const tokenDisplayValue = (x: Token, s: string) => {
+  const tokenDisplayValue = (x: FlatToken, s: string) => {
     if (s === "Probability") {
       return x.prob?.toFixed(3);
     } else if (s === "Latency (ms)") {
@@ -108,14 +109,15 @@
     return `border-bottom-color: ${colorVal};`;
   };
 
-  const bgTokenStyle = (x: Token) => {
+  const bgTokenStyle = (x: FlatToken, darkMode: boolean) => {
     let color = "";
+    
     if (x.is_input) {
       color = "rgba(255, 255, 255, 0)";
     } else if (x.is_force_forwarded) {
-      color = "rgba(243, 244, 246, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(243, 244, 246, 1)";
     } else if (x.is_generated) {
-      color = "rgba(229, 231, 235, 1)";
+      color = darkMode ? "rgba(88, 119, 173, 1)" : "rgba(229, 231, 235, 1)";
     } else {
       // console.log(`ERROR: token ${x.text} does not have emit flags.`);
       // Make slightly off white for error detection without console spam
@@ -170,7 +172,7 @@
   };
 
   let multimodalNodes: MultimodalNode[] = [];
-  let tokens: Array<Token> = [];
+  let tokens: Array<FlatToken> = [];
   let activeOpenerRoles: Array<RoleOpenerInput> = [];
   let activeCloserRoleText: Array<string> = [];
   let specialSet: Set<string> = new Set<string>();
@@ -267,40 +269,56 @@
       } else if (isVideoOutput(nodeAttr)) {
         multimodalNodes.push(createMediaNode("video", nodeAttr));
       } else if (isTokenOutput(nodeAttr) || (isTextOutput(nodeAttr) && !nodeAttr.value.includes("<|im_start|>") && !nodeAttr.value.includes("<|im_end|>"))) {
-        console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
+        // console.log("Processing token:", nodeAttr.value, "Active roles:", activeOpenerRoles.map(r => r.name));
         if (activeOpenerRoles.length === 0) {
           if (
             activeCloserRoleText.length !== 0 &&
             activeCloserRoleText[activeCloserRoleText.length - 1] ===
               nodeAttr.value
           ) {
-            const token: Token = {
+            const token: FlatToken = {
               text: nodeAttr.value,
               prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
-              latency_ms: 0,
+              latency_ms: nodeAttr.latency_ms,
               role: "",
               special: true,
               is_input: nodeAttr.is_input,
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.token,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
             specialSet.add(token.text);
             // TODO: handle interleaving tokens with multimodal data
             // multimodalNodes.push({ type: "token", data: token });
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token)
             activeCloserRoleText.pop();
           } else {
-            const token = {
+            const token: FlatToken = {
               text: nodeAttr.value,
               prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
-              latency_ms: 0,
+              latency_ms: nodeAttr.latency_ms,
               role: "",
               special: false,
               is_input: nodeAttr.is_input,
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.token,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
             // multimodalNodes.push({ type: "token", data: token });
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token);
           }
         } else {
@@ -325,16 +343,24 @@
               displayedRoles.add(roleKey);
             }
             
-            const token = {
-              text: nodeAttr.value, 
-              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0, 
-              latency_ms: 0, 
-              role: shouldShowRole ? (activeOpenerRole.name || "") : "", 
+            const token: FlatToken = {
+              text: nodeAttr.value,
+              prob: isTokenOutput(nodeAttr) ? nodeAttr.token.prob : 0,
+              latency_ms: nodeAttr.latency_ms,
+              role: shouldShowRole ? (activeOpenerRole.name || "") : "",
               special: false,
               is_input: nodeAttr.is_input, 
               is_force_forwarded: nodeAttr.is_force_forwarded,
               is_generated: nodeAttr.is_generated,
+              is_masked: isTokenOutput(nodeAttr) ? nodeAttr.token.masked : false,
+              top_k: (isTokenOutput(nodeAttr) && nodeAttr.top_k !== null) ? nodeAttr.top_k.map(t => ({
+                text: t.token,
+                prob: t.prob,
+                is_masked: t.masked,
+                latency_ms: 0,
+              })) : undefined,
             };
+            statCounter["latency.max"] = Math.max(token.latency_ms, statCounter["latency.max"] || 0);
             tokens.push(token);
           }
         }
@@ -347,31 +373,31 @@
 
     // Visual updates
     if (!isCompleted || isError) {
-      underline = (_: Token) => "border: none;";
+      underline = (_: FlatToken) => "border: none;";
     } else if (underlineField === "Probability") {
-      underline = (x: Token) => underlineStyle(x.prob);
+      underline = (x: FlatToken) => underlineStyle(x.prob);
     } else if (underlineField === "Latency (ms)") {
-      underline = (x: Token) =>
+      underline = (x: FlatToken) =>
         underlineStyle(
           Math.log(x.latency_ms) / Math.log(statCounter["latency.max"])
         );
     } else {
-      underline = (_: Token) => "border: none;";
+      underline = (_: FlatToken) => "border: none;";
     }
 
     if (!isCompleted || isError) {
       // bg = (_: Token) => "";
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Type") {
-      bg = (x: Token) => bgTokenStyle(x);
+      bg = (x: FlatToken) => bgTokenStyle(x, isDarkMode);
     } else if (bgField === "Probability") {
-      bg = (x: Token) => bgStyle(x.prob);
+      bg = (x: FlatToken) => bgStyle(x.prob);
     } else if (bgField === "Latency (ms)") {
-      bg = (x: Token) =>
+      bg = (x: FlatToken) =>
         bgStyle(Math.log(x.latency_ms) / Math.log(statCounter["latency.max"]));
       console.log(statCounter["latency.max"]);
     } else {
-      bg = (_: Token) => "";
+      bg = (_: FlatToken) => "";
     }
 
     // End bookkeeping (svelte)
@@ -385,7 +411,7 @@
   let tooltip: HTMLElement;
   let tooltipX = 0;
   let tooltipY = 0;
-  let tooltipToken: Token;
+  let tooltipToken: FlatToken;
   const mouseLongHoverDuration = 200;
 
   const handleLongMouseOver = (event: CustomEvent<MouseEvent>) => {
@@ -510,13 +536,13 @@
 <!-- Tooltip -->
 <div
   bind:this={tooltip}
-  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white shadow border border-gray-300 pointer-events-none z-50"
+  class="px-1 pt-1 pb-3 absolute opacity-95 bg-white dark:bg-[#5A5F72] shadow border border-gray-300 dark:border-gray-600 pointer-events-none z-50"
   style="top: {tooltipY}px; left: {tooltipX}px; display: none;"
 >
   <div>
     {#if tooltipToken}
       <div class={`col-1 flex flex-col items-center`}>
-        <div class="text-2xl px-1 pb-1 text-left w-full bg-white">
+        <div class="text-2xl px-1 pb-1 text-left w-full bg-white dark:bg-[#5A5F72] dark:text-white">
           <div class="mb-5 mt-1">
             <TokenGridItem
               token={tooltipToken}
@@ -526,7 +552,7 @@
             />
           </div>
           <table class="w-full">
-            <tbody class="text-xs tracking-wider">
+            <tbody class="text-xs tracking-wider dark:text-white">
               {#if bgField !== "None"}
                 <tr>
                   <td>
@@ -534,7 +560,7 @@
                       {bgField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span class="pl-1">
                       {tokenDisplayValue(tooltipToken, bgField) ?? "None"}
                     </span>
@@ -548,7 +574,7 @@
                       {underlineField}
                     </span>
                   </td>
-                  <td class="text-right">
+                  <td class="text-right dark:text-white">
                     <span>
                       {tokenDisplayValue(tooltipToken, underlineField) ?? "None"}
                     </span>
@@ -559,17 +585,17 @@
           </table>
         </div>
         {#if tooltipToken.top_k !== undefined}
-          <hr class="bg-gray-400 w-full my-2" />
+          <hr class="bg-gray-400 dark:bg-gray-600 w-full my-2" />
           <table class="w-full">
             <thead>
               <tr>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-left text-gray-700 dark:text-white tracking-wide`}
                 >
                   Candidate
                 </th>
                 <th
-                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 tracking-wide`}
+                  class={`px-1 pb-1 font-normal text-xs text-right text-gray-700 dark:text-white tracking-wide`}
                 >
                   Prob
                 </th>
@@ -578,17 +604,17 @@
             <tbody>
               {#each tooltipToken.top_k as candidate, i}
                 <tr
-                  class={`${i === 5 ? "border-t border-dashed border-gray-300" : ""}`}
+                  class={`${i === 5 ? "border-t border-dashed border-gray-300 dark:border-gray-600" : ""}`}
                 >
                   <td
                     class={`px-1 text-left font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
                   >
-                    <span class="bg-gray-200">
+                    <span class="bg-gray-200 dark:bg-gray-700 dark:text-white">
                       {@html renderText(candidate.text)}
                     </span>
                   </td>
                   <td
-                    class={`px-1 text-right font-mono text-sm decoration-2 ${candidate.is_masked ? "line-through" : ""}`}
+                    class={`px-1 text-right font-mono text-sm decoration-2 dark:text-white ${candidate.is_masked ? "line-through" : ""}`}
                   >
                     {candidate.prob?.toFixed(3)}
                   </td>
@@ -599,7 +625,7 @@
         {/if}
       </div>
     {:else}
-      <div class="text-sm border-b text-red-700">
+      <div class="text-sm border-b text-red-700 dark:text-red-400">
         Missing tokens will show on completion.
       </div>
     {/if}
@@ -607,7 +633,7 @@
 </div>
 
 <!-- Tokens view -->
-<div class="pt-6 pb-6 flex text-gray-800 font-token">
+<div class="pt-6 pb-6 flex text-gray-800 dark:text-gray-200 font-token">
   <div class="px-4">
     <span
       class="flex flex-wrap text-sm"
@@ -645,7 +671,7 @@
 
       {#if isCompleted === false}
         <span
-          class="inline-block mt-2 border-b-2 border-white bg-gray-700 animate-cpulse"
+          class="inline-block mt-2 border-b-2 border-white dark:border-gray-900 bg-gray-700 dark:bg-gray-300 animate-cpulse">
         >
           &nbsp;
         </span>

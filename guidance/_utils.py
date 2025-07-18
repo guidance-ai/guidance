@@ -342,12 +342,55 @@ def to_utf8_or_bytes_string(_bytes: bytes) -> str:
         return str(_bytes)
 
 
+def apply_repetition_penalty(input_ids: list[int], logits: np.ndarray, sampling_params: Optional["SamplingParams"]):
+    if sampling_params is None:
+        return logits
+
+    penalty = sampling_params.get("repetition_penalty", None)
+    if penalty is None or penalty <= 0:
+        return logits
+
+    # Gather the logits for the input_ids
+    # input_ids: shape (1, seq_len), scores: shape (1, vocab_size)
+    # We want to get the logits for each token in input_ids from scores
+    # For each token in input_ids, get its logit from scores
+    # This is equivalent to: score = scores[0, input_ids[0, :]]
+    input_ids = np.asarray(input_ids)
+
+    score = np.take_along_axis(logits, input_ids, axis=0)
+    # Apply repetition penalty
+    # If score < 0, multiply by penalty; else, divide by penalty
+    score_processed = np.where(score < 0, score * penalty, score / penalty)
+    # Scatter the processed scores back into the scores array
+    # For each position in input_ids, set scores[0, input_ids[0, i]] = score_processed[0, i]
+    scores_processed = logits.copy()
+    np.put_along_axis(scores_processed, input_ids, score_processed, axis=0)
+    return scores_processed
+
+
 def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
     if k <= 0:
         return logits
 
     indices_to_remove = logits.argpartition(-k)[:-k]
     logits[indices_to_remove] = -float("inf")
+    return logits
+
+
+def apply_min_p_filter(logits: np.ndarray, sampling_params: Optional["SamplingParams"]) -> np.ndarray:
+    if sampling_params is None:
+        return logits
+
+    min_p = sampling_params.get("min_p", None)
+    if min_p is None:
+        return logits
+
+    probs = softmax(logits, axis=-1)
+    top_probs = np.max(probs, axis=-1)
+    scaled_min_p = min_p * top_probs
+
+    indices_to_remove = probs < scaled_min_p
+    logits[indices_to_remove] = -np.inf
     return logits
 
 
@@ -371,7 +414,7 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["
         indices_to_remove = sorted_logits[:-top_k]
         logits[indices_to_remove] = -float("inf")
 
-    if top_p is not None and top_p > 0:
+    if top_p is not None and top_p >= 0:
         sorted_indices = sorted_logits[::-1]
         sorted_logits = logits[sorted_indices]
         probs = softmax(sorted_logits)

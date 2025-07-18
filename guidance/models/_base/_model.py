@@ -59,7 +59,7 @@ class Model:
     def __init__(
         self,
         interpreter: Interpreter[S],
-        default_sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams,
         echo: bool = True,
     ) -> None:
         self.echo = echo
@@ -70,15 +70,16 @@ class Model:
 
         self._interpreter = interpreter
         self._active_blocks: dict[Block, int] = {}
+        self.sampling_params: SamplingParams = sampling_params
 
         self._parent: Optional["Model"] = None
         self._parent_id: Optional[int] = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
-        self._update_trace_node(self._id, self._parent_id, None)
+        self._update_trace_node(self._id, self._parent_id, None, False)
 
     def _update_trace_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None
+        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None, echo=False
     ) -> None:
         from ..._topics import TRACE_TOPIC
         from ...registry import get_exchange, get_trace_handler
@@ -86,7 +87,7 @@ class Model:
         trace_handler = get_trace_handler()
         trace_node = trace_handler.update_node(identifier, parent_id, node_attr)
         self._trace_nodes.add(trace_node)
-        if self.echo:
+        if echo:
             get_exchange().publish(
                 TraceMessage(
                     trace_id=identifier,
@@ -97,6 +98,7 @@ class Model:
             )
 
     def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+        self = self.copy()
         self = self._apply_blocks()
         if isinstance(other, str):
             if other == "":
@@ -111,27 +113,30 @@ class Model:
         return NotImplemented
 
     def _apply_node(self, node: ASTNode) -> Self:
-        self = self.copy()
+        # self = self.copy()
 
         # Input side of trace handler.
         # TODO: StatefulGuidanceInput up in __add__?
         if isinstance(node, RoleStart):
-            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleOpenerInput(name=node.role), self.echo)
         elif isinstance(node, RoleEnd):
-            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role))
+            self._update_trace_node(self._id, self._parent_id, RoleCloserInput(name=node.role), self.echo)
         elif isinstance(node, LiteralNode):
-            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value))
+            self._update_trace_node(self._id, self._parent_id, LiteralInput(value=node.value), self.echo)
         elif isinstance(node, ImageBlob):
-            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data))
+            self._update_trace_node(self._id, self._parent_id, ImageInput(value=node.data), self.echo)
         elif isinstance(node, ImageUrl):
             # TODO -- let's avoid downloading it here
             pass
         elif isinstance(node, GenAudio):
-            self._update_trace_node(self._id, self._parent_id, AudioInput(value=b""))  # TODO -- what goes here?
+            self._update_trace_node(
+                self._id, self._parent_id, AudioInput(value=b""), self.echo
+            )  # TODO -- what goes here?
         else:
-            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node))
+            self._update_trace_node(self._id, self._parent_id, StatelessGuidanceInput(value=node), self.echo)
 
-        for i, output_attr in enumerate(self._interpreter.run(node)):
+        # NOTE: passing a copy of the sampling parameters to avoid modifying the original
+        for i, output_attr in enumerate(self._interpreter.run(node, sampling_params=self.sampling_params.copy())):
             if i != 0:
                 # On the first iteration, we already have a fresh trace node
                 # TODO: should be allowed to associate multiple output_attrs with a single input node?
@@ -139,7 +144,7 @@ class Model:
                 # node into multiple input nodes to be handled sequentially?
                 self._parent_id = self._id
                 self._id = _gen_id()
-            self._update_trace_node(self._id, self._parent_id, output_attr)
+            self._update_trace_node(self._id, self._parent_id, output_attr, self.echo)
             # Stream current model state
             self._send_to_event_queue()
         return self
@@ -154,7 +159,7 @@ class Model:
         return ModelStream(self)
 
     def _apply_blocks(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         global_active_blocks = _active_blocks.get()
         for block, start_index in list(reversed(self._active_blocks.items())):
             # Close blocks that are not globally active anymore
@@ -185,7 +190,7 @@ class Model:
         return self
 
     def _update_open_block_captures(self) -> Self:
-        self = self.copy()
+        # self = self.copy()
         for block, start_index in self._active_blocks.items():
             if block.name is not None:
                 self = self.set(block.name, str(self)[start_index:])
@@ -218,8 +223,8 @@ class Model:
     def __getitem__(self, key: str) -> Any:
         try:
             captures = self._interpreter.state.captures[key]
-        except KeyError:
-            raise KeyError(f"Model does not contain the variable '{key}'")
+        except KeyError as ke:
+            raise KeyError(f"Model does not contain the variable '{key}'") from ke
         if isinstance(captures, list):
             return [c["value"] for c in captures]
         else:
@@ -291,6 +296,12 @@ class Model:
         else:
             return captures["log_prob"]
 
+    def with_sampling_params(self, sampling_params: SamplingParams) -> Self:
+        """Return a new model with the given sampling parameters set."""
+        self = self.copy()
+        self.sampling_params = sampling_params
+        return self
+
     def __getattribute__(self, name):
         if name == "engine":
             # For legacy model.engine access (mostly for tests...)
@@ -347,7 +358,7 @@ class ModelStream:
             try:
                 self._inner_run(self.model)
                 events.put(None)  # mark that we are done
-            except BaseException as ex:
+            except BaseException as ex:  # noqa: BLE001
                 events.put(ex)
 
         # Start the thread

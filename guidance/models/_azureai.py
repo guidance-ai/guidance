@@ -1,7 +1,7 @@
 import logging
-from typing import TYPE_CHECKING, Callable, ContextManager, Iterator, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, Iterator, Optional, Union, cast
 
-from pydantic import TypeAdapter
+from guidance._schema import SamplingParams
 
 from .._ast import (
     JsonNode,
@@ -11,7 +11,6 @@ from ._base import Model
 from ._openai_base import (
     BaseOpenAIClientWrapper,
     BaseOpenAIInterpreter,
-    Message,
     OpenAIAudioMixin,
     OpenAIClientWrapper,
     OpenAIImageMixin,
@@ -45,10 +44,10 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
     ):
         try:
             import openai
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
-            )
+            ) from ie
         client = openai.AzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
@@ -85,6 +84,7 @@ def create_azure_openai_model(
     azure_ad_token_provider: Optional[Callable[[], str]] = None,
     has_audio_support: bool = False,
     has_image_support: bool = False,
+    sampling_params: Optional[SamplingParams] = None,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -143,7 +143,11 @@ def create_azure_openai_model(
         **kwargs,
     )
 
-    model = Model(interpreter=interpreter, echo=echo)
+    model = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
 
     return model
 
@@ -155,15 +159,15 @@ class AzureAIClientWrapper(BaseOpenAIClientWrapper):
     def streaming_chat_completions(
         self,
         model: str,
-        messages: list[Message],
-        log_probs: Optional[int] = None,
+        messages: list[dict[str, Any]],
+        logprobs: bool,
         **kwargs,
     ) -> ContextManager[Iterator["ChatCompletionChunk"]]:
         request = self.client.complete(
             body={
                 "model": model,
-                "messages": TypeAdapter(list[Message]).dump_python(messages),
-                "log_probs": log_probs,
+                "messages": messages,
+                "logprobs": logprobs,
                 "stream": True,
                 **kwargs,
             },
@@ -188,10 +192,10 @@ class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMix
     ):
         try:
             import azure.ai.inference
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the azure-ai-inference package  using `pip install azure-ai-inference` in order to use guidance.models.AzureInference!"
-            )
+            ) from ie
         client = azure.ai.inference.ChatCompletionsClient(
             endpoint=endpoint,
             credential=credential,
@@ -216,6 +220,7 @@ def create_azure_aifoundry_model(
     model_name: str,
     api_key: Optional[str] = None,
     token_credential: Optional["TokenCredential"] = None,
+    sampling_params: Optional[SamplingParams] = None,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
@@ -236,10 +241,10 @@ def create_azure_aifoundry_model(
     """
     try:
         from azure.core.credentials import AzureKeyCredential, TokenCredential
-    except ImportError:
+    except ImportError as ie:
         raise Exception(
             "Please install the azure-core package using `pip install -U azure-core` in order to use guidance.models.AzureAI!"
-        )
+        ) from ie
 
     credential: Union[AzureKeyCredential, TokenCredential, None] = None
     if api_key and token_credential:
@@ -257,5 +262,9 @@ def create_azure_aifoundry_model(
         model_name=model_name,
     )
 
-    result = Model(interpreter=interpreter, echo=echo)
+    result = Model(
+        interpreter=interpreter,
+        echo=echo,
+        sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+    )
     return result

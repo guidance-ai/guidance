@@ -6,7 +6,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Optional
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
-from ..._schema import GenTokenExtra, SamplingParams, TokenUsage
+from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
@@ -18,13 +18,8 @@ if TYPE_CHECKING:
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(
-        self,
-        engine: Engine,
-        default_sampling_params: Optional[SamplingParams] = None,
-        tool_call_handler: Optional[type["ToolCallHandler"]] = None,
-    ):
-        super().__init__(state=EngineState(), default_sampling_params=default_sampling_params)
+    def __init__(self, engine: Engine, tool_call_handler: Optional[type["ToolCallHandler"]] = None):
+        super().__init__(state=EngineState())
         self.engine = engine
         self.tool_call_handler_cls = tool_call_handler
         self.chat_template = self.engine.get_chat_template()
@@ -76,8 +71,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             state=self.state,
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
-            echo=False,
-            sampling_params=self.default_sampling_params,  # NOTE: passing default sampling params for now
+            sampling_params=kwargs.pop("sampling_params", None),
         )
         delayed_bytes = b""
         while True:
@@ -179,10 +173,10 @@ class Llama3VisionInterpreter(EngineInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
-            )
+            ) from ie
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))
@@ -196,10 +190,10 @@ class Phi3VisionInterpreter(EngineInterpreter):
     def image_blob(self, node: ImageBlob, **kwargs) -> Iterator[OutputAttr]:
         try:
             import PIL.Image
-        except ImportError:
+        except ImportError as ie:
             raise Exception(
                 "Please install the Pillow package `pip install Pillow` in order to use images with Llama3!"
-            )
+            ) from ie
 
         image_bytes = b64decode(node.data)
         pil_image = PIL.Image.open(BytesIO(image_bytes))

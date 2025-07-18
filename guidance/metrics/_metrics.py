@@ -90,7 +90,7 @@ class PeriodicMetricsGenerator:
             except CancelledError:
                 logger.debug("METRICGEN:canceling")
                 break
-            except Exception as e:
+            except Exception as e:  # noqa BLE001
                 logger.debug(f"METRICGEN: {repr(e)}")
                 break
 
@@ -132,7 +132,7 @@ class Monitor:
             import gpustat
 
             has_gpustat = True
-        except:
+        except ImportError:
             logger.warning("gpustat is not installed, run `pip install gpustat` to collect GPU stats.")
 
         if has_gpustat:
@@ -140,8 +140,8 @@ class Monitor:
                 gpu_stats = gpustat.GPUStatCollection.new_query()
                 if len(gpu_stats) > 0:
                     to_collect_gpu_stats = True
-            except:
-                logger.warning("Non-Nvidia GPU monitoring is not supported in this version.")
+            except Exception as e:  # noqa BLE001
+                logger.warning(f"Non-Nvidia GPU monitoring is not supported in this version. {e}")
 
         while not self.stop_flag:
             try:
@@ -176,7 +176,8 @@ class Monitor:
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
 
-            except Exception as e:
+            except Exception as e:  # noqa BLE001
+                logger.error(f"Caught {e}")
                 logger.error(f"MONITOR:{traceback.format_exc()}")
                 await asyncio.sleep(1)  # Wait a bit before retrying on error
 

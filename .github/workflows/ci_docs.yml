@@ -1,0 +1,47 @@
+# These access secrets, so should only be run on local branches.
+
+name: CI Tests - Docs
+permissions:
+  contents: read
+
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      commit_id:
+        description: 'Branch or Commit ID (optional)'
+        required: false
+        type: string
+  schedule:
+    # * is a special character in YAML so we quote this string
+    # Run at 07:00 UTC every day
+    - cron:  '00 07 * * *'
+
+jobs:
+  check_ReadMe:
+    runs-on: ubuntu-latest
+    environment: test
+    strategy:
+      fail-fast: false # Don't cancel all on first failure
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+    - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install guidance
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .[all,test]
+    - name: Extract Python code
+      run: python ./scripts/extract_python_from_readme.py --input_file ./README.md --output_file ./readme.py
+    - name: Run extracted Python
+      run: python ./readme.py

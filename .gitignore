@@ -13,6 +13,7 @@ node_modules
 .env
 .DS_Store
 venv/
+.venv/
 
 # Ignore native library built by setup
 guidance/*.so
@@ -26,3 +27,6 @@ notebooks/**/*.papermill_out.ipynb
 .mypy_cache/*
 
 **/scratch.*
+
+# Claude Code generated files
+CLAUDE.md
