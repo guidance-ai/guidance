@@ -1,6 +1,6 @@
 # import functions that can be called directly
 # core grammar functions
-from .._grammar import select, string, token_limit, with_temperature
+from .._grammar import select, special_token, string, token_limit, with_temperature
 from ._audio import audio, gen_audio
 
 # context blocks
@@ -42,6 +42,7 @@ __all__ = [
     "role",
     "select",
     "sequence",
+    "special_token",
     "string",
     "substring",
     "system",
