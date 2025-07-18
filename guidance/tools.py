@@ -7,8 +7,8 @@ from typing import Any, Union, cast
 
 from pydantic import BaseModel, Json
 
-from ._ast import GrammarNode, RuleNode, SpecialToken, ToolDefinition
-from .library import json, optional, select, string, zero_or_more
+from ._ast import GrammarNode, RuleNode, ToolDefinition
+from .library import json, optional, select, special_token, string, zero_or_more
 from .library._subgrammar import lexeme, subgrammar
 
 
@@ -69,7 +69,7 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
                 [f"{name}>" + json(schema=defn.args.model_json_schema()) for name, defn in self.tools.items()],
             )
             + "</function>"
-            + SpecialToken("eot_id")  # eom / eot depends on "environment"?
+            + special_token("<eot_id>")  # eom / eot depends on "environment"?
             + "\n"
         )
 
@@ -89,7 +89,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
     def build_grammar(self) -> GrammarNode:
         # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-5
         return (
-            SpecialToken("python_tag")
+            special_token("<python_tag>")
             + json(
                 schema={
                     "oneOf": [
@@ -107,7 +107,7 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
                     ]
                 }
             )
-            + SpecialToken("eom_id")  # eom / eot depends on "environment"?
+            + special_token("<eom_id>")  # eom / eot depends on "environment"?
             + "\n"
         )
 
@@ -145,7 +145,7 @@ class Qwen3ToolCallHandler(ToolCallHandler):
                 }
             )
             + "\n</tool_call>"
-            + SpecialToken("im_end")
+            + special_token("<im_end>")
             + "\n"
         )
 
