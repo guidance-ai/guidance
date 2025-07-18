@@ -12,7 +12,7 @@ from guidance.tools import Qwen3ToolCallHandler
 
 @pytest.fixture(scope="module")
 def qwen3(selected_model, selected_model_name):
-    if selected_model_name in ["llamacpp_qwen3_8b_cpu"] and selected_model is not None:
+    if selected_model_name in ["llamacpp_qwen3_0dot6b_cpu"] and selected_model is not None:
         return selected_model
     else:
         pytest.skip("Requires Qwen3")
