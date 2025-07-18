@@ -10,6 +10,7 @@ from ._ast import (
     RepeatNode,
     RuleNode,
     SelectNode,
+    SpecialToken,
     SubgrammarNode,
     _parse_tags,
 )
@@ -195,6 +196,16 @@ def subgrammar(
     if capture_name:
         node = capture(node, capture_name)
     return node
+
+
+def special_token(token: str) -> SpecialToken:
+    match = re.match(r"<([^<>]+)>", token)
+    if not match:
+        # TODO: Support special tokens that do not start and end with '<' and '>' -- requires a PR to llguidance
+        raise ValueError(
+            f"Only special tokens that start and end with '<' and '>' are currently supported, got: {token}"
+        )
+    return SpecialToken(match.group(1))
 
 
 def quote_regex(value: str) -> str:
