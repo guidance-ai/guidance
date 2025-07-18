@@ -1,10 +1,11 @@
 import re
+import warnings
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator, Optional
 
-from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken
+from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
 from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
@@ -12,11 +13,15 @@ from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState
 
+if TYPE_CHECKING:
+    from ...tools import ToolCallHandler
+
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, tool_call_handler: Optional[type["ToolCallHandler"]] = None):
         super().__init__(state=EngineState())
         self.engine = engine
+        self.tool_call_handler_cls = tool_call_handler
         self.chat_template = self.engine.get_chat_template()
 
     def __deepcopy__(self, memo):
@@ -68,7 +73,6 @@ class EngineInterpreter(Interpreter[EngineState]):
             ensure_bos_token=True,
             sampling_params=kwargs.pop("sampling_params", None),
         )
-
         delayed_bytes = b""
         while True:
             try:
@@ -133,6 +137,36 @@ class EngineInterpreter(Interpreter[EngineState]):
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        if self.tool_call_handler_cls is None:
+            from ...tools import LegacyToolCallHandler
+
+            tool_call_handler_cls = LegacyToolCallHandler
+            warnings.warn(
+                "Tool calling without a ToolCallHandler is deprecated and will be removed in a future version."
+                "Please specify a ToolCallHandler subclass in the model's constructor via the `tool_call_handler` argument.",
+                DeprecationWarning,
+            )
+        else:
+            tool_call_handler_cls = self.tool_call_handler_cls
+
+        from uuid import uuid4
+
+        from guidance import capture
+        from guidance._ast import LiteralNode
+
+        capture_id = f"_tool_call_{uuid4().hex}"
+        handler = tool_call_handler_cls(tools=node.tools)
+        grm = handler.build_grammar()
+
+        yield from self.run(capture(grm, name=capture_id))
+
+        tool_call_text = self.state.captures[capture_id]["value"]
+        tool_call = handler.parse_tool_call(tool_call_text)
+        response = handler.invoke_tool(tool_call)
+
+        yield from self.run(LiteralNode(handler.format_return_value(response)))
 
 
 class Llama3VisionInterpreter(EngineInterpreter):

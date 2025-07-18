@@ -1,4 +1,5 @@
 import base64
+import json
 import time
 import wave
 from abc import ABC, abstractmethod
@@ -21,6 +22,8 @@ from .._ast import (
     RoleEnd,
     RoleStart,
     RuleNode,
+    ToolCallNode,
+    ToolDefinition,
 )
 from .._schema import TokenUsage
 from .._utils import bytes_from
@@ -86,7 +89,29 @@ class ContentMessage(BaseModel):
     content: list[Content]
 
 
-Message = Union[ContentMessage, AssistantAudioMessage]
+class Function(BaseModel):
+    name: str
+    arguments: str
+
+
+class ToolCall(BaseModel):
+    id: str
+    type: Literal["function"] = "function"
+    function: Function
+
+
+class ToolCallMessage(BaseModel):
+    role: Literal["assistant"] = "assistant"
+    tool_calls: list[ToolCall]
+
+
+class ToolCallResult(BaseModel):
+    role: Literal["tool"] = "tool"
+    tool_call_id: str
+    content: str
+
+
+Message = Union[ContentMessage, AssistantAudioMessage, ToolCallMessage, ToolCallResult]
 
 
 class OpenAIState(State):
@@ -148,6 +173,15 @@ class OpenAIState(State):
                         if TYPE_CHECKING:
                             assert_never(content)
                         raise TypeError(f"Unknown content type: {content}")
+            elif isinstance(message, ToolCallMessage):
+                for tool_call in message.tool_calls:
+                    s += f"<function={tool_call.function.name}>"
+                    s += tool_call.function.arguments
+                    s += "</function>"
+            elif isinstance(message, ToolCallResult):
+                s += f"<function_result={message.tool_call_id}>"
+                s += message.content
+                s += "</function_result>"
             else:
                 if TYPE_CHECKING:
                     assert_never(message)
@@ -232,7 +266,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self.state.apply_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
-    def _run(self, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, tools: Optional[dict[str, ToolDefinition]] = None, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
             raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
@@ -265,14 +299,35 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
             logprobs=self.logprobs,
             top_logprobs=self.top_k if self.logprobs else None,
+            tools=(
+                [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": name,
+                            "description": tool.description,
+                            "parameters": tool.args.model_json_schema(),
+                            "strict": True,
+                        },
+                    }
+                    for name, tool in tools.items()
+                ]
+                if tools is not None
+                else None
+            ),
             **kwargs,
         ) as chunks:
-            yield from self._handle_stream(chunks)
+            yield from self._handle_stream(chunks, tools)
 
-    def _handle_stream(self, chunks: Iterator["ChatCompletionChunk"]) -> Iterator[OutputAttr]:
+    def _handle_stream(
+        self,
+        chunks: Iterator["ChatCompletionChunk"],
+        tools: Optional[dict[str, ToolDefinition]],
+    ) -> Iterator[OutputAttr]:
         _t0 = time.time()
         t0 = _t0
         audio: Optional[AssistantAudio] = None
+        final_tool_calls: dict[int, ToolCall] = {}
         # We made another call to the OpenAI API, so we count it as a round trip.
         usage = TokenUsage(round_trips=1)
         for chunk in chunks:
@@ -361,10 +416,26 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         is_generated=True,
                         latency_ms=latency_ms,
                     )
+            elif (tool_calls := delta.tool_calls) is not None:
+                for tool_call in tool_calls:
+                    index = tool_call.index
+                    if index not in final_tool_calls:
+                        if final_tool_calls:
+                            # Close previous one
+                            yield TextOutput(
+                                value="</function>",
+                            )
+                        final_tool_calls[index] = ToolCall.model_validate(tool_call, from_attributes=True)
+                        yield TextOutput(
+                            value=f"<function={tool_call.function.name}>",
+                        )
+                    else:
+                        yield TextOutput(value=tool_call.function.arguments)
+                        final_tool_calls[index].function.arguments += tool_call.function.arguments
             elif delta.function_call is not None:
+                # Deprecated?
                 raise NotImplementedError("Function calling not yet supported for OpenAI")
-            elif delta.tool_calls is not None and len(delta.tool_calls) > 0:
-                raise NotImplementedError("Tool calling not yet supported for OpenAI")
+
             # there are cases where vllm does not return refusal field in delta, using None as default value here
             elif getattr(delta, "refusal", None) is not None:
                 raise ValueError(f"OpenAI refused the request: {delta.refusal}")
@@ -388,8 +459,41 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             wav_bytes = wav_buffer.getvalue()
             yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
 
+        if final_tool_calls:
+            # Close last one
+            yield TextOutput(
+                value="</function>",
+            )
+            self.state.messages.append(
+                ToolCallMessage(
+                    tool_calls=[ToolCall.model_validate(tc, from_attributes=True) for tc in final_tool_calls.values()]
+                )
+            )
+            for tool_call in final_tool_calls.values():
+                tool = tools[tool_call.function.name]
+                args = tool.args.model_validate_json(tool_call.function.arguments)
+                result = tool.callable(**args.model_dump())
+                result_str = json.dumps(result)
+                self.state.messages.append(
+                    ToolCallResult(
+                        tool_call_id=tool_call.id,
+                        content=result_str,
+                    )
+                )
+                yield TextOutput(
+                    value=f"<function_result={tool_call.function.name}>{result_str}</function_result>",
+                )
+
         usage.total_latency_ms += (time.time() - _t0) * 1000
         self.state.add_usage(usage)
+
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        yield from self._run(
+            tools=node.tools,
+            tool_choice=node.tool_choice,
+            parallel_tool_calls=node.parallel_tool_calls,
+            **kwargs,
+        )
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure client is not copied."""
