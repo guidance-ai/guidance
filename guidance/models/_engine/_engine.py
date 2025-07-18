@@ -74,7 +74,6 @@ class Engine(ABC):
         state: EngineState,
         grammar: str,
         ensure_bos_token: bool = True,
-        echo: bool = True,
         sampling_params: Optional[SamplingParams] = None,
     ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
@@ -287,8 +286,8 @@ class Engine(ABC):
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
-                k=self._top_k,
-                force_return_unmasked_probs=echo,
+                k=self._top_k if self.enable_monitoring else 0,
+                compute_unmasked_probs=self.enable_monitoring,
                 sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
@@ -308,9 +307,9 @@ class Engine(ABC):
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 5,
-        force_return_unmasked_probs: bool = False,
-        sampling_params: Optional[SamplingParams] = None,
+        k: int,
+        compute_unmasked_probs: bool,
+        sampling_params: Optional[SamplingParams],
     ) -> GenTokenExtra:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -340,8 +339,12 @@ class Engine(ABC):
         EngineOutput
             The output from the model.
         """
+        if k > 0 and not compute_unmasked_probs:
+            raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
         def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
+            if _k <= 0:
+                return []
             top_k_indices = _probs.argpartition(-_k)[-_k:]
             # Sort by probability in descending order, as above argpartition
             # does not guarantee order. Sorting the smaller array is faster.
@@ -360,62 +363,64 @@ class Engine(ABC):
             _logits = apply_top_k_and_top_p_filter(_logits, _sampling_params)
             return _logits
 
-        # TODO: only get unmasked probs if we're either echoing or if we have no mask
-        # NOTE: we clone logits here to avoid modifying the original logits twice
-        filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
-        probs = softmax(filtered_logits)
-
+        probs: Optional[NDArray] = None
         top_k: list[int] = []
-        if force_return_unmasked_probs:
-            # compute top-k without masking
+        if compute_unmasked_probs or mask is None:
+            # NOTE: we clone logits here to avoid modifying the original logits twice
+            filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
+            probs = softmax(filtered_logits)
+            # Get the top-k tokens from the unmasked logits
             top_k = get_top_k(probs, k)
 
-        # compute top-k with masking
-        masked_top_k: list[int] = []
         masked_probs: Optional[NDArray] = None
         if mask is not None:
-            mask = np.frombuffer(mask, dtype=np.uint8)
-            masked_logits = np.where(mask != 0, logits, -np.inf)
+            np_mask = np.frombuffer(mask, dtype=np.uint8)
+            masked_logits = np.where(np_mask != 0, logits, -np.inf)
+            # TODO: if temp is 0, we only need to apply the params that affect argmax, e.g. repetition penalty
             filtered_masked_logits = apply_temp_and_sampling_params(masked_logits, sampling_params)
             masked_probs = softmax(filtered_masked_logits)
-            masked_top_k = get_top_k(masked_probs, max(k, 1))  # Ensure at least one token is returned
 
         if temperature < _TEMPERATURE_EPSILON:
             # Greedy sampling
-            if mask is not None:
-                assert len(masked_top_k) > 0, "Masked top-k should not be empty when mask is provided"
-                issued_token = masked_top_k[0]
-            else:
+            if mask is None:
+                assert probs is not None, "Probs should not be None when mask is None"
                 if len(top_k) == 0:
-                    top_k = get_top_k(probs, 1)
-                issued_token = top_k[0]
+                    issued_token = np.argmax(probs)
+                else:
+                    # If we have top_k, we can just return the first one
+                    issued_token = top_k[0]
+            else:
+                assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
+                issued_token = np.argmax(masked_probs)
         else:
             # We need to sample from the probabilities
             if mask is None:
+                assert probs is not None, "Probs should not be None when mask is None"
                 issued_token = np.random.choice(len(probs), p=probs)
             else:
                 assert masked_probs is not None, "Masked probabilities should not be None when mask is provided"
                 issued_token = np.random.choice(len(masked_probs), p=masked_probs)
 
+        if issued_token not in top_k:
+            # This ensures that the issued token is always included in the top-k tokens
+            # Note: needs to be added to the end in order to maintain sorted order
+            top_k.append(issued_token)
+
         top_k_tokens = [
             GenToken(
                 token_id=token_id,
-                prob=prob,
+                prob=float("nan") if probs is None else float(probs[token_id]),
                 bytes=self.tokenizer.decode([token_id]),
                 latency_ms=logits_lat_ms,
                 is_generated=True,
                 is_masked=mask is not None and bool(mask[token_id] == 0),
             )
-            for token_id in masked_top_k + top_k
-            # Use unmasked probs always
-            if (prob := float(probs[token_id])) > 0
+            for token_id in top_k
         ]
-        top_k_tokens = sorted(top_k_tokens, key=lambda t: t.prob, reverse=True)[:k]
 
         return GenTokenExtra(
             token_id=issued_token,
-            # Use unmasked probs always (TODO: maybe we can avoid it if echo=False?)
-            prob=float(probs[issued_token]),
+            prob=float("nan") if probs is None else float(probs[issued_token]),
             bytes=self.tokenizer.decode([issued_token]),
             latency_ms=logits_lat_ms,
             is_generated=True,
