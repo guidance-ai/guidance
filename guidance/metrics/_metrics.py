@@ -91,7 +91,7 @@ class PeriodicMetricsGenerator:
                 logger.debug("METRICGEN:canceling")
                 break
             except Exception as e:  # noqa BLE001
-                logger.debug(f"METRICGEN: {repr(e)}")
+                logger.debug(f"METRICGEN: {repr(e)}", exc_info=True)
                 break
 
         logger.debug("METRICGEN:exiting")
@@ -124,8 +124,6 @@ class Monitor:
         }
 
     async def _monitor_fn(self):
-        import traceback
-
         to_collect_gpu_stats = False
         has_gpustat = False
         try:
@@ -141,7 +139,7 @@ class Monitor:
                 if len(gpu_stats) > 0:
                     to_collect_gpu_stats = True
             except Exception as e:  # noqa BLE001
-                logger.warning(f"Non-Nvidia GPU monitoring is not supported in this version. {e}")
+                logger.warning(f"Non-Nvidia GPU monitoring is not supported in this version. {e}", exc_info=True)
 
         while not self.stop_flag:
             try:
@@ -176,9 +174,8 @@ class Monitor:
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
 
-            except Exception as e:  # noqa BLE001
-                logger.error(f"Caught {e}")
-                logger.error(f"MONITOR:{traceback.format_exc()}")
+            except Exception as e:
+                logger.error(f"Caught {e}", exc_info=True)
                 await asyncio.sleep(1)  # Wait a bit before retrying on error
 
     def start(self):
