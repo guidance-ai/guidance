@@ -678,6 +678,11 @@ class LarkSerializer:
                     lark_grammar += f"\n%ignore /{target.skip_regex}/"
                 res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
             elif isinstance(target, GrammarNode):
+                if target.is_allowed_in_lark_terminal and not node.is_allowed_in_lark_terminal:
+                    target = RuleNode(
+                        name=node.name,
+                        value=target,
+                    )
                 res += self.visit(target.simplify(), top=True)
             else:
                 if TYPE_CHECKING:
