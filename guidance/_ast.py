@@ -685,6 +685,11 @@ class LarkSerializer:
                     and target.is_allowed_in_lark_terminal
                     and not node.is_allowed_in_lark_terminal
                 ):
+                    # Handle issue #1320, where a large select() was
+                    # not being simplified because it was also being
+                    # captured.
+                    # Since a capture can't be a terminal, and only
+                    # terminals can be simplified, do an extra wrap
                     target = RuleNode(
                         name=node.name,
                         value=target,
