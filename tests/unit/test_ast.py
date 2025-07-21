@@ -104,7 +104,8 @@ MY_RULE: /.*/
         expected = """%llguidance {}
 
 start: my_rule
-my_rule[capture="my_capture"]: /.*/
+my_rule[capture="my_capture"]: MY_RULE
+MY_RULE: /.*/
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
@@ -122,7 +123,8 @@ my_rule[capture="my_capture"]: /.*/
         expected = """%llguidance {}
 
 start: my_rule
-my_rule[temperature=0.7]: /.*/
+my_rule[temperature=0.7]: MY_RULE
+MY_RULE: /.*/
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
@@ -140,7 +142,8 @@ my_rule[temperature=0.7]: /.*/
         expected = """%llguidance {}
 
 start: my_rule
-my_rule[capture="my_capture", temperature=0.7]: /.*/
+my_rule[capture="my_capture", temperature=0.7]: MY_RULE
+MY_RULE: /.*/
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
@@ -159,7 +162,8 @@ my_rule[capture="my_capture", temperature=0.7]: /.*/
         expected = """%llguidance {}
 
 start: my_rule
-my_rule[capture="my_capture", temperature=0.7, stop="I'm done"]: /.*/
+my_rule[capture="my_capture", temperature=0.7, stop="I'm done"]: MY_RULE
+MY_RULE: /.*/
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
@@ -181,7 +185,8 @@ my_rule[capture="my_capture", temperature=0.7, stop="I'm done"]: /.*/
 
 start: outer_rule
 outer_rule: "A Literal" inner_rule
-inner_rule[capture="inner_capture"]: /\d\d/
+inner_rule[capture="inner_capture"]: INNER_RULE
+INNER_RULE: /\d\d/
 """
         assert result == expected
         grm = LLMatcher.grammar_from_lark(result)
