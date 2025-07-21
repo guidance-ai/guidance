@@ -308,7 +308,8 @@ class GrammarNode(Tagged, ASTNode):
         return parser.bytes.decode("utf-8", errors="ignore")
 
     def ll_grammar(self, enforce_max_tokens: bool = True) -> str:
-        return LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
+        lark_str = LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
+        return lark_str
 
 
 @dataclass(frozen=True)
@@ -478,14 +479,15 @@ class RuleNode(GrammarNode):
 
     @property
     def is_allowed_in_lark_terminal(self) -> bool:
-        return (
+        check_self = (
             self.capture is None
             and self.temperature is None
             and self.max_tokens is None
             and self.stop is None
             and self.suffix is None
             and self.stop_capture is None
-        ) and super().is_allowed_in_lark_terminal
+        )
+        return check_self and super().is_allowed_in_lark_terminal
 
     def children(self) -> tuple[GrammarNode]:
         return (self.value,)
@@ -678,6 +680,15 @@ class LarkSerializer:
                     lark_grammar += f"\n%ignore /{target.skip_regex}/"
                 res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
             elif isinstance(target, GrammarNode):
+                if (
+                    not isinstance(target, RuleNode)
+                    and target.is_allowed_in_lark_terminal
+                    and not node.is_allowed_in_lark_terminal
+                ):
+                    target = RuleNode(
+                        name=node.name,
+                        value=target,
+                    )
                 res += self.visit(target.simplify(), top=True)
             else:
                 if TYPE_CHECKING:
