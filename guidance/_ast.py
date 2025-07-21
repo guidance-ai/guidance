@@ -685,11 +685,21 @@ class LarkSerializer:
                     and target.is_allowed_in_lark_terminal
                     and not node.is_allowed_in_lark_terminal
                 ):
-                    # Handle issue #1320, where a large select() was
-                    # not being simplified because it was also being
-                    # captured.
-                    # Since a capture can't be a terminal, and only
-                    # terminals can be simplified, do an extra wrap
+                    """
+                    If the RHS could be written as a terminal, but the presence of attributes on the LHS
+                    prevents it, we wrap the RHS in a new rule like so:
+                    ```
+                    rule[attr]: TERMINAL | TERMINAL | TERMINAL
+                    ```
+                    gets rewritten as:
+                    ```
+                    rule[attr]: RULE
+                    RULE: TERMINAL | TERMINAL | TERMINAL
+                    ```
+                    In particular, this lets us ensure that large alternations are handled as single lexemes
+                    rather than a choice between multiple lexemes, which is important for performance.
+                    See issue #1320
+                    """
                     target = RuleNode(
                         name=node.name,
                         value=target,
