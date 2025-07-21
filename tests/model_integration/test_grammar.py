@@ -9,6 +9,7 @@ def test_select_simple(selected_model: models.Model):
 
 
 def test_select_large(selected_model: models.Model):
+    # From issue #1320
     lm = selected_model
     n = 2002
 
