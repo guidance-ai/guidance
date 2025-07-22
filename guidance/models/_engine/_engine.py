@@ -142,20 +142,20 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
-            # We can avoid a final get_logits call in the case that:
-            # 1. The parser has a pending stop
-            # 2. There are no ff_tokens (except for our last generated token)
-            # TODO: allow avoiding final forward pass if metrics are disabled
-            # and we have a pending stop
             if parser.has_pending_stop() and (
+                # There are no ff_tokens
                 (not ff_tokens)
+                # The only ff_token is the issued token
                 or (len(ff_tokens) == 1 and issued_token is not None and ff_tokens[0] == issued_token.token_id)
+                # Monitoring is disabled
+                or not self.enable_monitoring
             ):
+                # We can skip the logits computation
                 logits = None
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=self.enable_monitoring)
                 logits = logits_output["logits"]
                 usage.input_tokens += logits_output["n_tokens"]
                 usage.cached_input_tokens += logits_output["n_cached"]
