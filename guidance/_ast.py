@@ -697,8 +697,9 @@ class LarkSerializer:
                     RULE: TERMINAL | TERMINAL | TERMINAL
                     ```
                     In particular, this lets us ensure that large alternations are handled as single lexemes
-                    rather than a choice between multiple lexemes, which is important for performance.
-                    See issue #1320
+                    rather than a choice between multiple lexemes. Keeping the number of individual lexemes
+                    to a minimum is important for performance.
+                    Indeed, llguidance imposes a limit to maintain performance: see issue #1320
                     """
                     target = RuleNode(
                         name=node.name,
