@@ -1,7 +1,7 @@
 import pytest
 
 import guidance
-from guidance import gen, models, optional, select, string
+from guidance import gen, lark, models, optional, select
 from guidance._parser import ByteParserException
 
 
@@ -18,17 +18,25 @@ def test_select_longer():
     assert lm["text"] == "nice man."
 
 
-@pytest.mark.xfail(reason="Lexer sees 'a' then 'b' and here decides to continue matching abq)")
+@pytest.mark.xfail(
+    reason="Lexer sees 'a' then 'b' and here decides to continue matching abq; see https://github.com/guidance-ai/llguidance/issues/2"
+)
 def test_select_ambiguous_lexeme_boundary():
     lm = models.Mock(b"<s>abQ<s>")
-    lm += select(options=["a", "abq", "c"], name="prefix") + optional("bQ")
+    lm += lark("""\
+start: prefix "bQ"?
+prefix[capture]: "a" | "abq" | "c"
+""")
     assert lm["prefix"] == "a"
 
 
 def test_select_ambiguous_lexeme_boundary_manual_fix():
     # Manual fix to the issue in test_select_ambiguous_lexeme_boundary by splitting the "abq" lexeme into two lexemes
     lm = models.Mock(b"<s>abQ<s>")
-    lm += select(options=["a", string("a") + string("bq"), "c"], name="prefix") + optional("bQ")
+    lm += lark("""\
+start: prefix "bQ"?
+prefix[capture]: "a" | "a" "bq" | "c"
+""")
     assert lm["prefix"] == "a"
 
 
