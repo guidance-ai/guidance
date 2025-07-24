@@ -170,30 +170,31 @@ class Engine(ABC):
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            if logits is not None:
-                # Not the last one -- that's for the *next* token.
-                ff_logits = logits[-len(ff_tokens) - 1 : -1]
-                ff_probs = (
-                    softmax(ff_logits)
-                    if last_temperature < _TEMPERATURE_EPSILON
-                    else softmax(ff_logits / last_temperature)
+            ff_probs: Optional[NDArray] = None
+            if logits is not None and self.enable_monitoring:
+                # Note: may not have logits for all ff tokens if some prefix of them hit cache
+                # TODO: we could maintain a prefix cache for the probabilities of selected / ff tokens so we always
+                # have something to report here
+                assert logits.shape[0] <= len(ff_tokens) + 1, (
+                    f"Logits shape {logits.shape} is inconsistent with ff_tokens {ff_tokens} and issued_token "
+                    f"{issued_token}"
                 )
+                assert logits.shape[0] > 0, "Missing logits for issued_token"
 
-                if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
-                    # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                    ff_probs = np.pad(ff_probs, [(1, 0), (0, 0)], mode="constant", constant_values=1.0)
-                elif ff_probs.shape[0] < len(ff_tokens):
-                    # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
-                    # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
-                    ff_probs = np.pad(
-                        ff_probs,
-                        [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
-                        mode="constant",
-                        constant_values=np.nan,
+                ff_logits_list: list[NDArray] = []
+                logits_copy = logits.copy()  # apply_temp_and_sampling_params modifies logits in place
+                # Start at 1 to avoid the issued token
+                for i in reversed(range(1, min(len(ff_tokens) + 1, logits.shape[0]))):
+                    ff_logits_list.append(
+                        apply_temp_and_sampling_params(
+                            logits_copy[logits.shape[0] - i - 1, :],
+                            tokens[: len(tokens) - i],
+                            last_temperature if i != 0 else ll_response.temperature,
+                            sampling_params,
+                        )
                     )
-            else:
-                # really just for mypy -- we shouldn't need this
-                ff_probs = np.empty(shape=())
+                ff_logits = np.stack(ff_logits_list, axis=0)
+                ff_probs = softmax(ff_logits)
 
             ff_lat_ms = (time.time() - t0) * 1000
             if not ll_response.stop:
@@ -205,13 +206,35 @@ class Engine(ABC):
                 # Note: intentionally not counting ff_tokens here, as we're counting these
                 # all just as input tokens
                 for i, token_id in enumerate(ff_tokens):
+                    if ff_probs is None or len(ff_tokens) - i - 1 >= ff_probs.shape[0]:
+                        prob = float("nan")
+                        top_k = []
+                    else:
+                        prob = float(ff_probs[i, token_id])
+                        top_k = get_top_k(ff_probs[i], self._top_k)
+                    if token_id not in top_k:
+                        top_k.append(token_id)
                     gen_tokens.append(
-                        GenToken(
+                        GenTokenExtra(
                             token_id=token_id,
                             bytes=self.tokenizer.decode([token_id]),
-                            prob=ff_probs[i, token_id],
+                            prob=prob,
                             latency_ms=ff_lat_ms / len(ff_tokens),
                             is_input=True,
+                            is_masked=False,
+                            top_k=[
+                                GenToken(
+                                    token_id=top_k_token,
+                                    prob=float("nan")
+                                    if ff_probs is None
+                                    else float(ff_probs[len(ff_tokens) - i - 1, top_k_token]),
+                                    bytes=self.tokenizer.decode([top_k_token]),
+                                    latency_ms=ff_lat_ms / len(ff_tokens),
+                                    is_generated=True,
+                                    is_masked=top_k_token != token_id,
+                                )
+                                for top_k_token in top_k
+                            ],
                         )
                     )
             else:
@@ -342,32 +365,13 @@ class Engine(ABC):
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
-        def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
-            if _k <= 0:
-                return []
-            top_k_indices = _probs.argpartition(-_k)[-_k:]
-            # Sort by probability in descending order, as above argpartition
-            # does not guarantee order. Sorting the smaller array is faster.
-            return sorted(top_k_indices, key=lambda idx: _probs[idx], reverse=True)
-
-        def apply_temp_and_sampling_params(
-            _logits: NDArray,
-            _sampling_params: Optional[SamplingParams],
-        ) -> NDArray:
-            """Apply the sampling parameters to the logits."""
-            if _sampling_params is None:
-                return _logits
-            _logits = apply_repetition_penalty(token_ids, _logits, _sampling_params)
-            _logits = _logits if temperature < _TEMPERATURE_EPSILON else _logits / temperature
-            _logits = apply_min_p_filter(_logits, _sampling_params)
-            _logits = apply_top_k_and_top_p_filter(_logits, _sampling_params)
-            return _logits
-
         probs: Optional[NDArray] = None
         top_k: list[int] = []
         if compute_unmasked_probs or mask is None:
             # NOTE: we clone logits here to avoid modifying the original logits twice
-            filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
+            filtered_logits = apply_temp_and_sampling_params(
+                np.array(logits, copy=True), token_ids, temperature, sampling_params
+            )
             probs = softmax(filtered_logits)
             # Get the top-k tokens from the unmasked logits
             top_k = get_top_k(probs, k)
@@ -377,7 +381,9 @@ class Engine(ABC):
             np_mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(np_mask != 0, logits, -np.inf)
             # TODO: if temp is 0, we only need to apply the params that affect argmax, e.g. repetition penalty
-            filtered_masked_logits = apply_temp_and_sampling_params(masked_logits, sampling_params)
+            filtered_masked_logits = apply_temp_and_sampling_params(
+                masked_logits, token_ids, temperature, sampling_params
+            )
             masked_probs = softmax(filtered_masked_logits)
 
         if temperature < _TEMPERATURE_EPSILON:
@@ -439,3 +445,28 @@ class Engine(ABC):
             the return value's shape will be `(1, vocab_size)`.
         """
         pass
+
+
+def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
+    if _k <= 0:
+        return []
+    top_k_indices = _probs.argpartition(-_k)[-_k:]
+    # Sort by probability in descending order, as above argpartition
+    # does not guarantee order. Sorting the smaller array is faster.
+    return sorted(top_k_indices, key=lambda idx: _probs[idx], reverse=True)
+
+
+def apply_temp_and_sampling_params(
+    logits: NDArray,
+    token_ids: list[int],
+    temperature: float,
+    sampling_params: Optional[SamplingParams],
+) -> NDArray:
+    """Apply the sampling parameters to the logits."""
+    if sampling_params is None:
+        return logits
+    logits = apply_repetition_penalty(token_ids, logits, sampling_params)
+    logits = logits if temperature < _TEMPERATURE_EPSILON else logits / temperature
+    logits = apply_min_p_filter(logits, sampling_params)
+    logits = apply_top_k_and_top_p_filter(logits, sampling_params)
+    return logits
