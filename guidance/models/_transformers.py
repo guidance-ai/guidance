@@ -595,8 +595,10 @@ class TransformersEngine(Engine):
 
         # If our cached logits are valid, we can include them when we include_all_uncached_tokens
         # this lets us give logits FOR the first uncached token, not just the logits that follow it,
+        last_cache_included = False
         if self._cached_logits is not None and num_cached == len(self._cached_token_ids):
             logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
+            last_cache_included = True
 
         # save the results
         self._past_key_values = model_out.past_key_values
@@ -605,7 +607,7 @@ class TransformersEngine(Engine):
 
         if include_all_uncached_tokens:
             logits = np.concatenate(logits_for_each_batch, axis=0)
-            if self._cached_logits is not None and num_cached == len(self._cached_token_ids):
+            if last_cache_included:
                 assert logits.shape[0] == len(token_ids) - num_cached + 1
             else:
                 assert logits.shape[0] == len(token_ids) - num_cached
