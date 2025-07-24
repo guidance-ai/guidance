@@ -142,15 +142,26 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
+            if issued_token is not None:
+                if backtrack or ff_tokens[:1] != [issued_token.token_id]:
+                    issued_token.is_backtracked = True
+                else:
+                    # Remove the issued token from ff_tokens
+                    ff_tokens = ff_tokens[1:]
+                usage.ff_tokens += len(ff_tokens)
+            else:
+                # If we don't have an issued token, we are at the start of the loop
+                # and we count all the ff_tokens as "input"
+                usage.input_tokens += len(ff_tokens)
+
             if parser.has_pending_stop() and (
                 # There are no ff_tokens
-                (not ff_tokens)
-                # The only ff_token is the issued token
-                or (len(ff_tokens) == 1 and issued_token is not None and ff_tokens[0] == issued_token.token_id)
+                not ff_tokens
                 # Monitoring is disabled
                 or not self.enable_monitoring
             ):
-                # We can skip the logits computation
+                # We can skip the logits computation because it would only be used to enrich
+                # the fast-forwarded tokens with probabilities for the sake of monitoring
                 logits = None
                 logits_lat_ms = 0.0
             else:
@@ -172,93 +183,70 @@ class Engine(ABC):
 
             ff_probs: Optional[NDArray] = None
             if logits is not None and self.enable_monitoring:
+                # Exclude the "next token" logits
                 # Note: may not have logits for all ff tokens if some prefix of them hit cache
-                # TODO: we could maintain a prefix cache for the probabilities of selected / ff tokens so we always
-                # have something to report here
-                assert logits.shape[0] <= len(ff_tokens) + 1, (
-                    f"Logits shape {logits.shape} is inconsistent with ff_tokens {ff_tokens} and issued_token "
-                    f"{issued_token}"
-                )
-                assert logits.shape[0] > 0, "Missing logits for issued_token"
+                # Note: may have some extra here if something caused us to miss cache
+                ff_logits = logits[-len(ff_tokens) - 1 : -1, :]
+                # Avoid mutation of the original logits
+                ff_logits = ff_logits.copy()
 
-                ff_logits_list: list[NDArray] = []
-                logits_copy = logits.copy()  # apply_temp_and_sampling_params modifies logits in place
-                # Start at 1 to avoid the issued token
-                for i in reversed(range(1, min(len(ff_tokens) + 1, logits.shape[0]))):
-                    ff_logits_list.append(
-                        apply_temp_and_sampling_params(
-                            logits_copy[logits.shape[0] - i - 1, :],
-                            tokens[: len(tokens) - i],
-                            last_temperature if i != 0 else ll_response.temperature,
-                            sampling_params,
+                if ff_logits.shape[0] > 0:
+                    ff_logits_list: list[NDArray] = []
+                    for i in range(ff_logits.shape[0]):
+                        ff_logits_list.append(
+                            apply_temp_and_sampling_params(
+                                ff_logits[i, :],
+                                tokens[: len(tokens) - ff_logits.shape[0] + i],
+                                last_temperature,
+                                sampling_params,
+                            )
                         )
-                    )
-                ff_logits = np.stack(ff_logits_list, axis=0)
-                ff_probs = softmax(ff_logits)
+                    ff_logits = np.stack(ff_logits_list, axis=0)
+                    ff_probs = softmax(ff_logits)
 
             ff_lat_ms = (time.time() - t0) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
                 ff_lat_ms -= logits_lat_ms
 
-            gen_tokens = []
-            if issued_token is None:
-                # Note: intentionally not counting ff_tokens here, as we're counting these
-                # all just as input tokens
-                for i, token_id in enumerate(ff_tokens):
-                    if ff_probs is None or len(ff_tokens) - i - 1 >= ff_probs.shape[0]:
-                        prob = float("nan")
-                        top_k = []
-                    else:
-                        prob = float(ff_probs[i, token_id])
-                        top_k = get_top_k(ff_probs[i], self._top_k)
-                    if token_id not in top_k:
-                        top_k.append(token_id)
-                    gen_tokens.append(
-                        GenTokenExtra(
-                            token_id=token_id,
-                            bytes=self.tokenizer.decode([token_id]),
-                            prob=prob,
-                            latency_ms=ff_lat_ms / len(ff_tokens),
-                            is_input=True,
-                            is_masked=False,
-                            top_k=[
-                                GenToken(
-                                    token_id=top_k_token,
-                                    prob=float("nan")
-                                    if ff_probs is None
-                                    else float(ff_probs[len(ff_tokens) - i - 1, top_k_token]),
-                                    bytes=self.tokenizer.decode([top_k_token]),
-                                    latency_ms=ff_lat_ms / len(ff_tokens),
-                                    is_generated=True,
-                                    is_masked=top_k_token != token_id,
-                                )
-                                for top_k_token in top_k
-                            ],
-                        )
-                    )
-            else:
+            gen_tokens: list[GenTokenExtra] = []
+            if issued_token is not None:
                 gen_tokens.append(issued_token)
-                if backtrack or ff_tokens[:1] != [issued_token.token_id]:
-                    issued_token.is_backtracked = True
-                    ff_start_index = 0
-                else:
-                    ff_start_index = 1
-                ff_tokens = ff_tokens[ff_start_index:]
 
-                # Just update ff tokens here -- usage for issued_token has already been
-                # handled where we got logits above
-                usage.ff_tokens += len(ff_tokens)
-                for i, token_id in enumerate(ff_tokens, start=ff_start_index):
-                    gen_tokens.append(
-                        GenToken(
-                            token_id=token_id,
-                            bytes=self.tokenizer.decode([token_id]),
-                            prob=ff_probs[i, token_id],
-                            latency_ms=ff_lat_ms / len(ff_tokens),
-                            is_force_forwarded=True,
-                        )
+            for i, token_id in enumerate(ff_tokens):
+                prob = float("nan")
+                top_k: list[GenToken] = []
+                if ff_probs is not None:
+                    prob_ix = i + (ff_probs.shape[0] - len(ff_tokens))
+                    if prob_ix >= 0:
+                        prob = float(ff_probs[prob_ix, token_id])
+                        top_k_ixs = get_top_k(ff_probs[prob_ix], self._top_k)
+                        if token_id not in top_k_ixs:
+                            top_k_ixs.append(token_id)
+                        for top_k_token_id in top_k_ixs:
+                            top_k.append(
+                                GenToken(
+                                    token_id=top_k_token_id,
+                                    prob=float(ff_probs[prob_ix, top_k_token_id]),
+                                    bytes=self.tokenizer.decode([top_k_token_id]),
+                                    latency_ms=ff_lat_ms / len(ff_tokens),
+                                    is_input=issued_token is None,
+                                    is_force_forwarded=issued_token is not None,
+                                    is_masked=top_k_token_id != token_id,
+                                )
+                            )
+                gen_tokens.append(
+                    GenTokenExtra(
+                        token_id=token_id,
+                        bytes=self.tokenizer.decode([token_id]),
+                        prob=prob,
+                        latency_ms=ff_lat_ms / len(ff_tokens),
+                        is_input=issued_token is None,
+                        is_force_forwarded=issued_token is not None,
+                        is_masked=False,
+                        top_k=top_k,
                     )
+                )
 
             engine_response = EngineResponse(
                 new_bytes=legacy_engine_response.new_bytes,
