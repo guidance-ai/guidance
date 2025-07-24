@@ -148,11 +148,9 @@ class Engine(ABC):
                 else:
                     # Remove the issued token from ff_tokens
                     ff_tokens = ff_tokens[1:]
+                # Note: only need to update usage in this branch (issued_token is not None), as these ff_tokens
+                # will otherwise just be counted as "input_tokens" when we call get_logits below
                 usage.ff_tokens += len(ff_tokens)
-            else:
-                # If we don't have an issued token, we are at the start of the loop
-                # and we count all the ff_tokens as "input"
-                usage.input_tokens += len(ff_tokens)
 
             if parser.has_pending_stop() and (
                 # There are no ff_tokens
