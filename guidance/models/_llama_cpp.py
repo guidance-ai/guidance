@@ -205,13 +205,21 @@ class LlamaCppEngine(Engine):
             ).copy()
             logits_for_each_batch.append(logits_for_this_batch)
 
+        # If our cached logits are valid, we can include them when we include_all_uncached_tokens
+        # this lets us give logits FOR the first uncached token, not just the logits that follow it,
+        if self._cached_logits is not None and num_cached == len(self._cached_token_ids):
+            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
+
         # save the results
         self._cached_token_ids = token_ids.copy()
         self._cached_logits = logits_for_each_batch[-1][[-1], :]
 
         if include_all_uncached_tokens:
             logits = np.concatenate(logits_for_each_batch, axis=0)
-            assert logits.shape[0] == len(token_ids) - num_cached
+            if self._cached_logits is not None and num_cached == len(self._cached_token_ids):
+                assert logits.shape[0] == len(token_ids) - num_cached + 1
+            else:
+                assert logits.shape[0] == len(token_ids) - num_cached
         else:
             logits = self._cached_logits
 
