@@ -194,6 +194,18 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "transformers_qwen2dot5_0dot5b_instruct_gpu":
         return models.Transformers("Qwen/Qwen2.5-0.5B-Instruct", device_map="cuda:0")
 
+    # QWEN3
+    if selected_model_name == "llamacpp_qwen3_0dot6b_cpu":
+        from huggingface_hub import hf_hub_download
+
+        return models.LlamaCpp(
+            hf_hub_download(
+                repo_id="unsloth/Qwen3-0.6B-GGUF",
+                filename="Qwen3-0.6B-BF16.gguf",
+            ),
+            n_ctx=4096,
+        )
+
     raise ValueError(f"No support for selected_model_name {selected_model_name}")  # pragma: no cover
 
 

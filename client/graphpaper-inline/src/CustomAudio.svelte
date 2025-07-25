@@ -289,7 +289,7 @@
 </script>
 
 <div
-  class="bg-white px-2 py-1 w-full max-w-6xl rounded-xl shadow-sm border border-gray-100"
+  class="bg-white dark:bg-gray-800 px-2 py-1 w-full max-w-6xl rounded-xl shadow-sm border border-gray-100 dark:border-gray-700"
 >
   <!-- Main player content -->
   <div class="flex flex-col gap-2">
@@ -297,17 +297,17 @@
     <div class="flex items-center gap-1">
       <!-- Play Button -->
       <button
-        class="w-6 h-6 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-500"
+        class="w-6 h-6 rounded-full bg-gray-800 dark:bg-gray-200 flex items-center justify-center cursor-pointer transition-all hover:bg-gray-900 dark:hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400"
         on:click={togglePlay}
         aria-label="Toggle playback"
       >
         {#if isPlaying}
-          <svg class="fill-white w-5 h-5" viewBox="0 0 24 24">
+          <svg class="fill-white dark:fill-gray-900 w-5 h-5" viewBox="0 0 24 24">
             <rect x="7" y="6" width="3" height="12" rx="1" />
             <rect x="14" y="6" width="3" height="12" rx="1" />
           </svg>
         {:else}
-          <svg class="fill-white w-5 h-5" viewBox="0 0 24 24">
+          <svg class="fill-white dark:fill-gray-900 w-5 h-5" viewBox="0 0 24 24">
             <path d="M8 5.14v14l11-7-11-7z" />
           </svg>
         {/if}
@@ -323,7 +323,7 @@
       >
         <!-- Volume Button -->
         <button
-          class="text-gray-500 pl-1 py-1 hover:text-gray-700 relative z-10"
+          class="text-gray-500 dark:text-gray-400 pl-1 py-1 hover:text-gray-700 dark:hover:text-gray-300 relative z-10"
           on:click={() => (isMuted = !isMuted)}
           aria-label={isMuted ? "Unmute" : "Mute"}
           aria-pressed={isMuted}
@@ -349,14 +349,14 @@
         <!-- Volume Slider (appears on hover) -->
         {#if showVolumeSlider}
           <div
-            class="absolute left-0 bottom-[-15px] bg-white shadow-md rounded-lg p-2 transform -translate-x-1/4 transition-opacity duration-200 z-20"
+            class="absolute left-0 bottom-[-15px] bg-white dark:bg-gray-800 shadow-md rounded-lg p-2 transform -translate-x-1/4 transition-opacity duration-200 z-20"
             role="slider"
             aria-label="Volume"
             aria-valuemin="0"
             aria-valuemax="100"
             aria-valuenow={volume * 100}
           >
-            <div class="w-24 relative h-1 rounded-full bg-gray-200">
+            <div class="w-24 relative h-1 rounded-full bg-gray-200 dark:bg-gray-600">
               <input
                 type="range"
                 min="0"
@@ -368,11 +368,11 @@
                 aria-label="Volume"
               />
               <div
-                class="absolute inset-y-0 left-0 rounded-full bg-gray-600"
+                class="absolute inset-y-0 left-0 rounded-full bg-gray-600 dark:bg-gray-300"
                 style="width: {volume * 100}%"
               ></div>
               <div
-                class="absolute h-2 w-2 bg-gray-50 border border-gray-300 rounded-full shadow-sm"
+                class="absolute h-2 w-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-500 rounded-full shadow-sm"
                 style="left: calc({volume * 100}% - 6px); top: -2px"
               ></div>
             </div>
@@ -405,7 +405,7 @@
       </div>
 
       <!-- Time Display -->
-      <div class="text-gray-700 whitespace-nowrap text-sm">
+      <div class="text-gray-700 dark:text-gray-300 whitespace-nowrap text-sm">
         {formatTime(currentTime)} / {formatTime(duration)}
       </div>
     </div>

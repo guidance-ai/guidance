@@ -98,13 +98,20 @@ class MockEngine(Engine):
         token_ids: list[int],
         mask: Optional[bytes],
         temperature: float,
-        k: int = 1,
-        force_return_unmasked_probs: bool = False,
-        sampling_params: Optional[SamplingParams] = None,
+        k: int,
+        compute_unmasked_probs: bool,
+        sampling_params: Optional[SamplingParams],
     ) -> GenTokenExtra:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
-            logits, logits_lat_ms, token_ids, mask, temperature, k, force_return_unmasked_probs, sampling_params
+            logits=logits,
+            logits_lat_ms=logits_lat_ms,
+            token_ids=token_ids,
+            mask=mask,
+            temperature=temperature,
+            k=k,
+            compute_unmasked_probs=compute_unmasked_probs,
+            sampling_params=sampling_params,
         )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:

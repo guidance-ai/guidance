@@ -23,8 +23,9 @@ export interface TokenOutput extends TextOutput {
 }
 
 export interface Token {
-    bytes: string
-    prob: number
+    token: string,
+    bytes: string,
+    prob: number,
     masked: boolean,
 }
 

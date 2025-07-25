@@ -5,6 +5,9 @@
 name: CI Tests - Notebook
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       commit_id:

@@ -38,6 +38,8 @@ For upcoming features, we won't be able to send all details over the wire, and w
   import type { MetricVal } from './interfaces';
   // import { mockNodeAttrs } from './mocks';
 
+  let isDarkMode = false;
+  
   interface AppState {
     components: Array<NodeAttr>,
     status: Status,
@@ -157,16 +159,10 @@ For upcoming features, we won't be able to send all details over the wire, and w
       // console.log(appState.components);
     }
 
-    // Show app (we've received at least one message)
-    if (!showApp && appState.components.length > 0) {
-      showApp = true;
-    }
-
     // Force reactivity update
     appState = { ...appState };
   };
 
-  let showApp = false;
   $: if ($state !== undefined && $state.content !== '') {
     // console.log("Client state received.")
     appState = JSON.parse($state.content);
@@ -215,6 +211,21 @@ For upcoming features, we won't be able to send all details over the wire, and w
     clientmsg.set(msg);
 
     setTimeout(requestOutputIfNoMessages, 200 * 2);
+
+    // Listen for theme messages from parent
+    const handleThemeMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'theme' && event.data?.theme === 'dark') {
+        isDarkMode = true;
+        document.documentElement.classList.add('dark');
+        console.log('[Guidance Widget] ✅ Dark mode applied via postMessage');
+      }
+    };
+    
+    window.addEventListener('message', handleThemeMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleThemeMessage);
+    };
   });
 </script>
 
@@ -225,20 +236,22 @@ For upcoming features, we won't be able to send all details over the wire, and w
 
 <StitchHandler />
 <ResizeListener />
-<div class="w-full" class:h-1={!showApp}>
-  <nav class="sticky top-0 z-50 opacity-90">
+<div class="w-full">
+  <nav class="sticky top-0 z-50 bg-white dark:bg-gray-900">
     <section class="">
-      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200">
+      <div class="text-sm pt-2 pb-2 flex justify-between border-b border-gray-200 dark:border-gray-700">
         <!-- Controls -->
         <span class="flex mr-2">
-          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200"
+          <Select values={["None", "Type", "Probability", "Latency (ms)"]} classes="ml-4 pl-1 bg-gray-200 dark:bg-transparent"
                   defaultValue={"Type"}
                   on:select={(selected) => bgField = selected.detail} />
-          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400"
+          <Select values={["None", "Probability", "Latency (ms)"]} classes="border-b-2 pl-1 border-gray-400 dark:border-gray-500 bg-transparent dark:bg-transparent"
                   defaultValue={"Probability"} on:select={(selected) => underlineField = selected.detail} />
         </span>
         <!-- Metrics -->
-        <span class="flex mr-4 text-gray-300 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-200">
+        <!-- Commenting out scrollbar until it seems like it's actually necessary. Shows up all the time and looks ugly on website. -->
+        <!-- <span class="flex mr-4 text-gray-300 dark:text-gray-400 overflow-x-scroll scrollbar-thin scrollbar-track-gray-100 dark:scrollbar-track-gray-800 scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700"> -->
+        <span class="flex mr-4 text-gray-300 dark:text-gray-400">
           {#each appState.shownMetrics as name}
             <MetricRecord value={appState.metrics[name]} metricDef={metricDefs[name]} />
           {/each}
@@ -254,6 +267,7 @@ For upcoming features, we won't be able to send all details over the wire, and w
                isError={appState.status === Status.Error}
                bgField={bgField} underlineField={underlineField} requireFullReplay="{appState.requireFullReplay}"
                backtrackCount={appState.backtrackCount}
-               resetCount={appState.resetCount} />
+               resetCount={appState.resetCount}
+               isDarkMode={isDarkMode} />
   </section>
 </div>
