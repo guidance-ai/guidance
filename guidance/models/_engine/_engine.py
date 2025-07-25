@@ -35,7 +35,14 @@ class Engine(ABC):
     """
 
     def __init__(
-        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+        self,
+        tokenizer: Tokenizer,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        enable_token_probabilities=False,
+        enable_top_k=False,
+        top_k: int = 5,
     ):
         from ...registry import get_monitor
 
@@ -43,7 +50,12 @@ class Engine(ABC):
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
-        self._top_k = kwargs.get("top_k", 5)
+        self._enable_token_probabilities = enable_token_probabilities
+        self._enable_top_k = enable_top_k
+        self._top_k = top_k
+
+        if enable_top_k and not enable_token_probabilities:
+            raise ValueError("enable_top_k requires enable_token_probabilities to be True.")
 
         if self._enable_monitoring:
             # Idempotent start
@@ -156,7 +168,7 @@ class Engine(ABC):
                 # There are no ff_tokens
                 not ff_tokens
                 # Monitoring is disabled
-                or not self.enable_monitoring
+                or not self._enable_token_probabilities
             ):
                 # We can skip the logits computation because it would only be used to enrich
                 # the fast-forwarded tokens with probabilities for the sake of monitoring
@@ -164,7 +176,9 @@ class Engine(ABC):
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=self.enable_monitoring)
+                logits_output = self.get_logits(
+                    token_ids=tokens, include_all_uncached_tokens=self._enable_token_probabilities
+                )
                 logits = logits_output["logits"]
                 usage.input_tokens += logits_output["n_tokens"]
                 usage.cached_input_tokens += logits_output["n_cached"]
@@ -180,7 +194,7 @@ class Engine(ABC):
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
             ff_probs: Optional[NDArray] = None
-            if logits is not None and self.enable_monitoring:
+            if logits is not None and self._enable_token_probabilities:
                 # Exclude the "next token" logits
                 # Note: may not have logits for all ff tokens if some prefix of them hit cache
                 # Note: may have some extra here if something caused us to miss cache
@@ -218,7 +232,7 @@ class Engine(ABC):
                     prob_ix = i + (ff_probs.shape[0] - len(ff_tokens))
                     if prob_ix >= 0:
                         prob = float(ff_probs[prob_ix, token_id])
-                        top_k_ixs = get_top_k(ff_probs[prob_ix], self._top_k)
+                        top_k_ixs = get_top_k(ff_probs[prob_ix], self._top_k if self._enable_top_k else 0)
                         if token_id not in top_k_ixs:
                             top_k_ixs.append(token_id)
                         for top_k_token_id in top_k_ixs:
@@ -295,8 +309,8 @@ class Engine(ABC):
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
-                k=self._top_k if self.enable_monitoring else 0,
-                compute_unmasked_probs=self.enable_monitoring,
+                k=self._top_k if self._enable_top_k else 0,
+                compute_unmasked_probs=self._enable_token_probabilities,
                 sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature

@@ -356,6 +356,9 @@ class TransformersEngine(Engine):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
+        enable_token_probabilities=False,
+        enable_top_k=False,
+        top_k: int = 5,
         **kwargs,
     ):
         # fill in default model value
@@ -426,6 +429,9 @@ class TransformersEngine(Engine):
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
             enable_monitoring=enable_monitoring,
+            enable_token_probabilities=enable_token_probabilities,
+            enable_top_k=enable_top_k,
+            top_k=top_k,
             **kwargs,
         )
 
@@ -657,6 +663,8 @@ class Transformers(Model):
                 enable_backtrack=enable_backtrack,
                 enable_ff_tokens=enable_ff_tokens,
                 enable_monitoring=enable_monitoring,
+                enable_token_probabilities=echo,
+                enable_top_k=echo,
                 **kwargs,
             )
         )
