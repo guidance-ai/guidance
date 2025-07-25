@@ -351,7 +351,6 @@ class TransformersEngine(Engine):
             "PreTrainedTokenizerFast",
             None,
         ],
-        compute_log_probs: bool,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -425,14 +424,12 @@ class TransformersEngine(Engine):
 
         super().__init__(
             tokenizer=my_tokenizer,
-            compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
             enable_monitoring=enable_monitoring,
             enable_token_probabilities=enable_token_probabilities,
             enable_top_k=enable_top_k,
             top_k=top_k,
-            **kwargs,
         )
 
     def _model(self, model, **kwargs) -> "PreTrainedModel":
@@ -637,7 +634,6 @@ class Transformers(Model):
         ] = None,
         interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
-        compute_log_probs=False,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -658,7 +654,6 @@ class Transformers(Model):
             TransformersEngine(
                 model,
                 tokenizer,
-                compute_log_probs,
                 chat_template=chat_template,
                 enable_backtrack=enable_backtrack,
                 enable_ff_tokens=enable_ff_tokens,

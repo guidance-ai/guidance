@@ -81,7 +81,6 @@ class LlamaCppEngine(Engine):
     def __init__(
         self,
         model,
-        compute_log_probs,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -142,14 +141,12 @@ class LlamaCppEngine(Engine):
 
         super().__init__(
             LlamaCppTokenizer(self.model_obj, chat_template=chat_template),
-            compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
             enable_monitoring=enable_monitoring,
             enable_token_probabilities=enable_token_probabilities,
             enable_top_k=enable_top_k,
             top_k=top_k,
-            **kwargs,
         )
 
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
@@ -243,7 +240,6 @@ class LlamaCpp(Model):
         self,
         model=None,
         echo=True,
-        compute_log_probs=False,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -255,7 +251,6 @@ class LlamaCpp(Model):
 
         engine = LlamaCppEngine(
             model,
-            compute_log_probs=compute_log_probs,
             chat_template=chat_template,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
