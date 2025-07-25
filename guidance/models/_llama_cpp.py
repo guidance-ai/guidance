@@ -120,7 +120,8 @@ class LlamaCppEngine(Engine):
                 sys.stdout.fileno()
             except:  # noqa BLE001
                 logger.warning(
-                    "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729"
+                    "Cannot use verbose=True in this context (probably CoLab). See https://github.com/abetlen/llama-cpp-python/issues/729",
+                    exc_info=True,
                 )
                 kwargs["verbose"] = True  # llama-cpp-python can't hide output in this case
 
