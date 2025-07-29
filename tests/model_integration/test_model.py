@@ -11,6 +11,7 @@ def test_capture_casing(selected_model):
     lm = selected_model
     lm += "This is a test of the capture function: " + gen(name="CamelCaseName", max_tokens=10)
     assert "CamelCaseName" in lm
+    assert isinstance(lm["CamelCaseName"], str)
     assert len(lm["CamelCaseName"]) > 0
 
 
