@@ -646,7 +646,7 @@ class LarkSerializer:
             res = name
             attrs = []
             if node.capture is not None:
-                if node.capture != node.name or node.list_append:
+                if node.capture != name or node.list_append:
                     capture_name = node.capture
                     if node.list_append:
                         capture_name = f"__LIST_APPEND:{capture_name}"
