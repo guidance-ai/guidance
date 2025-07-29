@@ -35,7 +35,14 @@ class Engine(ABC):
     """
 
     def __init__(
-        self, tokenizer: Tokenizer, enable_backtrack=True, enable_ff_tokens=True, enable_monitoring=True, **kwargs
+        self,
+        tokenizer: Tokenizer,
+        enable_backtrack=True,
+        enable_ff_tokens=True,
+        enable_monitoring=True,
+        enable_token_probabilities=False,
+        enable_top_k=False,
+        top_k: int = 5,
     ):
         from ...registry import get_monitor
 
@@ -43,7 +50,12 @@ class Engine(ABC):
         self._enable_backtrack = enable_backtrack
         self._enable_ff_tokens = enable_ff_tokens
         self._enable_monitoring = enable_monitoring
-        self._top_k = kwargs.get("top_k", 5)
+        self._enable_token_probabilities = enable_token_probabilities
+        self._enable_top_k = enable_top_k
+        self._top_k = top_k
+
+        if enable_top_k and not enable_token_probabilities:
+            raise ValueError("enable_top_k requires enable_token_probabilities to be True.")
 
         if self._enable_monitoring:
             # Idempotent start
@@ -142,20 +154,31 @@ class Engine(ABC):
                 # (model + prompt) + grammar == model + (prompt + grammar)
                 tokens = self.tokenizer.recode(tokens)
 
-            # We can avoid a final get_logits call in the case that:
-            # 1. The parser has a pending stop
-            # 2. There are no ff_tokens (except for our last generated token)
-            # TODO: allow avoiding final forward pass if metrics are disabled
-            # and we have a pending stop
+            if issued_token is not None:
+                if backtrack or ff_tokens[:1] != [issued_token.token_id]:
+                    issued_token.is_backtracked = True
+                else:
+                    # Remove the issued token from ff_tokens
+                    ff_tokens = ff_tokens[1:]
+                # Note: only need to update usage in this branch (issued_token is not None), as these ff_tokens
+                # will otherwise just be counted as "input_tokens" when we call get_logits below
+                usage.ff_tokens += len(ff_tokens)
+
             if parser.has_pending_stop() and (
-                (not ff_tokens)
-                or (len(ff_tokens) == 1 and issued_token is not None and ff_tokens[0] == issued_token.token_id)
+                # There are no ff_tokens
+                not ff_tokens
+                # Monitoring is disabled
+                or not self._enable_token_probabilities
             ):
+                # We can skip the logits computation because it would only be used to enrich
+                # the fast-forwarded tokens with probabilities for the sake of monitoring
                 logits = None
                 logits_lat_ms = 0.0
             else:
                 t1 = time.time()
-                logits_output = self.get_logits(token_ids=tokens, include_all_uncached_tokens=True)
+                logits_output = self.get_logits(
+                    token_ids=tokens, include_all_uncached_tokens=self._enable_token_probabilities
+                )
                 logits = logits_output["logits"]
                 usage.input_tokens += logits_output["n_tokens"]
                 usage.cached_input_tokens += logits_output["n_cached"]
@@ -170,72 +193,72 @@ class Engine(ABC):
             mask, ll_response = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            if logits is not None:
-                # Not the last one -- that's for the *next* token.
-                ff_logits = logits[-len(ff_tokens) - 1 : -1]
-                ff_probs = (
-                    softmax(ff_logits)
-                    if last_temperature < _TEMPERATURE_EPSILON
-                    else softmax(ff_logits / last_temperature)
-                )
+            ff_probs: Optional[NDArray] = None
+            if logits is not None and self._enable_token_probabilities:
+                # Exclude the "next token" logits
+                # Note: may not have logits for all ff tokens if some prefix of them hit cache
+                # Note: may have some extra here if something caused us to miss cache
+                ff_logits = logits[-len(ff_tokens) - 1 : -1, :]
+                # Avoid mutation of the original logits
+                ff_logits = ff_logits.copy()
 
-                if len(ff_tokens) == len(tokens) and ff_probs.shape[0] == len(ff_tokens) - 1:
-                    # We didn't have a BOS token, so we need to fake the first token prob (say... 1?)
-                    ff_probs = np.pad(ff_probs, [(1, 0), (0, 0)], mode="constant", constant_values=1.0)
-                elif ff_probs.shape[0] < len(ff_tokens):
-                    # Not enough logits were returned despite include_all_uncached_tokens=True, probably due to
-                    # using a mock model that doesn't bother to return logits for uncached tokens (all are uncached...)
-                    ff_probs = np.pad(
-                        ff_probs,
-                        [(len(ff_tokens) - ff_probs.shape[0], 0), (0, 0)],
-                        mode="constant",
-                        constant_values=np.nan,
-                    )
-            else:
-                # really just for mypy -- we shouldn't need this
-                ff_probs = np.empty(shape=())
+                if ff_logits.shape[0] > 0:
+                    ff_logits_list: list[NDArray] = []
+                    for i in range(ff_logits.shape[0]):
+                        ff_logits_list.append(
+                            apply_temp_and_sampling_params(
+                                ff_logits[i, :],
+                                tokens[: len(tokens) - ff_logits.shape[0] + i],
+                                last_temperature,
+                                sampling_params,
+                            )
+                        )
+                    ff_logits = np.stack(ff_logits_list, axis=0)
+                    ff_probs = softmax(ff_logits)
 
             ff_lat_ms = (time.time() - t0) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
                 ff_lat_ms -= logits_lat_ms
 
-            gen_tokens = []
-            if issued_token is None:
-                # Note: intentionally not counting ff_tokens here, as we're counting these
-                # all just as input tokens
-                for i, token_id in enumerate(ff_tokens):
-                    gen_tokens.append(
-                        GenToken(
-                            token_id=token_id,
-                            bytes=self.tokenizer.decode([token_id]),
-                            prob=ff_probs[i, token_id],
-                            latency_ms=ff_lat_ms / len(ff_tokens),
-                            is_input=True,
-                        )
-                    )
-            else:
+            gen_tokens: list[GenTokenExtra] = []
+            if issued_token is not None:
                 gen_tokens.append(issued_token)
-                if backtrack or ff_tokens[:1] != [issued_token.token_id]:
-                    issued_token.is_backtracked = True
-                    ff_start_index = 0
-                else:
-                    ff_start_index = 1
-                ff_tokens = ff_tokens[ff_start_index:]
 
-                # Just update ff tokens here -- usage for issued_token has already been
-                # handled where we got logits above
-                usage.ff_tokens += len(ff_tokens)
-                for i, token_id in enumerate(ff_tokens, start=ff_start_index):
-                    gen_tokens.append(
-                        GenToken(
-                            token_id=token_id,
-                            bytes=self.tokenizer.decode([token_id]),
-                            prob=ff_probs[i, token_id],
-                            latency_ms=ff_lat_ms / len(ff_tokens),
-                            is_force_forwarded=True,
-                        )
+            for i, token_id in enumerate(ff_tokens):
+                prob = float("nan")
+                top_k: list[GenToken] = []
+                if ff_probs is not None:
+                    prob_ix = i + (ff_probs.shape[0] - len(ff_tokens))
+                    if prob_ix >= 0:
+                        prob = float(ff_probs[prob_ix, token_id])
+                        top_k_ixs = get_top_k(ff_probs[prob_ix], self._top_k if self._enable_top_k else 0)
+                        if token_id not in top_k_ixs:
+                            top_k_ixs.append(token_id)
+                        for top_k_token_id in top_k_ixs:
+                            top_k.append(
+                                GenToken(
+                                    token_id=top_k_token_id,
+                                    prob=float(ff_probs[prob_ix, top_k_token_id]),
+                                    bytes=self.tokenizer.decode([top_k_token_id]),
+                                    latency_ms=ff_lat_ms / len(ff_tokens),
+                                    is_input=issued_token is None,
+                                    is_force_forwarded=issued_token is not None,
+                                    is_masked=top_k_token_id != token_id,
+                                )
+                            )
+                gen_tokens.append(
+                    GenTokenExtra(
+                        token_id=token_id,
+                        bytes=self.tokenizer.decode([token_id]),
+                        prob=prob,
+                        latency_ms=ff_lat_ms / len(ff_tokens),
+                        is_input=issued_token is None,
+                        is_force_forwarded=issued_token is not None,
+                        is_masked=False,
+                        top_k=top_k,
                     )
+                )
 
             engine_response = EngineResponse(
                 new_bytes=legacy_engine_response.new_bytes,
@@ -286,8 +309,8 @@ class Engine(ABC):
                 token_ids=tokens,
                 mask=mask_for_sampling,
                 temperature=ll_response.temperature,
-                k=self._top_k if self.enable_monitoring else 0,
-                compute_unmasked_probs=self.enable_monitoring,
+                k=self._top_k if self._enable_top_k else 0,
+                compute_unmasked_probs=self._enable_token_probabilities,
                 sampling_params=sampling_params,
             )
             last_temperature = ll_response.temperature
@@ -342,32 +365,13 @@ class Engine(ABC):
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
-        def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
-            if _k <= 0:
-                return []
-            top_k_indices = _probs.argpartition(-_k)[-_k:]
-            # Sort by probability in descending order, as above argpartition
-            # does not guarantee order. Sorting the smaller array is faster.
-            return sorted(top_k_indices, key=lambda idx: _probs[idx], reverse=True)
-
-        def apply_temp_and_sampling_params(
-            _logits: NDArray,
-            _sampling_params: Optional[SamplingParams],
-        ) -> NDArray:
-            """Apply the sampling parameters to the logits."""
-            if _sampling_params is None:
-                return _logits
-            _logits = apply_repetition_penalty(token_ids, _logits, _sampling_params)
-            _logits = _logits if temperature < _TEMPERATURE_EPSILON else _logits / temperature
-            _logits = apply_min_p_filter(_logits, _sampling_params)
-            _logits = apply_top_k_and_top_p_filter(_logits, _sampling_params)
-            return _logits
-
         probs: Optional[NDArray] = None
         top_k: list[int] = []
         if compute_unmasked_probs or mask is None:
             # NOTE: we clone logits here to avoid modifying the original logits twice
-            filtered_logits = apply_temp_and_sampling_params(np.array(logits, copy=True), sampling_params)
+            filtered_logits = apply_temp_and_sampling_params(
+                np.array(logits, copy=True), token_ids, temperature, sampling_params
+            )
             probs = softmax(filtered_logits)
             # Get the top-k tokens from the unmasked logits
             top_k = get_top_k(probs, k)
@@ -377,7 +381,9 @@ class Engine(ABC):
             np_mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(np_mask != 0, logits, -np.inf)
             # TODO: if temp is 0, we only need to apply the params that affect argmax, e.g. repetition penalty
-            filtered_masked_logits = apply_temp_and_sampling_params(masked_logits, sampling_params)
+            filtered_masked_logits = apply_temp_and_sampling_params(
+                masked_logits, token_ids, temperature, sampling_params
+            )
             masked_probs = softmax(filtered_masked_logits)
 
         if temperature < _TEMPERATURE_EPSILON:
@@ -439,3 +445,28 @@ class Engine(ABC):
             the return value's shape will be `(1, vocab_size)`.
         """
         pass
+
+
+def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
+    if _k <= 0:
+        return []
+    top_k_indices = _probs.argpartition(-_k)[-_k:].tolist()
+    # Sort by probability in descending order, as above argpartition
+    # does not guarantee order. Sorting the smaller array is faster.
+    return sorted(top_k_indices, key=lambda idx: _probs[idx], reverse=True)
+
+
+def apply_temp_and_sampling_params(
+    logits: NDArray,
+    token_ids: list[int],
+    temperature: float,
+    sampling_params: Optional[SamplingParams],
+) -> NDArray:
+    """Apply the sampling parameters to the logits."""
+    if sampling_params is None:
+        return logits
+    logits = apply_repetition_penalty(token_ids, logits, sampling_params)
+    logits = logits if temperature < _TEMPERATURE_EPSILON else logits / temperature
+    logits = apply_min_p_filter(logits, sampling_params)
+    logits = apply_top_k_and_top_p_filter(logits, sampling_params)
+    return logits
