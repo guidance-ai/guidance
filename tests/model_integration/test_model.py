@@ -14,6 +14,19 @@ def test_capture_casing(selected_model):
     assert len(lm["CamelCaseName"]) > 0
 
 
+def test_capture_casing_listappend(selected_model):
+    lm = selected_model
+    lm += """Write three story title options about the arctic circle:
+OUTLINE
+"""
+    lm += '1. "' + gen(name="camelStory", max_tokens=20, list_append=True, stop='"') + '"'
+    lm += '2. "' + gen(name="camelStory", max_tokens=20, list_append=True, stop='"') + '"'
+    lm += '3. "' + gen(name="camelStory", max_tokens=20, list_append=True, stop='"') + '"'
+    assert isinstance(lm["camelStory"], list)
+    assert len(lm["camelStory"]) == 3
+    assert all(isinstance(item, str) for item in lm["camelStory"])
+
+
 def test_fstring(selected_model):
     lm = selected_model
     lm += f"this is a test {select(['item1', 'item2'])}"
