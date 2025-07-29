@@ -642,6 +642,7 @@ class ToolCallNode(ASTNode):
     tools: dict[str, ToolDefinition]
     tool_choice: Literal["auto", "required"] = "auto"
     parallel_tool_calls: bool = False
+    plaintext_regex: Optional[str] = None
 
     @classmethod
     def from_tools(
@@ -649,6 +650,7 @@ class ToolCallNode(ASTNode):
         tools: list[Union[callable, ToolDefinition]],
         tool_choice: Literal["auto", "required"] = "auto",
         parallel_tool_calls: bool = False,
+        plaintext_regex: Optional[str] = None,
     ) -> "ToolCallNode":
         tool_defs = {}
         for tool in tools:
@@ -661,7 +663,12 @@ class ToolCallNode(ASTNode):
             if tool_def.name in tool_defs:
                 raise ValueError(f"Duplicate tool name: {tool_def.name}")
             tool_defs[tool_def.name] = tool_def
-        return cls(tools=tool_defs, tool_choice=tool_choice, parallel_tool_calls=parallel_tool_calls)
+        return cls(
+            tools=tool_defs,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            plaintext_regex=plaintext_regex,
+        )
 
     def __post_init__(self):
         if not self.tools:
