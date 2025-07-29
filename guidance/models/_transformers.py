@@ -351,11 +351,13 @@ class TransformersEngine(Engine):
             "PreTrainedTokenizerFast",
             None,
         ],
-        compute_log_probs: bool,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
+        enable_token_probabilities=False,
+        enable_top_k=False,
+        top_k: int = 5,
         **kwargs,
     ):
         # fill in default model value
@@ -422,11 +424,12 @@ class TransformersEngine(Engine):
 
         super().__init__(
             tokenizer=my_tokenizer,
-            compute_log_probs=compute_log_probs,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
             enable_monitoring=enable_monitoring,
-            **kwargs,
+            enable_token_probabilities=enable_token_probabilities,
+            enable_top_k=enable_top_k,
+            top_k=top_k,
         )
 
     def _model(self, model, **kwargs) -> "PreTrainedModel":
@@ -593,6 +596,13 @@ class TransformersEngine(Engine):
                         model_out.logits[0, :, : self.tokenizer._vocab_size].float().cpu().numpy()
                     )
 
+        # If our cached logits are valid, we can include them when we include_all_uncached_tokens
+        # this lets us give logits FOR the first uncached token, not just the logits that follow it,
+        last_cache_included = False
+        if self._cached_logits is not None and num_cached == len(self._cached_token_ids):
+            logits_for_each_batch = [self._cached_logits] + logits_for_each_batch
+            last_cache_included = True
+
         # save the results
         self._past_key_values = model_out.past_key_values
         self._cached_token_ids = token_ids.copy()
@@ -600,7 +610,10 @@ class TransformersEngine(Engine):
 
         if include_all_uncached_tokens:
             logits = np.concatenate(logits_for_each_batch, axis=0)
-            assert logits.shape[0] == len(token_ids) - num_cached
+            if last_cache_included:
+                assert logits.shape[0] == len(token_ids) - num_cached + 1
+            else:
+                assert logits.shape[0] == len(token_ids) - num_cached
         else:
             logits = self._cached_logits
         return {
@@ -621,7 +634,6 @@ class Transformers(Model):
         ] = None,
         interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
-        compute_log_probs=False,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -642,11 +654,12 @@ class Transformers(Model):
             TransformersEngine(
                 model,
                 tokenizer,
-                compute_log_probs,
                 chat_template=chat_template,
                 enable_backtrack=enable_backtrack,
                 enable_ff_tokens=enable_ff_tokens,
                 enable_monitoring=enable_monitoring,
+                enable_token_probabilities=echo,
+                enable_top_k=echo,
                 **kwargs,
             )
         )
