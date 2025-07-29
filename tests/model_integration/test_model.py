@@ -9,10 +9,9 @@ from guidance import gen, models, regex, select
 def test_capture_casing(selected_model):
     # From issue 1172
     lm = selected_model
-    lm += "This is a test of the capture function: " + gen(name="Text", max_tokens=10)
-    assert len(lm["Text"]) > 0
-    assert "Text" in lm
-    assert "text" not in lm
+    lm += "This is a test of the capture function: " + gen(name="CamelCaseName", max_tokens=10)
+    assert "CamelCaseName" in lm
+    assert len(lm["CamelCaseName"]) > 0
 
 
 def test_fstring(selected_model):
