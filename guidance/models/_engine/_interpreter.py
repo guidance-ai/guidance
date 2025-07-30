@@ -1,4 +1,3 @@
-import warnings
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
@@ -20,14 +19,15 @@ if TYPE_CHECKING:
 
 class EngineInterpreter(Interpreter[EngineState]):
     def __init__(self, engine: Engine, tool_call_handler_cls: Optional[type["ToolCallHandler"]] = None):
+        from ...tools import ToolCallHandler
+
+        if isinstance(tool_call_handler_cls, ToolCallHandler):
+            raise TypeError(
+                f"tool_call_handler_cls must be a subclass of ToolCallHandler, got instance {tool_call_handler_cls}"
+            )
+
         super().__init__(state=EngineState())
         self.engine = engine
-        if not issubclass(tool_call_handler_cls, ToolCallHandler):
-            if isinstance(tool_call_handler_cls, ToolCallHandler):
-                raise TypeError(
-                    f"tool_call_handler_cls must be a subclass of ToolCallHandler, got instance {tool_call_handler_cls}"
-                )
-            raise TypeError(f"tool_call_handler_cls must be a subclass of ToolCallHandler, got {tool_call_handler_cls}")
         self.tool_call_handler_cls = tool_call_handler_cls
         self.chat_template = self.engine.get_chat_template()
 
@@ -147,13 +147,8 @@ class EngineInterpreter(Interpreter[EngineState]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         if self.tool_call_handler_cls is None:
-            from ...tools import LegacyToolCallHandler
-
-            tool_call_handler_cls = LegacyToolCallHandler
-            warnings.warn(
-                "Tool calling without a ToolCallHandler is deprecated and will be removed in a future version."
-                "Please specify a ToolCallHandler subclass in the model's constructor via the `tool_call_handler` argument.",
-                DeprecationWarning,
+            raise ValueError(
+                "No tool call handler class provided. Please provide a tool call handler class to handle tool calls."
             )
         else:
             tool_call_handler_cls = self.tool_call_handler_cls
