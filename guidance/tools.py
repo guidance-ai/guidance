@@ -1,14 +1,16 @@
 import re
 from abc import ABC, abstractmethod
 from json import dumps, loads
-from typing import Any, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from pydantic import BaseModel, Json
 
 from ._ast import GrammarNode, RuleNode, ToolCallNode, ToolDefinition
 from ._utils import text_to_grammar
 from .library import json, regex, select
-from .models._engine import Tokenizer
+
+if TYPE_CHECKING:
+    from .models._engine import Tokenizer
 
 
 class RawToolCall(BaseModel):
@@ -85,7 +87,7 @@ class ToolCallHandler(ABC):
         """
         pass
 
-    def build_grammar(self, tokenizer: Tokenizer) -> GrammarNode:
+    def build_grammar(self, tokenizer: "Tokenizer") -> GrammarNode:
         if self.tool_call_node.parallel_tool_calls:
             raise ValueError("Parallel tool calls are not supported by this handler.")
         trg = self.trigger()

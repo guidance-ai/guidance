@@ -17,10 +17,16 @@ if TYPE_CHECKING:
 
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, tool_call_handler: Optional[type["ToolCallHandler"]] = None):
+    def __init__(self, engine: Engine, tool_call_handler_cls: Optional[type["ToolCallHandler"]] = None):
         super().__init__(state=EngineState())
         self.engine = engine
-        self.tool_call_handler_cls = tool_call_handler
+        if not issubclass(tool_call_handler_cls, ToolCallHandler):
+            if isinstance(tool_call_handler_cls, ToolCallHandler):
+                raise TypeError(
+                    f"tool_call_handler_cls must be a subclass of ToolCallHandler, got instance {tool_call_handler_cls}"
+                )
+            raise TypeError(f"tool_call_handler_cls must be a subclass of ToolCallHandler, got {tool_call_handler_cls}")
+        self.tool_call_handler_cls = tool_call_handler_cls
         self.chat_template = self.engine.get_chat_template()
 
     def __deepcopy__(self, memo):
@@ -162,10 +168,13 @@ class EngineInterpreter(Interpreter[EngineState]):
         yield from self.run(capture(grm, name=capture_id))
 
         tool_call_text = self.state.captures[capture_id]["value"]
-        tool_call = handler.parse_tool_call(tool_call_text)
-        response = handler.invoke_tool(tool_call)
-
-        yield from self.run(LiteralNode(handler.format_return_value(response)))
+        tool_calls = handler.parse_tool_calls(tool_call_text)
+        if len(tool_calls) > 1 and not node.parallel_tool_calls:
+            raise ValueError("Multiple tool calls detected, but parallel_tool_calls is set to False. ")
+        if tool_calls:
+            for tool_call in tool_calls:
+                response = handler.invoke_tool(tool_call)
+                yield from self.run(LiteralNode(handler.format_return_value(response)))
 
 
 class Llama3VisionInterpreter(EngineInterpreter):

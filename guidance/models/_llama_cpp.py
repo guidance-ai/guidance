@@ -12,6 +12,7 @@ import numpy as np
 from .._schema import SamplingParams
 from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
+from ..tools import ToolCallHandler
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 
@@ -246,6 +247,7 @@ class LlamaCpp(Model):
         enable_ff_tokens=True,
         enable_monitoring=True,
         sampling_params: Optional[SamplingParams] = None,
+        tool_call_handler_cls: Optional[type["ToolCallHandler"]] = None,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""
@@ -260,7 +262,7 @@ class LlamaCpp(Model):
             enable_top_k=echo,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine)
+        interpreter = EngineInterpreter(engine=engine, tool_call_handler_cls=tool_call_handler_cls)
         super().__init__(
             interpreter=interpreter,
             sampling_params=SamplingParams() if sampling_params is None else sampling_params,

@@ -11,6 +11,7 @@ import numpy as np
 from guidance._schema import SamplingParams
 
 from ..chat import ChatTemplate
+from ..tools import ToolCallHandler
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, Llama3VisionInterpreter, LogitsOutput, Phi3VisionInterpreter, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
@@ -639,6 +640,7 @@ class Transformers(Model):
         enable_ff_tokens=True,
         enable_monitoring=True,
         sampling_params: Optional[SamplingParams] = None,
+        tool_call_handler_cls: Optional[type["ToolCallHandler"]] = None,
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""
@@ -651,7 +653,7 @@ class Transformers(Model):
             interpreter_cls = EngineInterpreter
 
         client = interpreter_cls(
-            TransformersEngine(
+            engine=TransformersEngine(
                 model,
                 tokenizer,
                 chat_template=chat_template,
@@ -661,7 +663,8 @@ class Transformers(Model):
                 enable_token_probabilities=echo,
                 enable_top_k=echo,
                 **kwargs,
-            )
+            ),
+            tool_call_handler_cls=tool_call_handler_cls,
         )
         super().__init__(
             interpreter=client,
