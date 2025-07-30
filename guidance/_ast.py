@@ -487,8 +487,8 @@ class RuleNode(GrammarNode):
 
     def __post_init__(self) -> None:
         if (
-            self.capture is not None
-            or self.temperature is not None
+            # Note: capture is very intentionally missing from this list, as it's not like the other attributes
+            self.temperature is not None
             or self.max_tokens is not None
             or self.stop is not None
             or self.suffix is not None
