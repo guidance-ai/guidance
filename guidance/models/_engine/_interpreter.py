@@ -7,7 +7,6 @@ from uuid import uuid4
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, ToolCallNode
 from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import partial_decode, recode_special_tokens, text_to_grammar, to_utf8_or_bytes_string
-from ...library import capture
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine
@@ -146,6 +145,8 @@ class EngineInterpreter(Interpreter[EngineState]):
             raise RuntimeError("Shouldn't have any delayed bytes left...")
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        from ...library import capture
+
         if self.tool_call_handler_cls is None:
             raise ValueError(
                 "No tool call handler class provided. Please provide a tool call handler class to handle tool calls."
