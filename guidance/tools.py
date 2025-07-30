@@ -1,6 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from json import dumps
+from json import dumps, loads
 from typing import Any, Union
 
 from pydantic import BaseModel, Json
@@ -70,10 +70,10 @@ class ToolCallHandler(ABC):
         pass
 
     @abstractmethod
-    def parse_tool_call(self, text: str) -> RawToolCall:
+    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
         """
-        Parse the tool call from the text.
-        Should return a RawToolCall object with name and args.
+        Parse the tool calls from the text.
+        Should return a list of RawToolCall objects with name and args.
         """
         pass
 
@@ -86,6 +86,8 @@ class ToolCallHandler(ABC):
         pass
 
     def build_grammar(self, tokenizer: Tokenizer) -> GrammarNode:
+        if self.tool_call_node.parallel_tool_calls:
+            raise ValueError("Parallel tool calls are not supported by this handler.")
         trg = self.trigger()
         special = any(tokenizer.is_special_token(t) for t in tokenizer.encode(trg.encode()))
         trg_grm_inner = text_to_grammar(tokenizer, trg)
@@ -125,7 +127,8 @@ class ToolCallHandler(ABC):
 
 
 class Llama3FunctionToolCallHandler(ToolCallHandler):
-    expr = re.compile(r"^<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function><\|eot_id\|>$")
+    # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-6
+    expr = re.compile(r"<function=(?P<name>[^>]+)>(?P<args>\{(.|\n)*\})</function>")
 
     def trigger(self) -> str:
         return "<function="
@@ -140,153 +143,89 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
         # eom / eot depends on "environment"?
         return "</function><|eot_id|>\n"
 
-    def parse_tool_call(self, text: str) -> RawToolCall:
-        match = self.expr.match(text)
-        if not match:
-            raise ValueError(f"Invalid tool call format: {text}")
-        return RawToolCall.model_validate(match.groupdict())
+    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+        matches = self.expr.finditer(text)
+        tool_calls = []
+        for match in matches:
+            tool_calls.append(RawToolCall.model_validate(match.groupdict()))
+        return tool_calls
 
     def format_return_value(self, value: Any) -> str:
         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
 
-# class Llama3IPythonToolCallHandler(ToolCallHandler):
-#     expr = re.compile(r"^<\|python_tag\|>(?P<call>\{(.|\n)*\})<\|eom_id\|>$")
+class Llama3IPythonToolCallHandler(ToolCallHandler):
+    # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-5
+    expr = re.compile(r"^<\|python_tag\|>(?P<call>\{(.|\n)*\})<\|eom_id\|>$")
 
-#     def trigger(self) -> SpecialToken:
-#         return special_token("<|python_tag|>")
+    def trigger(self) -> str:
+        return "<|python_tag|>"
 
-#     def build_grammar(self) -> GrammarNode:
-#         # https://github.com/meta-llama/llama-models/blob/main/models/llama3_1/prompt_format.md#model-response-format-5
-#         return (
-#             special_token("<python_tag>")
-#             + json(
-#                 schema={
-#                     "oneOf": [
-#                         {
-#                             "type": "object",
-#                             "properties": {
-#                                 "type": {"type": "string", "const": "function"},
-#                                 "name": {"type": "string", "const": name},
-#                                 "parameters": defn.args.model_json_schema(),
-#                             },
-#                             # type is optional?
-#                             "required": ["name", "parameters"],
-#                         }
-#                         for name, defn in self.tools.items()
-#                     ]
-#                 }
-#             )
-#             + special_token("<eom_id>")  # eom / eot depends on "environment"?
-#             + "\n"
-#         )
+    def begin(self, tool_name: str) -> str:
+        return "<|python_tag|>"
 
-#     def parse_tool_call(self, text: str) -> RawToolCall:
-#         match = self.expr.match(text)
-#         if not match:
-#             raise ValueError(f"Invalid tool call format: {text}")
-#         call_data = loads(match.group("call"))
-#         return RawToolCall(name=call_data["name"], args=call_data["parameters"])
+    def body(self, tool: ToolDefinition) -> GrammarNode:
+        return json(
+            schema={
+                "type": "object",
+                "properties": {
+                    "type": {"type": "string", "const": "function"},
+                    "name": {"type": "string", "const": tool.name},
+                    "parameters": tool.args.model_json_schema(),
+                },
+                # type is optional?
+                "required": ["name", "parameters"],
+                "additionalProperties": False,
+            }
+        )
 
-#     def format_return_value(self, value: Any) -> str:
-#         return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
+    def end(self) -> str:
+        return "<|eom_id|>\n"
+
+    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+        matches = self.expr.finditer(text)
+        tool_calls = []
+        for match in matches:
+            call_data = loads(match.group("call"))
+            tool_calls.append(RawToolCall(name=call_data["name"], args=call_data["parameters"]))
+        return tool_calls
+
+    def format_return_value(self, value: Any) -> str:
+        return "<|start_header_id|>ipython<|end_header_id|>\n\n" + dumps(value)
 
 
-# class Qwen3ToolCallHandler(ToolCallHandler):
-#     expr = re.compile(r"^<tool_call>\n(?P<call>\{(.|\n)*\})\n</tool_call><\|im_end\|>$")
+class Qwen3ToolCallHandler(ToolCallHandler):
+    expr = re.compile(r"<tool_call>\n(?P<call>\{(.|\n)*\})\n</tool_call>")
 
-#     def build_grammar(self) -> GrammarNode:
-#         # https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json#L230
-#         return (
-#             "<tool_call>\n"  # note: not special
-#             + json(
-#                 schema={
-#                     "oneOf": [
-#                         {
-#                             "type": "object",
-#                             "properties": {
-#                                 "name": {"type": "string", "const": name},
-#                                 "arguments": defn.args.model_json_schema(),
-#                             },
-#                             "required": ["name", "arguments"],
-#                         }
-#                         for name, defn in self.tools.items()
-#                     ]
-#                 }
-#             )
-#             + "\n</tool_call>"
-#             + special_token("<im_end>")
-#             + "\n"
-#         )
+    def trigger(self):
+        return "<tool_call>"
 
-#     def parse_tool_call(self, text: str) -> RawToolCall:
-#         match = self.expr.match(text)
-#         if not match:
-#             raise ValueError(f"Invalid tool call format: {text}")
-#         call_data = loads(match.group("call"))
-#         return RawToolCall(name=call_data["name"], args=call_data["arguments"])
+    def begin(self, tool_name: str) -> str:
+        return "<tool_call>\n"
 
-#     def format_return_value(self, value: Any) -> str:
-#         return f"<|im_start|>user\n<tool_response>\n{dumps(value)}\n</tool_response>"
+    def body(self, tool: ToolDefinition) -> GrammarNode:
+        return json(
+            schema={
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "const": tool.name},
+                    "arguments": tool.args.model_json_schema(),
+                },
+                "required": ["name", "arguments"],
+                "additionalProperties": False,
+            }
+        )
 
+    def end(self) -> str:
+        return "\n</tool_call><|im_end|>\n"
 
-# class LegacyToolCallHandler(ToolCallHandler):
-#     expr = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*\(.*\)$")
+    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+        matches = self.expr.finditer(text)
+        tool_calls = []
+        for match in matches:
+            call_data = loads(match.group("call"))
+            tool_calls.append(RawToolCall(name=call_data["name"], args=call_data["arguments"]))
+        return tool_calls
 
-#     def build_grammar(self) -> GrammarNode:
-#         arg = lexeme(r"[^,=)]+")
-#         kwarg = arg + "=" + arg
-#         args = arg + zero_or_more("," + arg)
-#         kwargs = kwarg + zero_or_more("," + kwarg)
-#         return select(
-#             [
-#                 RuleNode(lazy=True, value=string(f"{name}("))
-#                 + subgrammar(
-#                     name="tool_args",
-#                     body=optional(
-#                         select(
-#                             [
-#                                 args,
-#                                 kwargs,
-#                                 args + "," + kwargs,
-#                             ]
-#                         )
-#                     ),
-#                     skip_regex=r"\s+",
-#                 )
-#                 + ")"
-#                 for name in self.tools.keys()
-#             ]
-#         )
-
-#     def parse_tool_call(self, text: str) -> RawToolCall:
-#         match = self.expr.match(text)
-#         if not match:
-#             raise ValueError(f"Invalid tool call format: {text}")
-
-#         # Parse the ast to get the args and kwargs
-#         module = ast.parse(match.group())
-#         if (
-#             not len(module.body) == 1
-#             or not isinstance(module.body[0], ast.Expr)
-#             or not isinstance(module.body[0].value, ast.Call)
-#         ):
-#             raise ValueError(f"Invalid tool call format: {text}")
-#         call = module.body[0].value
-#         if not isinstance(call.func, ast.Name):
-#             raise ValueError(f"Tool call must be a function call: {text}")
-#         args = [ast.literal_eval(arg) for arg in call.args]
-#         kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
-
-#         # Inspect the tool signature so we can bind the args correctly
-#         try:
-#             tool = self.tools[call.func.id]
-#         except KeyError:
-#             raise ValueError(f"Unknown tool: {call.func.id}")
-#         signature = inspect.signature(tool.callable)
-#         bound_args = signature.bind(*args, **kwargs)
-
-#         return RawToolCall(name=call.func.id, args=cast(dict[str, Any], bound_args.arguments))
-
-#     def format_return_value(self, value: Any) -> str:
-#         return f" = {dumps(value)}"
+    def format_return_value(self, value: Any) -> str:
+        return f"<|im_start|>user\n<tool_response>\n{dumps(value)}\n</tool_response>"
