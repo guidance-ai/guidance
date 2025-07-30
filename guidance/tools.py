@@ -87,6 +87,14 @@ class ToolCallHandler(ABC):
         """
         pass
 
+    def handle_output(self, tokenizer: "Tokenizer", value: Any) -> GrammarNode:
+        """
+        Handle the output of the tool call.
+        This is called after the tool call is invoked and should return a string representation of the value.
+        """
+        string_repr = self.format_return_value(value)
+        return text_to_grammar(tokenizer, string_repr)
+
     def build_grammar(self, tokenizer: "Tokenizer") -> GrammarNode:
         if self.tool_call_node.parallel_tool_calls:
             raise ValueError("Parallel tool calls are not supported by this handler.")
