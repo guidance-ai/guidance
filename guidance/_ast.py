@@ -350,6 +350,10 @@ class SpecialToken(GrammarNode):
     def is_allowed_in_lark_terminal(self) -> bool:
         return False
 
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        return True
+
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         # Just use grammar -- I don't think we need a special case for this
         return interpreter.grammar(self, **kwargs)

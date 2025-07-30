@@ -3,10 +3,12 @@ from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
 from typing import TYPE_CHECKING, Iterator, Optional
+from uuid import uuid4
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, ToolCallNode
 from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import partial_decode, recode_special_tokens, text_to_grammar, to_utf8_or_bytes_string
+from ...library import capture
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
 from ._engine import Engine
@@ -156,15 +158,10 @@ class EngineInterpreter(Interpreter[EngineState]):
         else:
             tool_call_handler_cls = self.tool_call_handler_cls
 
-        from uuid import uuid4
-
-        from guidance import capture
-        from guidance._ast import LiteralNode
+        handler = tool_call_handler_cls(node)
+        grm = handler.build_grammar(self.engine.tokenizer)
 
         capture_id = f"_tool_call_{uuid4().hex}"
-        handler = tool_call_handler_cls(tools=node.tools)
-        grm = handler.build_grammar()
-
         yield from self.run(capture(grm, name=capture_id))
 
         tool_call_text = self.state.captures[capture_id]["value"]
@@ -174,7 +171,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         if tool_calls:
             for tool_call in tool_calls:
                 response = handler.invoke_tool(tool_call)
-                yield from self.run(LiteralNode(handler.format_return_value(response)))
+                yield from self.run(handler.handle_output(self.engine.tokenizer, response))
 
 
 class Llama3VisionInterpreter(EngineInterpreter):
