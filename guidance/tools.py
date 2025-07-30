@@ -129,9 +129,9 @@ class ToolCallHandler(ABC):
         Returns the result of the tool call.
         """
         tool_name = tool_call.name
-        if tool_name not in self.tools:
+        if tool_name not in self.tool_call_node.tools:
             raise ValueError(f"Tool '{tool_name}' not found.")
-        tool_def = self.tools[tool_name]
+        tool_def = self.tool_call_node.tools[tool_name]
         args = tool_def.args.model_validate(tool_call.args).model_dump()
         return tool_def.callable(**args)
 
