@@ -12,9 +12,11 @@ import numpy as np
 from .._schema import SamplingParams
 from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
-from ..tools import ToolCallHandler
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
+
+if TYPE_CHECKING:
+    from ..tools import ToolCallHandler
 
 try:
     import llama_cpp

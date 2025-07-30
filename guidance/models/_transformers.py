@@ -11,10 +11,13 @@ import numpy as np
 from guidance._schema import SamplingParams
 
 from ..chat import ChatTemplate
-from ..tools import ToolCallHandler
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, Llama3VisionInterpreter, LogitsOutput, Phi3VisionInterpreter, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable
+
+if TYPE_CHECKING:
+    from ..tools import ToolCallHandler
+
 
 try:
     import torch
