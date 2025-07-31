@@ -109,11 +109,16 @@ def gen(
         if name is not None:
             raise NotImplementedError("`name` is not supported with `tools` yet")
 
-        return ToolCallNode.from_tools(
-            tools=tools,
-            tool_choice="auto",
-            parallel_tool_calls=False,  # TODO: support parallel tool calls
-        )
+        @guidance(stateless=False, dedent=False)
+        def tool_gen(lm):
+            return lm + ToolCallNode.from_tools(
+                tools=tools,
+                tool_choice="auto",  # TODO: support passing this param
+                parallel_tool_calls=False,  # TODO: support parallel tool calls
+                plaintext_regex=regex,
+            )
+
+        return tool_gen()
 
     assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
     assert top_p == 1, "Please use `model.with_sampling_params` to set top_p."
