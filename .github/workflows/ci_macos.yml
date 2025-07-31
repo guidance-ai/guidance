@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 on:
-  push:
+  pull_request:
     branches:
       - build/*
   workflow_dispatch:
