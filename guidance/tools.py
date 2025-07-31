@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Union
 
 from pydantic import BaseModel, Json
 
-from ._ast import GrammarNode, RuleNode, ToolCallNode, ToolDefinition
+from ._ast import GrammarNode, RuleNode, Tool, ToolCallNode
 from ._utils import text_to_grammar
 from .library import json, regex, select
 
@@ -39,7 +39,7 @@ class ToolCallHandler(ABC):
         pass
 
     @abstractmethod
-    def body(self, tool: ToolDefinition) -> GrammarNode:
+    def body(self, tool: Tool) -> GrammarNode:
         """
         The body of the tool call. Should return a GrammarNode that matches the tool call arguments.
         For example, if begin contains the tool name, it may be given by
@@ -132,7 +132,7 @@ class ToolCallHandler(ABC):
         if tool_name not in self.tool_call_node.tools:
             raise ValueError(f"Tool '{tool_name}' not found.")
         tool_def = self.tool_call_node.tools[tool_name]
-        args = tool_def.args.model_validate(tool_call.args).model_dump()
+        args = tool_def.schema.model_validate(tool_call.args).model_dump()
         return tool_def.callable(**args)
 
 
@@ -146,8 +146,8 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
     def begin(self, tool_name: str) -> str:
         return f"<function={tool_name}>"
 
-    def body(self, tool: ToolDefinition) -> GrammarNode:
-        return json(schema=tool.args.model_json_schema())
+    def body(self, tool: Tool) -> GrammarNode:
+        return json(schema=tool.schema.model_json_schema())
 
     def end(self) -> str:
         # eom / eot depends on "environment"?
@@ -174,14 +174,14 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
     def begin(self, tool_name: str) -> str:
         return "<|python_tag|>"
 
-    def body(self, tool: ToolDefinition) -> GrammarNode:
+    def body(self, tool: Tool) -> GrammarNode:
         return json(
             schema={
                 "type": "object",
                 "properties": {
                     "type": {"type": "string", "const": "function"},
                     "name": {"type": "string", "const": tool.name},
-                    "parameters": tool.args.model_json_schema(),
+                    "parameters": tool.schema.model_json_schema(),
                 },
                 # type is optional?
                 "required": ["name", "parameters"],
@@ -213,13 +213,13 @@ class Qwen3ToolCallHandler(ToolCallHandler):
     def begin(self, tool_name: str) -> str:
         return "<tool_call>\n"
 
-    def body(self, tool: ToolDefinition) -> GrammarNode:
+    def body(self, tool: Tool) -> GrammarNode:
         return json(
             schema={
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "const": tool.name},
-                    "arguments": tool.args.model_json_schema(),
+                    "arguments": tool.schema.model_json_schema(),
                 },
                 "required": ["name", "arguments"],
                 "additionalProperties": False,

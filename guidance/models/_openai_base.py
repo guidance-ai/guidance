@@ -22,8 +22,8 @@ from .._ast import (
     RoleEnd,
     RoleStart,
     RuleNode,
+    Tool,
     ToolCallNode,
-    ToolDefinition,
 )
 from .._schema import TokenUsage
 from .._utils import bytes_from
@@ -266,7 +266,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self.state.apply_text(node.value)
         yield TextOutput(value=node.value, is_input=True)
 
-    def _run(self, tools: Optional[dict[str, ToolDefinition]] = None, **kwargs) -> Iterator[OutputAttr]:
+    def _run(self, tools: Optional[dict[str, Tool]] = None, **kwargs) -> Iterator[OutputAttr]:
         if self.state.active_role is None:
             # Should never happen?
             raise ValueError("OpenAI models require chat blocks (e.g. use `with assistant(): ...`)")
@@ -306,7 +306,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         "function": {
                             "name": name,
                             "description": tool.description,
-                            "parameters": tool.args.model_json_schema(),
+                            "parameters": tool.schema.model_json_schema(),
                             "strict": True,
                         },
                     }
@@ -322,7 +322,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     def _handle_stream(
         self,
         chunks: Iterator["ChatCompletionChunk"],
-        tools: Optional[dict[str, ToolDefinition]],
+        tools: Optional[dict[str, Tool]],
     ) -> Iterator[OutputAttr]:
         _t0 = time.time()
         t0 = _t0
@@ -471,7 +471,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
             for tool_call in final_tool_calls.values():
                 tool = tools[tool_call.function.name]
-                args = tool.args.model_validate_json(tool_call.function.arguments)
+                args = tool.schema.model_validate_json(tool_call.function.arguments)
                 result = tool.callable(**args.model_dump())
                 result_str = json.dumps(result)
                 self.state.messages.append(

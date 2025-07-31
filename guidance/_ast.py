@@ -611,14 +611,14 @@ class LarkNode(BaseSubgrammarNode):
 
 
 @dataclass
-class ToolDefinition:
+class Tool:
     callable: Callable
     name: str
     description: str
-    args: type[pydantic.BaseModel]
+    schema: type[pydantic.BaseModel]
 
     @classmethod
-    def from_callable(cls, callable: Callable) -> "ToolDefinition":
+    def from_callable(cls, callable: Callable) -> "Tool":
         signature = inspect.signature(callable)
         args = {}
         for name, param in signature.parameters.items():
@@ -628,11 +628,12 @@ class ToolDefinition:
             }:
                 raise ValueError(f"Unsupported parameter kind: {param.kind.description}")
             args[name] = param.annotation if param.annotation is not inspect.Parameter.empty else Any
-        return cls(
+
+        return Tool(
             callable=callable,
             name=callable.__name__,
             description=(callable.__doc__ or "").strip(),
-            args=pydantic.create_model(
+            schema=pydantic.create_model(
                 callable.__name__,
                 __config__=pydantic.ConfigDict(extra="forbid"),
                 **{name: (annotation, ...) for name, annotation in args.items()},
@@ -642,7 +643,7 @@ class ToolDefinition:
 
 @dataclass(frozen=True)
 class ToolCallNode(ASTNode):
-    tools: dict[str, ToolDefinition]
+    tools: dict[str, Tool]
     tool_choice: Literal["auto", "required"] = "auto"
     parallel_tool_calls: bool = False
     plaintext_regex: Optional[str] = None
@@ -650,17 +651,17 @@ class ToolCallNode(ASTNode):
     @classmethod
     def from_tools(
         cls,
-        tools: list[Union[callable, ToolDefinition]],
+        tools: list[Union[callable, Tool]],
         tool_choice: Literal["auto", "required"] = "auto",
         parallel_tool_calls: bool = False,
         plaintext_regex: Optional[str] = None,
     ) -> "ToolCallNode":
         tool_defs = {}
         for tool in tools:
-            if isinstance(tool, ToolDefinition):
+            if isinstance(tool, Tool):
                 tool_def = tool
             elif callable(tool):
-                tool_def = ToolDefinition.from_callable(tool)
+                tool_def = Tool.from_callable(tool)
             else:
                 raise ValueError(f"Unsupported tool type: {type(tool)}")
             if tool_def.name in tool_defs:
