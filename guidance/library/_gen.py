@@ -92,10 +92,6 @@ def gen(
     if hide_tool_call:
         raise ValueError("`hide_tool_call` is deprecated")
     if tools:
-        if max_tokens:
-            raise ValueError("Must specify `max_tokens` when using `tools`")
-        if regex:
-            raise ValueError("Cannot use `regex` with `tools`")
         if stop:
             raise ValueError("Cannot use `stop` with `tools`")
         if stop_regex:
