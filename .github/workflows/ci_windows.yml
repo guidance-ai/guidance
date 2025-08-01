@@ -12,9 +12,6 @@ permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - build/*
   workflow_dispatch:
     inputs:
       commit_id:

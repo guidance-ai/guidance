@@ -6,9 +6,6 @@ permissions:
 
 
 on:
-  pull_request:
-    branches:
-      - build/*
   push:
     branches:
       - main

@@ -6,9 +6,6 @@
 name: CI Tests - Notebook
 
 on:
-  pull_request:
-    branches:
-      - build/*
   push:
     branches:
       - main
