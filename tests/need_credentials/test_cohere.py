@@ -11,7 +11,7 @@ def test_lite_llm_basic():
         pytest.skip("Skipping Cohere test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
-    lm += f"""\
+    lm += """\
 5,6,7"""
     lm += f"""{gen(max_tokens=1, suffix=nl)}aaaaaa"""
     assert str(lm)[-5:] == "aaaaa"
