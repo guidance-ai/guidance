@@ -16,7 +16,7 @@ from ._tokenizer import Tokenizer
 
 logger = logging.getLogger(__name__)
 
-_TEMPERATURE_EPSILON = 0.0001
+_TEMPERATURE_EPSILON = 1e-5
 
 
 class LogitsOutput(TypedDict):
@@ -466,7 +466,10 @@ def apply_temp_and_sampling_params(
     if sampling_params is None:
         return logits
     logits = apply_repetition_penalty(token_ids, logits, sampling_params)
-    logits = logits if temperature < _TEMPERATURE_EPSILON else logits / temperature
-    logits = apply_min_p_filter(logits, sampling_params)
-    logits = apply_top_k_and_top_p_filter(logits, sampling_params)
+    if temperature >= _TEMPERATURE_EPSILON:
+        # https://github.com/vllm-project/vllm/blob/e17a4d3bf9cffe32ec308a5979790732818e4919/vllm/sampling_params.py#L355
+        # follow vllm sampling strategy for low sampling temperature
+        logits = logits / temperature
+        logits = apply_min_p_filter(logits, sampling_params)
+        logits = apply_top_k_and_top_p_filter(logits, sampling_params)
     return logits

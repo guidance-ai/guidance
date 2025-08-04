@@ -1,4 +1,5 @@
-# These should only be run on main, because they access secrets
+# These access secrets, so should only be run on local branches.
+
 # Not part of the regular CI run, since notebook tests seem
 # particularly flaky
 
