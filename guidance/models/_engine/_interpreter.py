@@ -164,6 +164,8 @@ class EngineInterpreter(Interpreter[EngineState]):
         tool_calls = handler.parse_tool_calls(tool_call_text)
         if len(tool_calls) > 1 and not node.parallel_tool_calls:
             raise ValueError("Multiple tool calls detected, but parallel_tool_calls is set to False. ")
+        if node.tool_choice == "required" and not tool_calls:
+            raise ValueError("No tool calls detected, but tool_choice is set to 'required'.")
         if tool_calls:
             for tool_name, tool_args in tool_calls:
                 response = handler.invoke_tool(tool_name, tool_args)
