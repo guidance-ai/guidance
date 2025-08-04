@@ -165,8 +165,8 @@ class EngineInterpreter(Interpreter[EngineState]):
         if len(tool_calls) > 1 and not node.parallel_tool_calls:
             raise ValueError("Multiple tool calls detected, but parallel_tool_calls is set to False. ")
         if tool_calls:
-            for tool_call in tool_calls:
-                response = handler.invoke_tool(tool_call)
+            for tool_name, tool_args in tool_calls:
+                response = handler.invoke_tool(tool_name, tool_args)
                 yield from self.run(handler.handle_output(self.engine.tokenizer, response))
 
 

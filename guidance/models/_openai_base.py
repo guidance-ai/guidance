@@ -460,6 +460,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             yield AudioOutput(value=base64.b64encode(wav_bytes), is_input=False)
 
         if final_tool_calls:
+            if tools is None:
+                raise ValueError(f"No tools provided, but tool calls were made: {final_tool_calls}")
             # Close last one
             yield TextOutput(
                 value="</function>",
@@ -471,8 +473,8 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
             for tool_call in final_tool_calls.values():
                 tool = tools[tool_call.function.name]
-                args = tool.schema.model_validate_json(tool_call.function.arguments)
-                result = tool.callable(**args.model_dump())
+                args = tool.validate_args(tool_call.function.arguments)
+                result = tool.callable(**args)
                 result_str = json.dumps(result)
                 self.state.messages.append(
                     ToolCallResult(

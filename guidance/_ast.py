@@ -640,19 +640,23 @@ class Tool:
             ),
         )
 
-    def validate_args(self, args: dict[str, Any]) -> dict[str, Any]:
+    def validate_args(self, args: Union[str, dict[str, Any]]) -> dict[str, Any]:
         """
         Validate the arguments against the tool's schema.
         If the schema is a Pydantic model, it will validate and return the model's dict.
         If it's a dict, it will return the args as is.
         """
+        if isinstance(args, str):
+            loaded_args = json.loads(args)
+        else:
+            loaded_args = args
         if isinstance(self.schema, type) and issubclass(self.schema, pydantic.BaseModel):
             # If the schema is a Pydantic model, validate the args
-            return self.schema.model_validate(args).model_dump()
+            return self.schema.model_validate(loaded_args).model_dump()
         elif isinstance(self.schema, dict):
             # If the schema is a dict, we assume it's a JSON schema and return the args as is
             # TODO: use a JSON schema validator?
-            return args
+            return loaded_args
         else:
             raise TypeError(f"Unsupported schema type: {type(self.schema)}. Expected a Pydantic model or a dict.")
 
