@@ -306,7 +306,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         "function": {
                             "name": name,
                             "description": tool.description,
-                            "parameters": tool.schema.model_json_schema(),
+                            "parameters": tool.schema_dump(),
                             "strict": True,
                         },
                     }

@@ -615,7 +615,7 @@ class Tool:
     callable: Callable
     name: str
     description: str
-    schema: type[pydantic.BaseModel]
+    schema: Union[type[pydantic.BaseModel], dict[str, Any]]
 
     @classmethod
     def from_callable(cls, callable: Callable) -> "Tool":
@@ -639,6 +639,37 @@ class Tool:
                 **{name: (annotation, ...) for name, annotation in args.items()},
             ),
         )
+
+    def validate_args(self, args: dict[str, Any]) -> dict[str, Any]:
+        """
+        Validate the arguments against the tool's schema.
+        If the schema is a Pydantic model, it will validate and return the model's dict.
+        If it's a dict, it will return the args as is.
+        """
+        if isinstance(self.schema, type) and issubclass(self.schema, pydantic.BaseModel):
+            # If the schema is a Pydantic model, validate the args
+            return self.schema.model_validate(args).model_dump()
+        elif isinstance(self.schema, dict):
+            # If the schema is a dict, we assume it's a JSON schema and return the args as is
+            # TODO: use a JSON schema validator?
+            return args
+        else:
+            raise TypeError(f"Unsupported schema type: {type(self.schema)}. Expected a Pydantic model or a dict.")
+
+    def schema_dump(self) -> dict[str, Any]:
+        """
+        Dump the schema of the tool.
+        If the schema is a Pydantic model, it will return the model's schema.
+        If it's a dict, it will return the dict as is.
+        """
+        if isinstance(self.schema, type) and issubclass(self.schema, pydantic.BaseModel):
+            # If the schema is a Pydantic model, return the model's schema
+            return self.schema.model_json_schema()
+        elif isinstance(self.schema, dict):
+            # If the schema is a dict, we assume it's a JSON schema and return the dict as is
+            return self.schema
+        else:
+            raise TypeError(f"Unsupported schema type: {type(self.schema)}. Expected a Pydantic model or a dict.")
 
 
 @dataclass(frozen=True)

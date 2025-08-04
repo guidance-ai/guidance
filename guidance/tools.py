@@ -1,9 +1,7 @@
 import re
 from abc import ABC, abstractmethod
 from json import dumps, loads
-from typing import TYPE_CHECKING, Any, Union
-
-from pydantic import BaseModel, Json
+from typing import TYPE_CHECKING, Any
 
 from ._ast import GrammarNode, RuleNode, Tool, ToolCallNode
 from ._utils import text_to_grammar
@@ -11,11 +9,6 @@ from .library import json, regex, select
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer
-
-
-class RawToolCall(BaseModel):
-    name: str
-    args: Union[dict[str, Any], Json[dict[str, Any]]]
 
 
 class ToolCallHandler(ABC):
@@ -72,10 +65,10 @@ class ToolCallHandler(ABC):
         pass
 
     @abstractmethod
-    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+    def parse_tool_calls(self, text: str) -> list[tuple[str, dict[str, Any]]]:
         """
         Parse the tool calls from the text.
-        Should return a list of RawToolCall objects with name and args.
+        Should return a list of tuples with tool name and args.
         """
         pass
 
@@ -123,17 +116,16 @@ class ToolCallHandler(ABC):
             options.append(grm)
         return select(options)
 
-    def invoke_tool(self, tool_call: RawToolCall) -> Any:
+    def invoke_tool(self, tool_name: str, args: dict[str, Any]) -> Any:
         """
         Invoke the tool with the parsed arguments.
         Returns the result of the tool call.
         """
-        tool_name = tool_call.name
         if tool_name not in self.tool_call_node.tools:
             raise ValueError(f"Tool '{tool_name}' not found.")
-        tool_def = self.tool_call_node.tools[tool_name]
-        args = tool_def.schema.model_validate(tool_call.args).model_dump()
-        return tool_def.callable(**args)
+        tool = self.tool_call_node.tools[tool_name]
+        args = tool.validate_args(args)
+        return tool.callable(**args)
 
 
 class Llama3FunctionToolCallHandler(ToolCallHandler):
@@ -153,11 +145,11 @@ class Llama3FunctionToolCallHandler(ToolCallHandler):
         # eom / eot depends on "environment"?
         return "</function><|eot_id|>\n"
 
-    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+    def parse_tool_calls(self, text: str) -> list[tuple[str, dict[str, Any]]]:
         matches = self.expr.finditer(text)
         tool_calls = []
         for match in matches:
-            tool_calls.append(RawToolCall.model_validate(match.groupdict()))
+            tool_calls.append((match.group("name"), loads(match.group("args"))))
         return tool_calls
 
     def format_return_value(self, value: Any) -> str:
@@ -192,12 +184,12 @@ class Llama3IPythonToolCallHandler(ToolCallHandler):
     def end(self) -> str:
         return "<|eom_id|>\n"
 
-    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+    def parse_tool_calls(self, text: str) -> list[tuple[str, dict[str, Any]]]:
         matches = self.expr.finditer(text)
         tool_calls = []
         for match in matches:
             call_data = loads(match.group("call"))
-            tool_calls.append(RawToolCall(name=call_data["name"], args=call_data["parameters"]))
+            tool_calls.append((call_data["name"], call_data["parameters"]))
         return tool_calls
 
     def format_return_value(self, value: Any) -> str:
@@ -229,12 +221,12 @@ class Qwen3ToolCallHandler(ToolCallHandler):
     def end(self) -> str:
         return "\n</tool_call><|im_end|>\n"
 
-    def parse_tool_calls(self, text: str) -> list[RawToolCall]:
+    def parse_tool_calls(self, text: str) -> list[tuple[str, dict[str, Any]]]:
         matches = self.expr.finditer(text)
         tool_calls = []
         for match in matches:
             call_data = loads(match.group("call"))
-            tool_calls.append(RawToolCall(name=call_data["name"], args=call_data["arguments"]))
+            tool_calls.append((call_data["name"], call_data["arguments"]))
         return tool_calls
 
     def format_return_value(self, value: Any) -> str:
