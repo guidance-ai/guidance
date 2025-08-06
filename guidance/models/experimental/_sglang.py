@@ -8,6 +8,7 @@ from .._base import Model
 from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from .._openai_base import BaseOpenAIInterpreter, OpenAIClientWrapper
 
+
 class SglangInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
@@ -77,7 +78,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         kwargs = self._process_kwargs(**kwargs)
-        
+
         if node.schema is not None:
             # set additionalProperties to False but allow it to be overridden
             node.schema["additionalProperties"] = node.schema.get("additionalProperties", False)
@@ -86,7 +87,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
             "type": "json_schema",
             "json_schema": {
                 "name": "json_schema",
-                "schema": node.schema if node.schema is not None else {'type': 'object'},
+                "schema": node.schema if node.schema is not None else {"type": "object"},
                 "strict": True,
             },
         }
