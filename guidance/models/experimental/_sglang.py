@@ -2,10 +2,9 @@ from typing import Iterator, Optional
 
 from guidance._schema import SamplingParams
 
-from ..._ast import GrammarNode
+from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
-from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from .._openai_base import BaseOpenAIInterpreter, OpenAIClientWrapper
 
 
