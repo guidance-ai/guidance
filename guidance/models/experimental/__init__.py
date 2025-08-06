@@ -1,5 +1,5 @@
 from ._litellm import LiteLLM
-from ._vllm import VLLMModel
 from ._sglang import SglangModel
+from ._vllm import VLLMModel
 
 __all__ = ["LiteLLM", "SglangModel", "VLLMModel"]
