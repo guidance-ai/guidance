@@ -278,6 +278,44 @@ START: "Aa"{2,}
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
 
+    def test_repeat_node_join_node(self):
+        target = LarkSerializer()
+        ln1 = LiteralNode("Aa")
+        ln2 = LiteralNode("Bb")
+        rpt_node = RepeatNode(JoinNode((ln1, ln2)), 1, 4)
+
+        result = target.serialize(rpt_node)
+
+        print(result)
+        expected = """%llguidance {}
+
+start: START
+START: ("Aa" "Bb"){1,4}
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_repeat_node_select_node(self):
+        target = LarkSerializer()
+        ln1 = LiteralNode("Aa")
+        ln2 = LiteralNode("Bb")
+        sn = SelectNode((ln1, ln2))
+        rpt_node = RepeatNode(JoinNode((ln1, sn)), 1, 4)
+
+        result = target.serialize(rpt_node)
+
+        print(result)
+        expected = """%llguidance {}
+start: START
+START: ("Aa" ("Aa" | "Bb")){1,4}
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
     def test_rule_ref_node(self):
         target = LarkSerializer()
         ln = LiteralNode("Ab")
