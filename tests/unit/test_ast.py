@@ -308,6 +308,7 @@ START: ("Aa" "Bb"){1,4}
 
         print(result)
         expected = """%llguidance {}
+
 start: START
 START: ("Aa" ("Aa" | "Bb")){1,4}
 """
