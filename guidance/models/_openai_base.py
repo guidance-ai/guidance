@@ -418,7 +418,7 @@ class OpenAIRuleMixin(BaseOpenAIInterpreter):
         if node.temperature:
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
-            kwargs["max_tokens"] = node.max_tokens
+            kwargs["max_completion_tokens"] = node.max_tokens
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:
