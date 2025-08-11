@@ -41,6 +41,7 @@ jobs:
       codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   cpu_big:
     strategy:
@@ -59,6 +60,7 @@ jobs:
       codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   gpu_tests:
     strategy:
@@ -79,3 +81,4 @@ jobs:
       codeCovPython: ${{ vars.CODECOV_PYTHON }}
     secrets:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
