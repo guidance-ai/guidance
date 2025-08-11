@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Generator, Optional, TypedDict
 
 import numpy as np
+from jinja2 import Environment, BaseLoader
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
@@ -432,6 +433,30 @@ class Engine(ABC):
             is_generated=True,
             top_k=top_k_tokens,
         )
+
+    def chat_completion(self, messages: dict[str, str], grammar: str) -> tuple[str, dict[str, str]]:
+        # Render the messages
+        chat_template = self.get_chat_template().template_str
+        rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
+        rendered_prompt = rtemplate.render(messages=messages, eos_token=self.tokenizer.eos_token.decode("utf-8"))
+        rendered_prompt += self.get_chat_template().get_role_start("assistant")
+
+        # Load into a State object
+        state = EngineState()
+        state.prompt = rendered_prompt
+
+        # Run through this engine object
+        full_response = bytearray()
+        captures: dict[str, str] = {}
+        for nxt in self(state, grammar):
+            nxt_tokens = [x.token_id for x in nxt.tokens]
+            nxt_bytes = self.tokenizer.decode(nxt_tokens)
+            full_response += nxt_bytes
+            for k, v in nxt.capture_groups.items():
+                captures[k] = v.decode("utf-8")
+        full_text = full_response.decode("utf-8")
+
+        return full_text, captures
 
     @abstractmethod
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
