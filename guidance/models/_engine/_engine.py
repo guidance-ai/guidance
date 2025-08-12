@@ -315,6 +315,9 @@ class Engine(ABC):
             )
             last_temperature = ll_response.temperature
 
+            if usage.ttft_ms == 0:
+                usage.ttft_ms += (time.time() - _t0) * 1000
+
             if can_finish_early and not mask[issued_token.token_id]:
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None

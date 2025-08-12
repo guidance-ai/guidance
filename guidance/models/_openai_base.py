@@ -373,6 +373,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 # TODO: handle "bad" finish reasons
                 pass
 
+            if usage.ttft_ms == 0:
+                usage.ttft_ms = (time.time() - _t0) * 1000
+
         if audio is not None:
             assert self.state.audio is None
             self.state.audio = audio
