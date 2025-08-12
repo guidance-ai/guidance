@@ -106,8 +106,7 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
-        t0: Optional[float] = None
-        _t0 = time.time()
+        t0 = time.time()
 
         # TODO: Pass these to get_logits
         # images = state.images
@@ -128,12 +127,7 @@ class Engine(ABC):
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
-            if t0 is None:
-                # On the first iteration, we include prompt tokenization + parser construction time
-                t0 = _t0
-            else:
-                t0 = time.time()
-
+            t1 = time.time()
             recode = False
             if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -169,6 +163,9 @@ class Engine(ABC):
                 # will otherwise just be counted as "input_tokens" when we call get_logits below
                 usage.ff_tokens += len(ff_tokens)
 
+            t2 = time.time()
+            parser_lat_ms = (t2 - t1) * 1000
+
             if parser.has_pending_stop() and (
                 # There are no ff_tokens
                 not ff_tokens
@@ -178,9 +175,7 @@ class Engine(ABC):
                 # We can skip the logits computation because it would only be used to enrich
                 # the fast-forwarded tokens with probabilities for the sake of monitoring
                 logits = None
-                logits_lat_ms = 0.0
             else:
-                t1 = time.time()
                 logits_output = self.get_logits(
                     token_ids=tokens, include_all_uncached_tokens=self._enable_token_probabilities
                 )
@@ -191,11 +186,18 @@ class Engine(ABC):
                     usage.forward_passes += 1
                 else:
                     usage.cached_output_tokens += 1
-                logits_lat_ms = (time.time() - t1) * 1000
+
+            t3 = time.time()
+            logits_lat_ms = (t3 - t2) * 1000
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
-            mask, ll_response, _ = mask_fut.result()
+            mask, ll_response, mask_compute_ms = mask_fut.result()
+            # Mask time is the time it took to advance the parser plus the total time spent computing mask
+            usage.mask_times_ms.append(parser_lat_ms + mask_compute_ms)
+            # Mask overhead time is the time it took to advance the parser plus the total time spent on overhead
+            usage.mask_overheads_ms.append(parser_lat_ms + max(mask_compute_ms - logits_lat_ms, 0))
+
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
             ff_probs: Optional[NDArray] = None
@@ -221,7 +223,8 @@ class Engine(ABC):
                     ff_logits = np.stack(ff_logits_list, axis=0)
                     ff_probs = softmax(ff_logits)
 
-            ff_lat_ms = (time.time() - t0) * 1000
+            # Note: ff_lat_ms includes parser_lat_ms (t2 - t1)
+            ff_lat_ms = (time.time() - t1) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
                 ff_lat_ms -= logits_lat_ms
@@ -317,15 +320,15 @@ class Engine(ABC):
             )
             last_temperature = ll_response.temperature
 
-            if usage.ttft_ms == 0:
-                usage.ttft_ms += (time.time() - _t0) * 1000
-
             if can_finish_early and not mask[issued_token.token_id]:
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 issued_token.token_id = self.tokenizer.eos_token_id
 
-        usage.total_latency_ms += (time.time() - _t0) * 1000
+            if usage.ttft_ms == 0:
+                usage.ttft_ms += (time.time() - t0) * 1000
+
+        usage.total_latency_ms += (time.time() - t0) * 1000
         return usage
 
     def get_next_token_with_top_k(
