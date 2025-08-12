@@ -106,9 +106,8 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
-        # Note: t0 will get reset further down in the loop, just after the break condition
+        t0: Optional[float] = None
         _t0 = time.time()
-        t0 = _t0
 
         # TODO: Pass these to get_logits
         # images = state.images
@@ -129,6 +128,12 @@ class Engine(ABC):
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
+            if t0 is None:
+                # On the first iteration, we include prompt tokenization + parser construction time
+                t0 = _t0
+            else:
+                t0 = time.time()
+
             recode = False
             if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -280,9 +285,6 @@ class Engine(ABC):
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
-            # Reset time down here instead of at the top of the loop in order to make sure
-            # we take sampling time into account
-            t0 = time.time()
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert logits is not None
