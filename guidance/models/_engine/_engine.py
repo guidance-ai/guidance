@@ -195,7 +195,7 @@ class Engine(ABC):
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
-            mask, ll_response = mask_fut.result()
+            mask, ll_response, _ = mask_fut.result()
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
             ff_probs: Optional[NDArray] = None
