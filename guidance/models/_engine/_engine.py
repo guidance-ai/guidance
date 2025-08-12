@@ -195,8 +195,10 @@ class Engine(ABC):
             mask, ll_response, mask_compute_ms = mask_fut.result()
             # Mask time is the time it took to advance the parser plus the total time spent computing mask
             usage.mask_times_ms.append(parser_lat_ms + mask_compute_ms)
-            # Mask overhead time is the time it took to advance the parser plus the total time spent on overhead
-            usage.mask_overheads_ms.append(parser_lat_ms + max(mask_compute_ms - logits_lat_ms, 0))
+            # Mask overhead time is the time it took to advance the parser plus the total time spent waiting
+            # on the mask future (i.e. time spent computing mask LESS the portion of that time parallelized with logits)
+            t4 = time.time()
+            usage.mask_overheads_ms.append(parser_lat_ms + (t4 - t3) * 1000)
 
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
