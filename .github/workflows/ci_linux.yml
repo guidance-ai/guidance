@@ -52,6 +52,7 @@ jobs:
         model:
           - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
+          - "transformers_phi3_mini_4k_instruct_cpu"
           - "transformers_phi4_mini_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
