@@ -365,6 +365,8 @@ class Engine(ABC):
         EngineOutput
             The output from the model.
         """
+        t0 = time.time()
+
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
@@ -415,23 +417,28 @@ class Engine(ABC):
             # Note: needs to be added to the end in order to maintain sorted order
             top_k.append(issued_token)
 
+        issued_token_bytes = self.tokenizer.decode([issued_token])
+        top_k_token_bytes = [self.tokenizer.decode([token_id]) for token_id in top_k]
+
+        sampling_lat_ms = (time.time() - t0) * 1000
+
         top_k_tokens = [
             GenToken(
                 token_id=token_id,
                 prob=float("nan") if probs is None else float(probs[token_id]),
-                bytes=self.tokenizer.decode([token_id]),
-                latency_ms=logits_lat_ms,
+                bytes=token_bytes,
+                latency_ms=logits_lat_ms + sampling_lat_ms,
                 is_generated=True,
                 is_masked=mask is not None and bool(mask[token_id] == 0),
             )
-            for token_id in top_k
+            for token_id, token_bytes in zip(top_k, top_k_token_bytes)
         ]
 
         return GenTokenExtra(
             token_id=issued_token,
             prob=float("nan") if probs is None else float(probs[issued_token]),
-            bytes=self.tokenizer.decode([issued_token]),
-            latency_ms=logits_lat_ms,
+            bytes=issued_token_bytes,
+            latency_ms=logits_lat_ms + sampling_lat_ms,
             is_generated=True,
             top_k=top_k_tokens,
         )
