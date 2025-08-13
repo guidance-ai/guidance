@@ -34,6 +34,12 @@ class TokenUsage(BaseModel):
     ttft_ms: Annotated[float, Ge(0)] = 0.0
     """Time to first token in ms"""
 
+    mask_times_ms: list[Annotated[float, Ge(0)]] = Field(default_factory=list)
+    """List of mask times in ms for each token generated."""
+
+    mask_overheads_ms: list[Annotated[float, Ge(0)]] = Field(default_factory=list)
+    """List of mask overhead times in ms for each token generated."""
+
     @computed_field  # type: ignore[misc]
     @property
     def output_tokens(self) -> NonNegativeInt:

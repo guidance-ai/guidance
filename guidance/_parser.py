@@ -1,4 +1,5 @@
 import os
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import TYPE_CHECKING, Any, Generator, Optional
 
@@ -56,7 +57,7 @@ class TokenParser:
     ) -> tuple[
         int,
         list[int],
-        Future[tuple[Optional[bytes], LLInterpreterResponse]],
+        Future[tuple[Optional[bytes], LLInterpreterResponse, float]],
     ]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
@@ -109,10 +110,11 @@ class TokenParser:
 
         return prefix_tokens, backtrack, ff_tokens, mask_fut
 
-    def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse]:
+    def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse, float]:
+        t0 = time.time()
         mask, ll_response_string = self.ll_interpreter.compute_mask()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
-        return mask, ll_response
+        return mask, ll_response, (time.time() - t0) * 1000
 
     def _parse(
         self,
@@ -120,8 +122,8 @@ class TokenParser:
         tuple[
             int,  # backtrack
             list[int],  # ff_tokens
-            # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
-            Future[tuple[Optional[bytes], LLInterpreterResponse]],
+            # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse, mask_compute_ms: float
+            Future[tuple[Optional[bytes], LLInterpreterResponse, float]],
         ],
         Optional[int],
         None,
@@ -139,7 +141,7 @@ class TokenParser:
             token_id = yield (backtrack, ff_tokens, compute_mask_future)
 
             # Upstairs should have already waited on this future
-            mask, r = compute_mask_future.result()
+            mask, r, _ = compute_mask_future.result()
 
             if r.stop:
                 # This is the only case in which the mask is None
@@ -242,7 +244,7 @@ class ByteParser:
         if backtrack:
             tokens = tokens[:-backtrack]
         tokens += ff_tokens
-        mask, ll_response = compute_mask_future.result()
+        mask, ll_response, _ = compute_mask_future.result()
         if ll_response.stop:
             assert mask is None
             self.token_parser.cleanup()
