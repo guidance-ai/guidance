@@ -195,6 +195,8 @@ class Engine(ABC):
             mask, ll_response, mask_compute_ms = mask_fut.result()
             # Mask time is the time it took to advance the parser plus the total time spent computing mask
             usage.mask_times_ms.append(parser_lat_ms + mask_compute_ms)
+            if usage.ttfm_ms == 0:
+                usage.ttfm_ms = (time.monotonic() - t0) * 1000
             # Mask overhead time is the time it took to advance the parser plus the total time spent waiting
             # on the mask future (i.e. time spent computing mask LESS the portion of that time parallelized with logits)
             t4 = time.monotonic()
