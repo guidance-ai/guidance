@@ -111,10 +111,10 @@ class TokenParser:
         return prefix_tokens, backtrack, ff_tokens, mask_fut
 
     def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse, float]:
-        t0 = time.time()
+        t0 = time.monotonic()
         mask, ll_response_string = self.ll_interpreter.compute_mask()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
-        return mask, ll_response, (time.time() - t0) * 1000
+        return mask, ll_response, (time.monotonic() - t0) * 1000
 
     def _parse(
         self,
