@@ -106,7 +106,7 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
-        t0 = time.time()
+        t0 = time.monotonic()
 
         # TODO: Pass these to get_logits
         # images = state.images
@@ -127,7 +127,7 @@ class Engine(ABC):
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
-            t1 = time.time()
+            t1 = time.monotonic()
             recode = False
             if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -163,7 +163,7 @@ class Engine(ABC):
                 # will otherwise just be counted as "input_tokens" when we call get_logits below
                 usage.ff_tokens += len(ff_tokens)
 
-            t2 = time.time()
+            t2 = time.monotonic()
             parser_lat_ms = (t2 - t1) * 1000
 
             if parser.has_pending_stop() and (
@@ -187,7 +187,7 @@ class Engine(ABC):
                 else:
                     usage.cached_output_tokens += 1
 
-            t3 = time.time()
+            t3 = time.monotonic()
             logits_lat_ms = (t3 - t2) * 1000
 
             # Important: don't wait on this future until after getting the logits;
@@ -197,7 +197,7 @@ class Engine(ABC):
             usage.mask_times_ms.append(parser_lat_ms + mask_compute_ms)
             # Mask overhead time is the time it took to advance the parser plus the total time spent waiting
             # on the mask future (i.e. time spent computing mask LESS the portion of that time parallelized with logits)
-            t4 = time.time()
+            t4 = time.monotonic()
             usage.mask_overheads_ms.append(parser_lat_ms + (t4 - t3) * 1000)
 
             legacy_engine_response = ll_response.progress.to_engine_call_response()
@@ -226,7 +226,7 @@ class Engine(ABC):
                     ff_probs = softmax(ff_logits)
 
             # Note: ff_lat_ms includes parser_lat_ms (t2 - t1)
-            ff_lat_ms = (time.time() - t1) * 1000
+            ff_lat_ms = (time.monotonic() - t1) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
                 ff_lat_ms -= logits_lat_ms
@@ -328,9 +328,9 @@ class Engine(ABC):
                 issued_token.token_id = self.tokenizer.eos_token_id
 
             if usage.ttft_ms == 0:
-                usage.ttft_ms += (time.time() - t0) * 1000
+                usage.ttft_ms += (time.monotonic() - t0) * 1000
 
-        usage.total_latency_ms += (time.time() - t0) * 1000
+        usage.total_latency_ms += (time.monotonic() - t0) * 1000
         return usage
 
     def get_next_token_with_top_k(
@@ -372,7 +372,7 @@ class Engine(ABC):
         EngineOutput
             The output from the model.
         """
-        t0 = time.time()
+        t0 = time.monotonic()
 
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
@@ -427,7 +427,7 @@ class Engine(ABC):
         issued_token_bytes = self.tokenizer.decode([issued_token])
         top_k_token_bytes = [self.tokenizer.decode([token_id]) for token_id in top_k]
 
-        sampling_lat_ms = (time.time() - t0) * 1000
+        sampling_lat_ms = (time.monotonic() - t0) * 1000
 
         top_k_tokens = [
             GenToken(
