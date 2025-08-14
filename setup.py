@@ -24,6 +24,7 @@ llamacpp_requires = ["llama-cpp-python==0.3.14"]
 transformers_requires = ["transformers==4.53.3"]
 
 install_requires = [
+    "jinja2",
     "numpy",
     "pydantic",
     "requests",
