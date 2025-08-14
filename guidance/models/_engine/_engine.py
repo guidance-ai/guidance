@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Generator, Optional, TypedDict, Union
+from typing import Any, Generator, Optional, TypedDict, Union
 
 import numpy as np
 from jinja2 import BaseLoader, Environment
@@ -449,6 +449,53 @@ class Engine(ABC):
             top_k=top_k_tokens,
         )
 
+    def chat_completion_streaming(
+        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+    ) -> Generator[tuple[bytes, dict[str, str]], None, None]:
+        """Generate a single streaming chat completion, constrained by a Lark grammar.
+
+        This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+        with a Lark grammar.
+        It is very much experimental in nature, and the API is subject to change.
+        """
+        # Render the messages
+        chat_template = self.get_chat_template().template_str
+        rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
+        rendered_prompt = rtemplate.render(
+            messages=messages, eos_token=self.tokenizer.eos_token.decode("utf-8"), tools=tools
+        )
+        rendered_prompt += self.get_chat_template().get_role_start("assistant")
+
+        # Load into a State object
+        state = EngineState()
+        state.prompt = rendered_prompt
+
+        for nxt in self(state, grammar):
+            nxt_tokens = [x.token_id for x in nxt.tokens]
+            nxt_bytes = self.tokenizer.decode(nxt_tokens)
+            nxt_captures = {}
+            for k, v in nxt.capture_groups.items():
+                nxt_captures[k] = v.decode("utf-8")
+            yield nxt_bytes, nxt_captures
+
+    def chat_completion(
+        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+    ) -> tuple[str, dict[str, str]]:
+        """Generate a single chat completion, constrained by a Lark grammar.
+
+        This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+        with a Lark grammar.
+        It is very much experimental in nature, and the API is subject to change.
+        """
+
+        full_response = bytearray()
+        captures: dict[str, str] = {}
+        for nxt_bytes, nxt_captures in self.chat_completion_streaming(messages, grammar, tools):
+            full_response += nxt_bytes
+            captures.update(nxt_captures)
+
+        return full_response.decode("utf-8"), captures
+
     @abstractmethod
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:
         """
@@ -489,52 +536,3 @@ def apply_temp_and_sampling_params(
         logits = apply_min_p_filter(logits, sampling_params)
         logits = apply_top_k_and_top_p_filter(logits, sampling_params)
     return logits
-
-
-def single_chat_completion_streaming(
-    engine: Engine, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, any]], None] = None
-) -> Generator[tuple[bytes, dict[str, str]], None, None]:
-    """Generate a single streaming chat completion, constrained by a Lark grammar.
-
-    This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
-    with a Lark grammar.
-    It is very much experimental in nature, and the API is subject to change.
-    """
-    # Render the messages
-    chat_template = engine.get_chat_template().template_str
-    rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
-    rendered_prompt = rtemplate.render(
-        messages=messages, eos_token=engine.tokenizer.eos_token.decode("utf-8"), tools=tools
-    )
-    rendered_prompt += engine.get_chat_template().get_role_start("assistant")
-
-    # Load into a State object
-    state = EngineState()
-    state.prompt = rendered_prompt
-
-    for nxt in engine(state, grammar):
-        nxt_tokens = [x.token_id for x in nxt.tokens]
-        nxt_bytes = engine.tokenizer.decode(nxt_tokens)
-        nxt_captures = {}
-        for k, v in nxt.capture_groups.items():
-            nxt_captures[k] = v.decode("utf-8")
-        yield nxt_bytes, nxt_captures
-
-
-def single_chat_completion(
-    engine: Engine, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, any]], None] = None
-) -> tuple[str, dict[str, str]]:
-    """Generate a single chat completion, constrained by a Lark grammar.
-
-    This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
-    with a Lark grammar.
-    It is very much experimental in nature, and the API is subject to change.
-    """
-
-    full_response = bytearray()
-    captures: dict[str, str] = {}
-    for nxt_bytes, nxt_captures in single_chat_completion_streaming(engine, messages, grammar, tools):
-        full_response += nxt_bytes
-        captures.update(nxt_captures)
-
-    return full_response.decode("utf-8"), captures
