@@ -313,6 +313,9 @@ class Model:
         # TODO(hudson): make this public API once we stabilize the data structure
         return self._interpreter.state.get_usage()
 
+    def _reset_usage(self) -> None:
+        self._interpreter.state.reset_usage()
+
 
 class ModelStream:
     def __init__(
