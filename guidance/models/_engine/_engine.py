@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Generator, Optional, TypedDict, Union
 
 import numpy as np
-from jinja2 import Environment, BaseLoader
+from jinja2 import BaseLoader, Environment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
