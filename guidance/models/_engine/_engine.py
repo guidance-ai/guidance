@@ -94,12 +94,8 @@ class Engine(ABC):
 
         Parameters
         ----------
-        prompt : str or Parser
-            This is represents the current state of a guidance parser that will be extended
-            using the passed grammar. If a string is given then we assume the previous parser
-            state is just a fixed string prompt, if a full Parser is given then we extend that
-            parser by appending the new grammar to the parser's current grammar and then
-            inferencing the model. (TODO: implement full parser extension support)
+        state: EngineState
+            The current state of the engine, including the prompt.
         grammar: Function
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
