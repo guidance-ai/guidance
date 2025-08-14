@@ -495,9 +495,15 @@ def apply_temp_and_sampling_params(
     return logits
 
 
-def single_chat_completion(
+def single_chat_completion_streaming(
     engine: Engine, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, any]], None] = None
-) -> tuple[str, dict[str, str]]:
+) -> Generator[tuple[bytes, dict[str, str]]]:
+    """Generate a single streaming chat completion, constrained by a Lark grammar.
+
+    This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+    with a Lark grammar.
+    It is very much experimental in nature, and the API is subject to change.
+    """
     # Render the messages
     chat_template = engine.get_chat_template().template_str
     rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
@@ -510,15 +516,29 @@ def single_chat_completion(
     state = EngineState()
     state.prompt = rendered_prompt
 
-    # Run through this engine object
-    full_response = bytearray()
-    captures: dict[str, str] = {}
     for nxt in engine(state, grammar):
         nxt_tokens = [x.token_id for x in nxt.tokens]
         nxt_bytes = engine.tokenizer.decode(nxt_tokens)
-        full_response += nxt_bytes
+        nxt_captures = {}
         for k, v in nxt.capture_groups.items():
-            captures[k] = v.decode("utf-8")
-    full_text = full_response.decode("utf-8")
+            nxt_captures[k] = v.decode("utf-8")
+        yield nxt_bytes, nxt_captures
 
-    return full_text, captures
+
+def single_chat_completion(
+    engine: Engine, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, any]], None] = None
+) -> tuple[str, dict[str, str]]:
+    """Generate a single chat completion, constrained by a Lark grammar.
+
+    This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+    with a Lark grammar.
+    It is very much experimental in nature, and the API is subject to change.
+    """
+
+    full_response = bytearray()
+    captures: dict[str, str] = {}
+    for nxt_bytes, nxt_captures in single_chat_completion_streaming(engine, messages, grammar, tools):
+        full_response += nxt_bytes
+        captures.update(nxt_captures)
+
+    return full_response.decode("utf-8"), captures
