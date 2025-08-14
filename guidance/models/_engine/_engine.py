@@ -497,7 +497,7 @@ def apply_temp_and_sampling_params(
 
 def single_chat_completion_streaming(
     engine: Engine, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, any]], None] = None
-) -> Generator[tuple[bytes, dict[str, str]]]:
+) -> Generator[tuple[bytes, dict[str, str]], None, None]:
     """Generate a single streaming chat completion, constrained by a Lark grammar.
 
     This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
