@@ -458,7 +458,7 @@ class Engine(ABC):
         with a Lark grammar.
         It is very much experimental in nature, and the API is subject to change.
         """
-        # Get some tokens
+        # Get the tokens which might be needed by the chat template
         tokens = {
             "eos_token": self.tokenizer.eos_token.decode("utf-8"),
             "bos_token": self.tokenizer.bos_token.decode("utf-8")
