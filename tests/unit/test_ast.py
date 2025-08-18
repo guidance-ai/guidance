@@ -170,6 +170,26 @@ MY_RULE: /.*/
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
 
+    def test_suffix_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(".*")
+        ln = LiteralNode("I've a suffix")
+        rule_node = RuleNode("my_rule", value=ren, suffix=ln)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule[suffix="I've a suffix"]: MY_RULE
+MY_RULE: /.*/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
     def test_nested_rule_node(self):
         target = LarkSerializer()
         ren = RegexNode(r"\d\d")
