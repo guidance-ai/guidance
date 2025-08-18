@@ -461,15 +461,13 @@ class Engine(ABC):
         # Get the tokens which might be needed by the chat template
         tokens = {
             "eos_token": self.tokenizer.eos_token.decode("utf-8"),
-            "bos_token": self.tokenizer.bos_token.decode("utf-8")
+            "bos_token": self.tokenizer.bos_token.decode("utf-8"),
         }
 
         # Render the messages
         chat_template = self.get_chat_template().template_str
         rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
-        rendered_prompt = rtemplate.render(
-            messages=messages, tools=tools, **tokens
-        )
+        rendered_prompt = rtemplate.render(messages=messages, tools=tools, **tokens)
         rendered_prompt += self.get_chat_template().get_role_start("assistant")
 
         # Load into a State object
