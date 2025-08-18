@@ -190,6 +190,27 @@ MY_RULE: /.*/
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
 
+    def test_stop_capture_rule_node(self):
+        target = LarkSerializer()
+        ren = RegexNode(".*")
+        ln = LiteralNode("Stopping!")
+        rule_node = RuleNode("my_rule", value=ren, stop_capture=r"Stop {} capture!", stop=ln)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule[stop="Stopping!", stop_capture="Stop {} capture!"]: MY_RULE
+MY_RULE: /.*/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        # The requirement for stop (or suffix) was only caught on this check
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
     def test_nested_rule_node(self):
         target = LarkSerializer()
         ren = RegexNode(r"\d\d")
