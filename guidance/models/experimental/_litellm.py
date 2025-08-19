@@ -26,10 +26,12 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
     ) -> Iterator["ChatCompletionChunk"]:
         """Wrapped completion call within a context manager."""
         kwargs["stream"] = True  # Ensure we are streaming here
+        if logprobs:
+            # only add logprobs if needed. Some EPs like Mistral does not allow logprobs
+            kwargs["logprobs"] = logprobs
         stream_wrapper = self.router.completion(
             model=model,
             messages=messages,
-            logprobs=logprobs,
             **kwargs,
         )
 
@@ -58,7 +60,17 @@ class LiteLLMOpenAIClientWrapper(BaseOpenAIClientWrapper):
 
 
 class LiteLLMInterpreter(BaseOpenAIInterpreter):
-    SUPPORTED_ENDPOINT_TYPES = ["openai", "azure_ai", "azure", "gemini", "anthropic", "xai", "hosted_vllm", "groq"]
+    SUPPORTED_ENDPOINT_TYPES = [
+        "openai",
+        "azure_ai",
+        "azure",
+        "gemini",
+        "anthropic",
+        "xai",
+        "hosted_vllm",
+        "groq",
+        "mistral",
+    ]
 
     def __init__(self, model_description: dict, **kwargs):
         try:
@@ -239,6 +251,10 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
         if self.ep_type == "groq":
             # Groq does not support top_k, min_p, or repetition_penalty
+            kwargs.pop("top_k", None)
+            kwargs.pop("min_p", None)
+            kwargs.pop("repetition_penalty", None)
+        if self.ep_type == "mistral":
             kwargs.pop("top_k", None)
             kwargs.pop("min_p", None)
             kwargs.pop("repetition_penalty", None)
