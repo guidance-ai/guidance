@@ -31,6 +31,18 @@ class TokenUsage(BaseModel):
     """Total latency of the model in milliseconds. This includes the time spent on all forward passes and
     the time spent on fast-forwarding tokens (if applicable)."""
 
+    ttft_ms: Annotated[float, Ge(0)] = 0.0
+    """Time to first token in ms"""
+
+    mask_times_ms: list[Annotated[float, Ge(0)]] = Field(default_factory=list)
+    """List of mask times in ms for each token generated."""
+
+    mask_overheads_ms: list[Annotated[float, Ge(0)]] = Field(default_factory=list)
+    """List of mask overhead times in ms for each token generated."""
+
+    ttfm_ms: Annotated[float, Ge(0)] = 0.0
+    """Time to first mask in ms"""
+
     @computed_field  # type: ignore[misc]
     @property
     def output_tokens(self) -> NonNegativeInt:
@@ -64,11 +76,16 @@ class TokenUsage(BaseModel):
         else:
             ff_tokens = (self.ff_tokens or 0) + (other.ff_tokens or 0)
 
+        ttft_ms = other.ttft_ms
+        ttfm_ms = other.ttfm_ms
+
         return TokenUsage(
             ff_tokens=ff_tokens,
+            ttft_ms=ttft_ms,
+            ttfm_ms=ttfm_ms,
             **{
                 field: getattr(self, field) + getattr(other, field)
-                for field in set(self.__class__.model_fields) - {"ff_tokens"}
+                for field in set(self.__class__.model_fields) - {"ff_tokens", "ttft_ms", "ttfm_ms"}
             },
         )
 

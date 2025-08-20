@@ -444,6 +444,9 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 # TODO: handle "bad" finish reasons
                 pass
 
+            if usage.ttft_ms == 0:
+                usage.ttft_ms = (time.time() - _t0) * 1000
+
         if audio is not None:
             assert self.state.audio is None
             self.state.audio = audio
@@ -524,7 +527,7 @@ class OpenAIRuleMixin(BaseOpenAIInterpreter):
         if node.temperature:
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
-            kwargs["max_tokens"] = node.max_tokens
+            kwargs["max_completion_tokens"] = node.max_tokens
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:

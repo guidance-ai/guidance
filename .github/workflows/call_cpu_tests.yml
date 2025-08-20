@@ -19,6 +19,8 @@ on:
     secrets:
       HF_TOKEN:
         required: false
+      CODECOV_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       os:

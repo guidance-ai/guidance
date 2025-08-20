@@ -3,9 +3,10 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Generator, Optional, TypedDict
+from typing import Any, Generator, Optional, TypedDict, Union
 
 import numpy as np
+from jinja2 import BaseLoader, Environment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
@@ -93,12 +94,8 @@ class Engine(ABC):
 
         Parameters
         ----------
-        prompt : str or Parser
-            This is represents the current state of a guidance parser that will be extended
-            using the passed grammar. If a string is given then we assume the previous parser
-            state is just a fixed string prompt, if a full Parser is given then we extend that
-            parser by appending the new grammar to the parser's current grammar and then
-            inferencing the model. (TODO: implement full parser extension support)
+        state: EngineState
+            The current state of the engine, including the prompt.
         grammar: Function
             Grammar (RawFunction or GrammarFunction) used to extend the prompt.
         ensure_bos_token: bool
@@ -106,9 +103,7 @@ class Engine(ABC):
         sampling_params: Optional[SamplingParams]
             Additional sampling parameters to apply to the logits.
         """
-        # Note: t0 will get reset further down in the loop, just after the break condition
-        _t0 = time.time()
-        t0 = _t0
+        t0 = time.monotonic()
 
         # TODO: Pass these to get_logits
         # images = state.images
@@ -129,6 +124,7 @@ class Engine(ABC):
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
+            t1 = time.monotonic()
             recode = False
             if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
@@ -164,6 +160,9 @@ class Engine(ABC):
                 # will otherwise just be counted as "input_tokens" when we call get_logits below
                 usage.ff_tokens += len(ff_tokens)
 
+            t2 = time.monotonic()
+            parser_lat_ms = (t2 - t1) * 1000
+
             if parser.has_pending_stop() and (
                 # There are no ff_tokens
                 not ff_tokens
@@ -173,9 +172,7 @@ class Engine(ABC):
                 # We can skip the logits computation because it would only be used to enrich
                 # the fast-forwarded tokens with probabilities for the sake of monitoring
                 logits = None
-                logits_lat_ms = 0.0
             else:
-                t1 = time.time()
                 logits_output = self.get_logits(
                     token_ids=tokens, include_all_uncached_tokens=self._enable_token_probabilities
                 )
@@ -186,11 +183,22 @@ class Engine(ABC):
                     usage.forward_passes += 1
                 else:
                     usage.cached_output_tokens += 1
-                logits_lat_ms = (time.time() - t1) * 1000
+
+            t3 = time.monotonic()
+            logits_lat_ms = (t3 - t2) * 1000
 
             # Important: don't wait on this future until after getting the logits;
             # this allows the mask to be built concurrently with model inference
-            mask, ll_response = mask_fut.result()
+            mask, ll_response, mask_compute_ms = mask_fut.result()
+            # Mask time is the time it took to advance the parser plus the total time spent computing mask
+            usage.mask_times_ms.append(parser_lat_ms + mask_compute_ms)
+            if usage.ttfm_ms == 0:
+                usage.ttfm_ms = (time.monotonic() - t0) * 1000
+            # Mask overhead time is the time it took to advance the parser plus the total time spent waiting
+            # on the mask future (i.e. time spent computing mask LESS the portion of that time parallelized with logits)
+            t4 = time.monotonic()
+            usage.mask_overheads_ms.append(parser_lat_ms + (t4 - t3) * 1000)
+
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
             ff_probs: Optional[NDArray] = None
@@ -216,7 +224,8 @@ class Engine(ABC):
                     ff_logits = np.stack(ff_logits_list, axis=0)
                     ff_probs = softmax(ff_logits)
 
-            ff_lat_ms = (time.time() - t0) * 1000
+            # Note: ff_lat_ms includes parser_lat_ms (t2 - t1)
+            ff_lat_ms = (time.monotonic() - t1) * 1000
             if not ll_response.stop:
                 # If we're not stopping, the logit latency will go into the next generated token
                 ff_lat_ms -= logits_lat_ms
@@ -280,9 +289,6 @@ class Engine(ABC):
                 parser.cleanup()
                 # Ensure we break AFTER yielding the final response
                 break
-            # Reset time down here instead of at the top of the loop in order to make sure
-            # we take sampling time into account
-            t0 = time.time()
 
             # Help the type checker: assert that everything we need to get the next token is not None
             assert logits is not None
@@ -320,7 +326,10 @@ class Engine(ABC):
                 assert self.tokenizer.eos_token_id is not None
                 issued_token.token_id = self.tokenizer.eos_token_id
 
-        usage.total_latency_ms += (time.time() - _t0) * 1000
+            if usage.ttft_ms == 0:
+                usage.ttft_ms += (time.monotonic() - t0) * 1000
+
+        usage.total_latency_ms += (time.monotonic() - t0) * 1000
         return usage
 
     def get_next_token_with_top_k(
@@ -362,6 +371,8 @@ class Engine(ABC):
         EngineOutput
             The output from the model.
         """
+        t0 = time.monotonic()
+
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
@@ -412,26 +423,82 @@ class Engine(ABC):
             # Note: needs to be added to the end in order to maintain sorted order
             top_k.append(issued_token)
 
+        issued_token_bytes = self.tokenizer.decode([issued_token])
+        top_k_token_bytes = [self.tokenizer.decode([token_id]) for token_id in top_k]
+
+        sampling_lat_ms = (time.monotonic() - t0) * 1000
+
         top_k_tokens = [
             GenToken(
                 token_id=token_id,
                 prob=float("nan") if probs is None else float(probs[token_id]),
-                bytes=self.tokenizer.decode([token_id]),
-                latency_ms=logits_lat_ms,
+                bytes=token_bytes,
+                latency_ms=logits_lat_ms + sampling_lat_ms,
                 is_generated=True,
                 is_masked=mask is not None and bool(mask[token_id] == 0),
             )
-            for token_id in top_k
+            for token_id, token_bytes in zip(top_k, top_k_token_bytes)
         ]
 
         return GenTokenExtra(
             token_id=issued_token,
             prob=float("nan") if probs is None else float(probs[issued_token]),
-            bytes=self.tokenizer.decode([issued_token]),
-            latency_ms=logits_lat_ms,
+            bytes=issued_token_bytes,
+            latency_ms=logits_lat_ms + sampling_lat_ms,
             is_generated=True,
             top_k=top_k_tokens,
         )
+
+    def chat_completion_streaming(
+        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+    ) -> Generator[tuple[bytes, dict[str, str]], None, None]:
+        """Generate a single streaming chat completion, constrained by a Lark grammar.
+
+        This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+        with a Lark grammar.
+        It is very much experimental in nature, and the API is subject to change.
+        """
+        # Get the tokens which might be needed by the chat template
+        tokens = {
+            "eos_token": self.tokenizer.eos_token.decode("utf-8"),
+            "bos_token": self.tokenizer.bos_token.decode("utf-8"),
+        }
+
+        # Render the messages
+        chat_template = self.get_chat_template().template_str
+        rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
+        rendered_prompt = rtemplate.render(messages=messages, tools=tools, **tokens)
+        rendered_prompt += self.get_chat_template().get_role_start("assistant")
+
+        # Load into a State object
+        state = EngineState()
+        state.prompt = rendered_prompt
+
+        for nxt in self(state, grammar):
+            nxt_tokens = [x.token_id for x in nxt.tokens]
+            nxt_bytes = self.tokenizer.decode(nxt_tokens)
+            nxt_captures = {}
+            for k, v in nxt.capture_groups.items():
+                nxt_captures[k] = v.decode("utf-8")
+            yield nxt_bytes, nxt_captures
+
+    def chat_completion(
+        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+    ) -> tuple[str, dict[str, str]]:
+        """Generate a single chat completion, constrained by a Lark grammar.
+
+        This function provides low level access to Guidance, similar to calling an Azure OpenAI endpoint
+        with a Lark grammar.
+        It is very much experimental in nature, and the API is subject to change.
+        """
+
+        full_response = bytearray()
+        captures: dict[str, str] = {}
+        for nxt_bytes, nxt_captures in self.chat_completion_streaming(messages, grammar, tools):
+            full_response += nxt_bytes
+            captures.update(nxt_captures)
+
+        return full_response.decode("utf-8"), captures
 
     @abstractmethod
     def get_logits(self, token_ids: list[int], include_all_uncached_tokens: bool = False) -> LogitsOutput:

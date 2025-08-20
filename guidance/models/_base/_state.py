@@ -27,6 +27,10 @@ class State(ABC):
         """Get the current token usage."""
         return self._token_usage
 
+    def reset_usage(self) -> None:
+        """Reset the current token usage."""
+        self._token_usage = TokenUsage()
+
     @abstractmethod
     def __str__(self) -> str:
         pass
