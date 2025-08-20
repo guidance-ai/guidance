@@ -1,60 +1,64 @@
+import builtins
 import inspect
-import json
-from dataclasses import dataclass
-from typing import Any, Callable, Union
+from typing import Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
 
-from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import BaseModel, Field
+
+from .._ast import GrammarNode
+from .._guidance import GuidanceFunction
 
 
-@dataclass
-class Tool:
-    callable: Callable
-    name: str
-    description: str
-    schema: Union[type[BaseModel], dict[str, Any]]
+class LarkGrammar(BaseModel):
+    syntax: Literal["lark"] = "lark"
+    lark: str
+
+
+class RegexGrammar(BaseModel):
+    syntax: Literal["regex"] = "regex"
+    pattern: str
+
+
+GrammarDefinition = Annotated[Union[LarkGrammar, RegexGrammar], Field(discriminator="syntax")]
+
+
+class GrammarFormat(BaseModel):
+    type: Literal["grammar"] = "grammar"
+    definition: GrammarDefinition
+
+
+# Placeholder for possible future Union
+CustomFormat: TypeAlias = GrammarFormat
+
+
+class CustomTool(BaseModel):
+    type: Literal["custom"] = "custom"
+    format: CustomFormat
+
+
+class FunctionTool(BaseModel):
+    type: Literal["function"] = "function"
+    parameters: Union[builtins.type[BaseModel], dict[str, Any]]
 
     @classmethod
-    def from_callable(cls, callable: Callable) -> "Tool":
+    def from_callable(cls, callable: Callable) -> "FunctionTool":
+        if isinstance(callable, GuidanceFunction):
+            raise TypeError(
+                "An @guidance-wrapped function was passed to Tool.from_callable. The function must be called and return a valid grammar, which should be passed to Tool.from_grammar."
+            )
+
         signature = inspect.signature(callable)
-        args = {}
+        parameters = {}
         for name, param in signature.parameters.items():
             if param.kind not in {
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
                 inspect.Parameter.KEYWORD_ONLY,
             }:
                 raise ValueError(f"Unsupported parameter kind: {param.kind.description}")
-            args[name] = param.annotation if param.annotation is not inspect.Parameter.empty else Any
+            parameters[name] = param.annotation if param.annotation is not inspect.Parameter.empty else Any
 
-        return Tool(
-            callable=callable,
-            name=callable.__name__,
-            description=(callable.__doc__ or "").strip(),
-            schema=create_model(
-                callable.__name__,
-                __config__=ConfigDict(extra="forbid"),
-                **{name: (annotation, ...) for name, annotation in args.items()},
-            ),
+        return FunctionTool(
+            parameters=parameters,
         )
-
-    def validate_args(self, args: Union[str, dict[str, Any]]) -> dict[str, Any]:
-        """
-        Validate the arguments against the tool's schema.
-        If the schema is a Pydantic model, it will validate and return the model's dict.
-        If it's a dict, it will return the args as is.
-        """
-        if isinstance(args, str):
-            loaded_args = json.loads(args)
-        else:
-            loaded_args = args
-        if isinstance(self.schema, type) and issubclass(self.schema, BaseModel):
-            # If the schema is a Pydantic model, validate the args
-            return self.schema.model_validate(loaded_args).model_dump()
-        elif isinstance(self.schema, dict):
-            # If the schema is a dict, we assume it's a JSON schema and return the args as is
-            # TODO: use a JSON schema validator?
-            return loaded_args
-        else:
-            raise TypeError(f"Unsupported schema type: {type(self.schema)}. Expected a Pydantic model or a dict.")
 
     def schema_dump(self) -> dict[str, Any]:
         """
@@ -62,11 +66,88 @@ class Tool:
         If the schema is a Pydantic model, it will return the model's schema.
         If it's a dict, it will return the dict as is.
         """
-        if isinstance(self.schema, type) and issubclass(self.schema, BaseModel):
+        if isinstance(self.parameters, type) and issubclass(self.parameters, BaseModel):
             # If the schema is a Pydantic model, return the model's schema
-            return self.schema.model_json_schema()
-        elif isinstance(self.schema, dict):
+            return self.parameters.model_json_schema()
+        elif isinstance(self.parameters, dict):
             # If the schema is a dict, we assume it's a JSON schema and return the dict as is
-            return self.schema
+            return self.parameters
         else:
-            raise TypeError(f"Unsupported schema type: {type(self.schema)}. Expected a Pydantic model or a dict.")
+            raise TypeError(f"Unsupported schema type: {type(self.parameters)}. Expected a Pydantic model or a dict.")
+
+
+ToolType = Annotated[Union[FunctionTool, CustomTool], Field(discriminator="type")]
+
+
+class Tool(BaseModel):
+    name: str
+    description: str
+    tool: ToolType
+    callable: Callable
+
+    @classmethod
+    def from_callable(
+        cls,
+        callable: Callable,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> "Tool":
+        return Tool(
+            name=name or callable.__name__,
+            description=description or (callable.__doc__ or "").strip(),
+            tool=FunctionTool.from_callable(callable),
+            callable=callable,
+        )
+
+    @classmethod
+    def from_regex(
+        cls,
+        pattern: str,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        callable: Callable,
+    ) -> "Tool":
+        return Tool(
+            name=name or callable.__name__,
+            description=description or (callable.__doc__ or "").strip(),
+            tool=CustomTool(
+                format=RegexGrammar(pattern=pattern),
+            ),
+            callable=callable,
+        )
+
+    @classmethod
+    def from_lark(
+        cls,
+        lark: str,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        callable: Callable,
+    ) -> "Tool":
+        return Tool(
+            name=name or callable.__name__,
+            description=description or (callable.__doc__ or "").strip(),
+            tool=CustomTool(
+                format=LarkGrammar(lark=lark),
+            ),
+            callable=callable,
+        )
+
+    @classmethod
+    def from_grammar(
+        cls,
+        grammar: GrammarNode,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        callable: Callable,
+    ) -> "Tool":
+        if isinstance(grammar, GuidanceFunction):
+            raise TypeError(
+                "An @guidance-wrapped function was passed to Tool.from_grammar. The function must be called and return a valid grammar."
+            )
+
+        return cls.from_lark(lark=grammar.ll_grammar(), name=name, description=description, callable=callable)
