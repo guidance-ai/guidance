@@ -25,9 +25,9 @@ from .._ast import (
     Tool,
     ToolCallNode,
 )
-from .._schema import TokenUsage
 from .._utils import bytes_from
 from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
+from ..types import TokenUsage
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:

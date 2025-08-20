@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 
-from .._schema import GenTokenExtra, SamplingParams
+from ..types import GenTokenExtra, SamplingParams
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._engine._tokenizer import TokenizerWrappable

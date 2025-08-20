@@ -1,6 +1,6 @@
 from typing import Optional
 
-from guidance._schema import SamplingParams
+from guidance.types import SamplingParams
 
 from ._base import Model
 from ._openai_base import (
