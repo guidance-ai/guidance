@@ -8,22 +8,10 @@ from .._ast import GrammarNode
 from .._guidance import GuidanceFunction
 
 
-class LarkGrammar(BaseModel):
-    syntax: Literal["lark"] = "lark"
-    lark: str
-
-
-class RegexGrammar(BaseModel):
-    syntax: Literal["regex"] = "regex"
-    pattern: str
-
-
-GrammarDefinition = Annotated[Union[LarkGrammar, RegexGrammar], Field(discriminator="syntax")]
-
-
 class GrammarFormat(BaseModel):
     type: Literal["grammar"] = "grammar"
-    definition: GrammarDefinition
+    syntax: Union[Literal["lark", "regex"]]
+    definition: str
 
 
 # Placeholder for possible future Union
@@ -60,20 +48,22 @@ class FunctionTool(BaseModel):
             parameters=parameters,
         )
 
-    def schema_dump(self) -> dict[str, Any]:
+    def get_schema(self) -> dict[str, Any]:
         """
-        Dump the schema of the tool.
-        If the schema is a Pydantic model, it will return the model's schema.
-        If it's a dict, it will return the dict as is.
+        Returns the JSON schema for the function's parameters.
+        If the parameters are a Pydantic model, it will return the model's schema.
+        If they are a dict, it will return the dict as is.
         """
         if isinstance(self.parameters, type) and issubclass(self.parameters, BaseModel):
-            # If the schema is a Pydantic model, return the model's schema
+            # If the parameters is a Pydantic model, return the model's schema
             return self.parameters.model_json_schema()
         elif isinstance(self.parameters, dict):
-            # If the schema is a dict, we assume it's a JSON schema and return the dict as is
+            # If the parameters is a dict, we assume it's a JSON schema and return the dict as is
             return self.parameters
         else:
-            raise TypeError(f"Unsupported schema type: {type(self.parameters)}. Expected a Pydantic model or a dict.")
+            raise TypeError(
+                f"Unsupported parameters type: {type(self.parameters)}. Expected a Pydantic model or a dict."
+            )
 
 
 ToolType = Annotated[Union[FunctionTool, CustomTool], Field(discriminator="type")]
@@ -114,7 +104,8 @@ class Tool(BaseModel):
             description=description or (callable.__doc__ or "").strip(),
             tool=CustomTool(
                 format=GrammarFormat(
-                    definition=RegexGrammar(pattern=pattern),
+                    syntax="regex",
+                    definition=pattern,
                 ),
             ),
             callable=callable,
@@ -133,8 +124,9 @@ class Tool(BaseModel):
             name=name or callable.__name__,
             description=description or (callable.__doc__ or "").strip(),
             tool=CustomTool(
-                format=CustomFormat(
-                    definition=LarkGrammar(lark=lark),
+                format=GrammarFormat(
+                    syntax="lark",
+                    definition=lark,
                 )
             ),
             callable=callable,
@@ -155,3 +147,37 @@ class Tool(BaseModel):
             )
 
         return cls.from_lark(lark=grammar.ll_grammar(), name=name, description=description, callable=callable)
+
+    def to_openai_style(self) -> dict[str, Any]:
+        data = {
+            "name": self.name,
+            "description": self.description,
+        }
+        if isinstance(self.tool, FunctionTool):
+            data.update(
+                {
+                    "type": "function",
+                    "parameters": self.tool.get_schema(),
+                }
+            )
+        elif isinstance(self.tool, CustomTool):
+            data.update(
+                {
+                    "type": "custom",
+                    "format": {
+                        "type": self.tool.format.type,
+                        "syntax": self.tool.format.syntax,
+                        "definition": self.tool.format.definition,
+                    },
+                }
+            )
+        else:
+            raise TypeError(f"Unsupported tool type: {type(self.tool)}. Expected FunctionTool or CustomTool.")
+        return data
+
+    def with_name(self, name: str) -> "Tool":
+        if self.name == name:
+            return self
+        new_self = self.model_copy()
+        new_self.name = name
+        return new_self

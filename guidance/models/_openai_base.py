@@ -22,12 +22,12 @@ from .._ast import (
     RoleEnd,
     RoleStart,
     RuleNode,
-    Tool,
     ToolCallNode,
 )
 from .._utils import bytes_from
 from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
 from ..types import TokenUsage
+from ..types.tools import Tool
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:
@@ -494,7 +494,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
-            tools=node.tools,
+            tools=[tool.with_name(name).to_openai_style() for name, tool in node.tools.items()],
             tool_choice=node.tool_choice,
             parallel_tool_calls=node.parallel_tool_calls,
             **kwargs,
