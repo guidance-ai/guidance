@@ -113,7 +113,9 @@ class Tool(BaseModel):
             name=name or callable.__name__,
             description=description or (callable.__doc__ or "").strip(),
             tool=CustomTool(
-                format=RegexGrammar(pattern=pattern),
+                format=GrammarFormat(
+                    definition=RegexGrammar(pattern=pattern),
+                ),
             ),
             callable=callable,
         )
@@ -131,7 +133,9 @@ class Tool(BaseModel):
             name=name or callable.__name__,
             description=description or (callable.__doc__ or "").strip(),
             tool=CustomTool(
-                format=LarkGrammar(lark=lark),
+                format=CustomFormat(
+                    definition=LarkGrammar(lark=lark),
+                )
             ),
             callable=callable,
         )
