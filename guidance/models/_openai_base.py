@@ -206,6 +206,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
         self.model = model
         self.client = client
 
+        if "gpt-5" in model:
+            # logprobs are not allowed for gpt-5...
+            self.logprobs = False
+
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         if not isinstance(node, RoleStart) and self.state.active_role is None:
             raise ValueError("OpenAI models require an active role (e.g. use `with assistant(): ...`)")
