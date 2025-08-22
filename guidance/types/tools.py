@@ -2,7 +2,7 @@ import builtins
 import inspect
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 if TYPE_CHECKING:
     from .._ast import GrammarNode
@@ -47,7 +47,7 @@ class FunctionTool(BaseModel):
             parameters[name] = param.annotation if param.annotation is not inspect.Parameter.empty else Any
 
         return FunctionTool(
-            parameters=parameters,
+            parameters=create_model(callable.__name__, **parameters),
         )
 
     def get_schema(self) -> dict[str, Any]:
