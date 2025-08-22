@@ -40,6 +40,7 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
         api_key: Optional[str] = None,
         azure_ad_token: Optional[str] = None,
         azure_ad_token_provider: Optional[Callable[[], str]] = None,
+        reasoning_effort: Optional[str] = None,
         **kwargs,
     ):
         try:
@@ -57,7 +58,7 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
             azure_ad_token_provider=azure_ad_token_provider,
             **kwargs,
         )
-        super().__init__(model=model_name, client=OpenAIClientWrapper(client))
+        super().__init__(model=model_name, client=OpenAIClientWrapper(client), reasoning_effort=reasoning_effort)
 
 
 class AzureOpenAIAudioInterpreter(OpenAIAudioMixin, AzureOpenAIInterpreter):
@@ -85,6 +86,7 @@ def create_azure_openai_model(
     has_audio_support: bool = False,
     has_image_support: bool = False,
     sampling_params: Optional[SamplingParams] = None,
+    reasoning_effort: Optional[str] = None,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -140,6 +142,7 @@ def create_azure_openai_model(
         api_key=api_key,
         azure_ad_token=azure_ad_token,
         azure_ad_token_provider=azure_ad_token_provider,
+        reasoning_effort=reasoning_effort,
         **kwargs,
     )
 
@@ -189,6 +192,7 @@ class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMix
         endpoint: str,
         credential: Union["AzureKeyCredential", "TokenCredential"],
         model_name: str,
+        reasoning_effort: Optional[str] = None,
     ):
         try:
             import azure.ai.inference
@@ -200,7 +204,7 @@ class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMix
             endpoint=endpoint,
             credential=credential,
         )
-        super().__init__(model=model_name, client=AzureAIClientWrapper(client))
+        super().__init__(model=model_name, client=AzureAIClientWrapper(client), reasoning_effort=reasoning_effort)
 
     def json(self, node: JsonNode, **kwargs) -> Iterator[OutputAttr]:
         return self._run(
@@ -221,6 +225,7 @@ def create_azure_aifoundry_model(
     api_key: Optional[str] = None,
     token_credential: Optional["TokenCredential"] = None,
     sampling_params: Optional[SamplingParams] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
@@ -260,6 +265,7 @@ def create_azure_aifoundry_model(
         endpoint=azure_endpoint,
         credential=credential,
         model_name=model_name,
+        reasoning_effort=reasoning_effort,
     )
 
     result = Model(

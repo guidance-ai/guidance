@@ -19,6 +19,7 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
         self,
         model: str,
         api_key: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
         **kwargs,
     ):
         try:
@@ -29,7 +30,7 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
             ) from ie
 
         client = openai.OpenAI(api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client))
+        super().__init__(model=model, client=OpenAIClientWrapper(client), reasoning_effort=reasoning_effort)
 
 
 class OpenAI(Model):
@@ -40,6 +41,7 @@ class OpenAI(Model):
         echo: bool = True,
         *,
         api_key: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
         **kwargs,
     ):
         """Build a new OpenAI model object that represents a model in a given state.
@@ -66,7 +68,7 @@ class OpenAI(Model):
             interpreter_cls = OpenAIInterpreter
 
         super().__init__(
-            interpreter=interpreter_cls(model, api_key=api_key, **kwargs),
+            interpreter=interpreter_cls(model, api_key=api_key, reasoning_effort=reasoning_effort, **kwargs),
             sampling_params=SamplingParams() if sampling_params is None else sampling_params,
             echo=echo,
         )
