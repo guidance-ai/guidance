@@ -168,10 +168,12 @@ class Tool(BaseModel):
                 "custom": {
                     "name": self.name,
                     "description": self.description,
-                    "type": "grammar",
-                    "grammar": {
-                        "syntax": self.tool.format.syntax,
-                        "definition": self.tool.format.definition,
+                    "format": {
+                        "type": "grammar",
+                        "grammar": {
+                            "syntax": self.tool.format.syntax,
+                            "definition": self.tool.format.definition,
+                        },
                     },
                 },
             }
