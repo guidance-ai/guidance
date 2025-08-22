@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from .._ast import ToolCallNode
 from .._grammar import capture, quote_regex
@@ -25,6 +25,7 @@ def gen(
     temperature=None,
     top_p=1.0,
     save_stop_text: Union[bool, str] = False,
+    tool_choice: Literal["auto", "required"] = "auto",
 ):
     """Generate a set of tokens until a given stop criteria has been met.
 
@@ -109,7 +110,7 @@ def gen(
         def tool_gen(lm):
             return lm + ToolCallNode.from_tools(
                 tools=tools,
-                tool_choice="auto",  # TODO: support passing this param
+                tool_choice=tool_choice,
                 parallel_tool_calls=False,  # TODO: support parallel tool calls
                 plaintext_regex=regex,
             )
