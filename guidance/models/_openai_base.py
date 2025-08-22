@@ -94,10 +94,24 @@ class Function(BaseModel):
     arguments: str
 
 
-class ToolCall(BaseModel):
+class Custom(BaseModel):
+    name: str
+    input: str
+
+
+class FunctionCall(BaseModel):
     id: str
     type: Literal["function"] = "function"
     function: Function
+
+
+class CustomCall(BaseModel):
+    id: str
+    type: Literal["custom"] = "custom"
+    custom: Custom
+
+
+ToolCall = Annotated[Union[FunctionCall, CustomCall], Discriminator("type")]
 
 
 class ToolCallMessage(BaseModel):
@@ -175,8 +189,14 @@ class OpenAIState(State):
                         raise TypeError(f"Unknown content type: {content}")
             elif isinstance(message, ToolCallMessage):
                 for tool_call in message.tool_calls:
-                    s += f"<function={tool_call.function.name}>"
-                    s += tool_call.function.arguments
+                    if isinstance(tool_call, CustomCall):
+                        s += f"<function={tool_call.custom.name}>"
+                        s += tool_call.custom.input
+                    elif isinstance(tool_call, FunctionCall):
+                        s += f"<function={tool_call.function.name}>"
+                        s += tool_call.function.arguments
+                    else:
+                        raise TypeError(f"Unknown tool call type: {tool_call}")
                     s += "</function>"
             elif isinstance(message, ToolCallResult):
                 s += f"<function_result={message.tool_call_id}>"
@@ -411,21 +431,38 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         latency_ms=latency_ms,
                     )
             elif (tool_calls := delta.tool_calls) is not None:
-                for tool_call in tool_calls:
-                    index = tool_call.index
+                for tool_call_delta in tool_calls:
+                    index = tool_call_delta.index
                     if index not in final_tool_calls:
                         if final_tool_calls:
                             # Close previous one
                             yield TextOutput(
                                 value="</function>",
                             )
-                        final_tool_calls[index] = ToolCall.model_validate(tool_call, from_attributes=True)
-                        yield TextOutput(
-                            value=f"<function={tool_call.function.name}>",
+                        tool_call = TypeAdapter[ToolCall](ToolCall).validate_python(
+                            tool_call_delta, from_attributes=True
                         )
+                        if isinstance(tool_call, FunctionCall):
+                            yield TextOutput(
+                                value=f"<function={tool_call.function.name}>",
+                            )
+                        elif isinstance(tool_call, CustomCall):
+                            yield TextOutput(
+                                value=f"<function={tool_call.custom.name}>",
+                            )
+                        else:
+                            raise TypeError(f"Unknown tool call type: {tool_call}")
+                        final_tool_calls[index] = tool_call
                     else:
-                        yield TextOutput(value=tool_call.function.arguments)
-                        final_tool_calls[index].function.arguments += tool_call.function.arguments
+                        tool_call = final_tool_calls[index]
+                        if isinstance(tool_call, FunctionCall):
+                            yield TextOutput(value=tool_call_delta.function.arguments)
+                            final_tool_calls[index].function.arguments += tool_call_delta.function.arguments
+                        elif isinstance(tool_call, CustomCall):
+                            yield TextOutput(value=tool_call_delta.custom["input"])
+                            final_tool_calls[index].custom.input += tool_call_delta.custom["input"]
+                        else:
+                            raise ValueError(f"Unknown tool call type: {type(tool_call)}")
             elif delta.function_call is not None:
                 # Deprecated?
                 raise NotImplementedError("Function calling not yet supported for OpenAI")
@@ -465,13 +502,22 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
             self.state.messages.append(
                 ToolCallMessage(
-                    tool_calls=[ToolCall.model_validate(tc, from_attributes=True) for tc in final_tool_calls.values()]
+                    tool_calls=[
+                        TypeAdapter(ToolCall).validate_python(tc, from_attributes=True)
+                        for tc in final_tool_calls.values()
+                    ]
                 )
             )
             for tool_call in final_tool_calls.values():
-                tool = tools[tool_call.function.name]
-                args = tool.validate_args(tool_call.function.arguments)
-                result = tool.callable(**args)
+                if isinstance(tool_call, FunctionCall):
+                    tool = tools[tool_call.function.name]
+                    args = json.loads(tool_call.function.arguments)
+                    result = tool.callable(**args)
+                elif isinstance(tool_call, CustomCall):
+                    tool = tools[tool_call.custom.name]
+                    result = tool.callable(tool_call.custom.input)
+                else:
+                    raise TypeError(f"Unknown tool call type: {tool_call}")
                 result_str = json.dumps(result)
                 self.state.messages.append(
                     ToolCallResult(
