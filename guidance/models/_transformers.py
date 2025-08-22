@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional, Union, cast
 
 import numpy as np
 
-from guidance.types import SamplingParams
+from guidance._types import SamplingParams
 
 from ..chat import ChatTemplate
 from ._base import Model

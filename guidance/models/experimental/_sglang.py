@@ -1,6 +1,6 @@
 from typing import Iterator, Optional
 
-from guidance.types import SamplingParams
+from guidance._types import SamplingParams
 
 from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput

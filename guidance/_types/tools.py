@@ -1,11 +1,11 @@
 import builtins
 import inspect
-from typing import Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
 
 from pydantic import BaseModel, Field
 
-from .._ast import GrammarNode
-from .._guidance import GuidanceFunction
+if TYPE_CHECKING:
+    from .._ast import GrammarNode
 
 
 class GrammarFormat(BaseModel):
@@ -29,6 +29,8 @@ class FunctionTool(BaseModel):
 
     @classmethod
     def from_callable(cls, callable: Callable) -> "FunctionTool":
+        from guidance._guidance import GuidanceFunction
+
         if isinstance(callable, GuidanceFunction):
             raise TypeError(
                 "An @guidance-wrapped function was passed to Tool.from_callable. The function must be called and return a valid grammar, which should be passed to Tool.from_grammar."
@@ -135,12 +137,14 @@ class Tool(BaseModel):
     @classmethod
     def from_grammar(
         cls,
-        grammar: GrammarNode,
+        grammar: "GrammarNode",
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
         callable: Callable,
     ) -> "Tool":
+        from guidance._guidance import GuidanceFunction
+
         if isinstance(grammar, GuidanceFunction):
             raise TypeError(
                 "An @guidance-wrapped function was passed to Tool.from_grammar. The function must be called and return a valid grammar."

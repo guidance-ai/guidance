@@ -24,10 +24,10 @@ from .._ast import (
     RuleNode,
     ToolCallNode,
 )
+from .._types import TokenUsage
+from .._types.tools import Tool
 from .._utils import bytes_from
 from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
-from ..types import TokenUsage
-from ..types.tools import Tool
 from ._base import Interpreter, State
 
 if TYPE_CHECKING:

@@ -7,7 +7,7 @@ import llguidance  # type: ignore[import-untyped]
 import numpy as np
 from numpy.typing import NDArray
 
-from .types import GenData, LegacyEngineCallResponse, LLInterpreterResponse
+from ._types import GenData, LegacyEngineCallResponse, LLInterpreterResponse
 
 if TYPE_CHECKING:
     from .models._engine import Tokenizer

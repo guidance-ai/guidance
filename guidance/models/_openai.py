@@ -1,7 +1,6 @@
 from typing import Optional
 
-from guidance.types import SamplingParams
-
+from .._types import SamplingParams
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,

@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional, TypedDict, Union
 
+from ..._types import TokenUsage
 from ...metrics import emit_usage
 from ...trace import CaptureOutput
-from ...types import TokenUsage
 
 
 class CaptureVar(TypedDict):
