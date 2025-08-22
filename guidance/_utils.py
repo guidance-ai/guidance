@@ -19,8 +19,8 @@ import pydantic
 
 if TYPE_CHECKING:
     from ._ast import GrammarNode, JoinNode
-    from ._types import SamplingParams
     from .models._engine import Tokenizer
+    from .types import SamplingParams
 
 LLG_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
 

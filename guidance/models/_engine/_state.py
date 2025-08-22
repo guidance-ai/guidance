@@ -1,6 +1,6 @@
 from typing import Any
 
-from ..._types import TokenUsage
+from ...types import TokenUsage
 from .._base import State
 
 

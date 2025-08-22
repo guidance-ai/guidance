@@ -8,7 +8,7 @@ from typing import Any, Sequence
 import psutil
 
 from .._topics import METRICS_TOPIC
-from .._types import TokenUsage
+from ..types import TokenUsage
 from ..visual import MetricMessage
 
 MISSING_VALUE = 0

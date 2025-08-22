@@ -153,31 +153,30 @@ class Tool(BaseModel):
         return cls.from_lark(lark=grammar.ll_grammar(), name=name, description=description, callable=callable)
 
     def to_openai_style(self) -> dict[str, Any]:
-        data = {
-            "name": self.name,
-            "description": self.description,
-        }
         if isinstance(self.tool, FunctionTool):
-            data.update(
-                {
-                    "type": "function",
+            return {
+                "type": "function",
+                "function": {
+                    "name": self.name,
+                    "description": self.description,
                     "parameters": self.tool.get_schema(),
-                }
-            )
+                },
+            }
         elif isinstance(self.tool, CustomTool):
-            data.update(
-                {
-                    "type": "custom",
-                    "format": {
-                        "type": self.tool.format.type,
+            return {
+                "type": "custom",
+                "custom": {
+                    "name": self.name,
+                    "description": self.description,
+                    "type": "grammar",
+                    "grammar": {
                         "syntax": self.tool.format.syntax,
                         "definition": self.tool.format.definition,
                     },
-                }
-            )
+                },
+            }
         else:
             raise TypeError(f"Unsupported tool type: {type(self.tool)}. Expected FunctionTool or CustomTool.")
-        return data
 
     def with_name(self, name: str) -> "Tool":
         if self.name == name:

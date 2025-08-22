@@ -25,8 +25,8 @@ from pydantic import Base64Bytes
 from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
-from ._types import Tool
 from .trace import OutputAttr
+from .types import Tool
 
 if TYPE_CHECKING:
     from .models._base import Interpreter, State

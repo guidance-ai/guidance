@@ -19,7 +19,6 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
-from ..._types import SamplingParams, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -30,6 +29,7 @@ from ...trace import (
     TraceNode,
 )
 from ...trace._trace import AudioInput
+from ...types import SamplingParams, TokenUsage
 from ...visual import TraceMessage
 from ._interpreter import Interpreter
 from ._state import State

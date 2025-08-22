@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Optional
 
-from guidance._types import SamplingParams
+from guidance.types import SamplingParams
 
 from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput

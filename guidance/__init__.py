@@ -3,8 +3,7 @@ __version__ = "0.2.5"
 import sys
 from types import ModuleType
 
-from . import _types as types
-from . import library, models
+from . import library, models, types
 from ._guidance import guidance
 
 # we expose all the library functions at the top level of the module

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from .._types import SamplingParams
+from ..types import SamplingParams
 from ._base import Model
 from ._openai_base import (
     BaseOpenAIInterpreter,

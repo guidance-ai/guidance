@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Any, Callable, ContextManager, Iterator, Optional, Union, cast
 
-from guidance._types import SamplingParams
+from guidance.types import SamplingParams
 
 from .._ast import (
     JsonNode,
