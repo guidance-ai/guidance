@@ -510,11 +510,13 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             )
             for tool_call in final_tool_calls.values():
                 if isinstance(tool_call, FunctionCall):
-                    tool = tools[tool_call.function.name]
+                    name = tool_call.function.name
+                    tool = tools[name]
                     args = json.loads(tool_call.function.arguments)
                     result = tool.callable(**args)
                 elif isinstance(tool_call, CustomCall):
-                    tool = tools[tool_call.custom.name]
+                    name = tool_call.custom.name
+                    tool = tools[name]
                     result = tool.callable(tool_call.custom.input)
                 else:
                     raise TypeError(f"Unknown tool call type: {tool_call}")
@@ -526,7 +528,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     )
                 )
                 yield TextOutput(
-                    value=f"<function_result={tool_call.function.name}>{result_str}</function_result>",
+                    value=f"<function_result={name}>{result_str}</function_result>",
                 )
 
         usage.total_latency_ms += (time.time() - _t0) * 1000
