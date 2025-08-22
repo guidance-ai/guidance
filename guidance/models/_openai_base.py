@@ -299,22 +299,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
             logprobs=self.logprobs,
             top_logprobs=self.top_k if self.logprobs else None,
-            tools=(
-                [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": name,
-                            "description": tool.description,
-                            "parameters": tool.schema_dump(),
-                            "strict": True,
-                        },
-                    }
-                    for name, tool in tools.items()
-                ]
-                if tools is not None
-                else None
-            ),
+            tools=[tool.with_name(name).to_openai_style() for name, tool in tools.items()],
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks, tools)
@@ -494,7 +479,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         yield from self._run(
-            tools=[tool.with_name(name).to_openai_style() for name, tool in node.tools.items()],
+            tools=node.tools,
             tool_choice=node.tool_choice,
             parallel_tool_calls=node.parallel_tool_calls,
             **kwargs,
