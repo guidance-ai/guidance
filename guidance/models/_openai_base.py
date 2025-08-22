@@ -235,10 +235,15 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
     # TODO: have top-k be passed programmatically and only if echo=True
     top_k: Optional[int] = 5
 
-    def __init__(self, model: str, client: BaseOpenAIClientWrapper, **kwargs):
+    def __init__(self, model: str, client: BaseOpenAIClientWrapper, *, reasoning_effort: Optional[str] = None):
         super().__init__(state=OpenAIState())
         self.model = model
         self.client = client
+        self.reasoning_effort = reasoning_effort
+
+        if "gpt-5" in model:
+            # logprobs are not allowed for gpt-5...
+            self.logprobs = False
 
     def run(self, node: ASTNode, **kwargs) -> Iterator[OutputAttr]:
         if not isinstance(node, RoleStart) and self.state.active_role is None:
@@ -293,6 +298,10 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
 
             if sampling_params.get("repetition_penalty", None) is not None:
                 raise ValueError("OpenAI models do not support repetition_penalty sampling.")
+
+        # Set default kwargs
+        if "reasoning_effort" not in kwargs and self.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = self.reasoning_effort
 
         with self.client.streaming_chat_completions(
             model=self.model,
