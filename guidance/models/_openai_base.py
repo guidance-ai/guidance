@@ -190,18 +190,18 @@ class OpenAIState(State):
             elif isinstance(message, ToolCallMessage):
                 for tool_call in message.tool_calls:
                     if isinstance(tool_call, CustomCall):
-                        s += f"<function={tool_call.custom.name}>"
+                        s += f"<tool={tool_call.custom.name}>"
                         s += tool_call.custom.input
                     elif isinstance(tool_call, FunctionCall):
-                        s += f"<function={tool_call.function.name}>"
+                        s += f"<tool={tool_call.function.name}>"
                         s += tool_call.function.arguments
                     else:
                         raise TypeError(f"Unknown tool call type: {tool_call}")
-                    s += "</function>"
+                    s += "</tool>"
             elif isinstance(message, ToolCallResult):
-                s += f"<function_result={message.tool_call_id}>"
+                s += f"\n<tool_result={message.tool_call_id}>"
                 s += message.content
-                s += "</function_result>"
+                s += "</tool_result>"
             else:
                 if TYPE_CHECKING:
                     assert_never(message)
@@ -437,18 +437,18 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                         if final_tool_calls:
                             # Close previous one
                             yield TextOutput(
-                                value="</function>",
+                                value="</tool>",
                             )
                         tool_call = TypeAdapter[ToolCall](ToolCall).validate_python(
                             tool_call_delta, from_attributes=True
                         )
                         if isinstance(tool_call, FunctionCall):
                             yield TextOutput(
-                                value=f"<function={tool_call.function.name}>",
+                                value=f"<tool={tool_call.function.name}>",
                             )
                         elif isinstance(tool_call, CustomCall):
                             yield TextOutput(
-                                value=f"<function={tool_call.custom.name}>",
+                                value=f"<tool={tool_call.custom.name}>",
                             )
                         else:
                             raise TypeError(f"Unknown tool call type: {tool_call}")
@@ -498,7 +498,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                 raise ValueError(f"No tools provided, but tool calls were made: {final_tool_calls}")
             # Close last one
             yield TextOutput(
-                value="</function>",
+                value="</tool>",
             )
             self.state.messages.append(
                 ToolCallMessage(
@@ -528,7 +528,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     )
                 )
                 yield TextOutput(
-                    value=f"<function_result={name}>{result_str}</function_result>",
+                    value=f"\n<tool_result={name}>{result_str}</tool_result>",
                 )
 
         usage.total_latency_ms += (time.time() - _t0) * 1000
