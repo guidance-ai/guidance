@@ -84,11 +84,17 @@ class Tool(BaseModel):
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        parameters: Optional[Union[builtins.type[BaseModel], dict[str, Any]]] = None,
     ) -> "Tool":
+        if parameters is not None:
+            tool = FunctionTool(parameters=parameters)
+        else:
+            tool = FunctionTool.from_callable(callable)
+
         return Tool(
             name=name or callable.__name__,
             description=description or (callable.__doc__ or "").strip(),
-            tool=FunctionTool.from_callable(callable),
+            tool=tool,
             callable=callable,
         )
 
