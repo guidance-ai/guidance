@@ -314,16 +314,6 @@ class GrammarNode(Tagged, ASTNode):
         lark_str = LarkSerializer(enforce_max_tokens=enforce_max_tokens).serialize(self.simplify())
         return lark_str
 
-    def _llguidance_validate(self) -> None:
-        """Validate the grammar with `llguidance` and warn about any issues."""
-        is_err, messages = LLMatcher.validate_grammar_with_warnings(self.ll_grammar())
-        if is_err:
-            raise ValueError(messages[0])
-        else:
-            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
-            for message in messages:
-                warnings.warn(message, UserWarning, stacklevel=2)
-
 
 @dataclass(frozen=True)
 class LiteralNode(GrammarNode):
@@ -600,6 +590,17 @@ class JsonNode(BaseSubgrammarNode):
             # (in case x-guidance was already set with some options)
             schema["x-guidance"] = self.llg_options
         return schema
+
+    def _llguidance_validate(self) -> None:
+        """Validate the JSON schema with `llguidance` and warn about any issues."""
+        grm = LLMatcher.grammar_from_json_schema(self._llguidance_json)
+        is_err, messages = LLMatcher.validate_grammar_with_warnings(grm)
+        if is_err:
+            raise ValueError(messages[0])
+        else:
+            # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
+            for message in messages:
+                warnings.warn(message)
 
 
 @dataclass(frozen=True, eq=False)
