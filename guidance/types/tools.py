@@ -2,7 +2,7 @@ import builtins
 import inspect
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, create_model, field_serializer
 
 if TYPE_CHECKING:
     from .._ast import GrammarNode
@@ -56,16 +56,16 @@ class FunctionTool(BaseModel):
         If the parameters are a Pydantic model, it will return the model's schema.
         If they are a dict, it will return the dict as is.
         """
-        if isinstance(self.parameters, type) and issubclass(self.parameters, BaseModel):
-            # If the parameters is a Pydantic model, return the model's schema
-            return self.parameters.model_json_schema()
-        elif isinstance(self.parameters, dict):
-            # If the parameters is a dict, we assume it's a JSON schema and return the dict as is
-            return self.parameters
+        return self.serialize_parameters(self.parameters)
+
+    @field_serializer("parameters", mode="plain")
+    def serialize_parameters(self, parameters: Union[builtins.type[BaseModel], dict[str, Any]]) -> dict[str, Any]:
+        if isinstance(parameters, type) and issubclass(parameters, BaseModel):
+            return parameters.model_json_schema()
+        elif isinstance(parameters, dict):
+            return parameters
         else:
-            raise TypeError(
-                f"Unsupported parameters type: {type(self.parameters)}. Expected a Pydantic model or a dict."
-            )
+            raise TypeError(f"Unsupported parameters type: {type(parameters)}. Expected a Pydantic model or a dict.")
 
 
 ToolType = Annotated[Union[FunctionTool, CustomTool], Field(discriminator="type")]
