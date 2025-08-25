@@ -1,7 +1,7 @@
 import builtins
 import inspect
 import textwrap
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
 
@@ -15,8 +15,8 @@ class GrammarFormat(BaseModel):
     definition: str
 
 
-# Placeholder for possible future Union
-CustomFormat: TypeAlias = GrammarFormat
+# Placeholder TypeAlias for possible future Union
+CustomFormat = GrammarFormat
 
 
 class CustomTool(BaseModel):
