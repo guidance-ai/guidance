@@ -10,8 +10,8 @@ from jinja2 import BaseLoader, Environment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
+from ..._schema import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage
 from ..._utils import apply_min_p_filter, apply_repetition_penalty, apply_top_k_and_top_p_filter, log_init, softmax
-from ...types import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage
 from ._state import EngineState
 from ._tokenizer import Tokenizer
 

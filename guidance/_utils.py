@@ -18,7 +18,7 @@ import numpy as np
 import pydantic
 
 if TYPE_CHECKING:
-    from .types import SamplingParams
+    from ._schema import SamplingParams
 
 logger = logging.getLogger(__name__)
 

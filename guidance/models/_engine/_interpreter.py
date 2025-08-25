@@ -5,9 +5,9 @@ from io import BytesIO
 from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
+from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
-from ...types import GenTokenExtra, TokenUsage
 from .._base import Interpreter
 from ._engine import Engine, Tokenizer
 from ._state import EngineState

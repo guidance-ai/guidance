@@ -19,6 +19,7 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
+from ..._schema import SamplingParams, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -29,7 +30,6 @@ from ...trace import (
     TraceNode,
 )
 from ...trace._trace import AudioInput
-from ...types import SamplingParams, TokenUsage
 from ...visual import TraceMessage
 from ._interpreter import Interpreter
 from ._state import State
@@ -305,7 +305,7 @@ class Model:
     def __getattribute__(self, name):
         if name == "engine":
             # For legacy model.engine access (mostly for tests...)
-            return self._interpreter.engine
+            return getattr(self._interpreter, "engine")
         return super().__getattribute__(name)
 
     def _get_usage(self) -> TokenUsage:

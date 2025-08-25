@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import numpy as np
 
+from .._schema import SamplingParams
 from .._utils import normalize_notebook_stdout_stderr
 from ..chat import ChatTemplate
-from ..types import SamplingParams
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 

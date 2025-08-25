@@ -24,9 +24,9 @@ from .._ast import (
     RuleNode,
     ToolCallNode,
 )
+from .._schema import TokenUsage
 from .._utils import bytes_from
 from ..trace import AudioOutput, ImageOutput, OutputAttr, TextOutput, Token, TokenOutput
-from ..types import TokenUsage
 from ..types.tools import Tool
 from ._base import Interpreter, State
 
