@@ -328,7 +328,7 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
             messages=cast(list[dict[str, Any]], TypeAdapter(list[Message]).dump_python(self.state.messages)),
             logprobs=self.logprobs,
             top_logprobs=self.top_k if self.logprobs else None,
-            tools=[tool.with_name(name).to_openai_style() for name, tool in tools.items()],
+            tools=[tool.with_name(name).to_openai_style() for name, tool in tools.items()] if tools else None,
             **kwargs,
         ) as chunks:
             yield from self._handle_stream(chunks, tools)
