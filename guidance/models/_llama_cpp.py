@@ -260,7 +260,7 @@ class LlamaCpp(Model):
             enable_top_k=echo,
             **llama_cpp_kwargs,
         )
-        interpreter = EngineInterpreter(engine=engine)
+        interpreter = EngineInterpreter(engine)
         super().__init__(
             interpreter=interpreter,
             sampling_params=SamplingParams() if sampling_params is None else sampling_params,

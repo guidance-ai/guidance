@@ -121,7 +121,7 @@ def test_phi3_chat_basic(phi3_model: models.Model):
 def test_phi3_chat_unrolled(phi3_model: models.Model):
     lm = phi3_model
     # Manually convert the chat format into completions style
-    lm += """<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|>\n<|assistant|>\n1,2,3,4,"""
+    lm += f"""<|user|>\nYou are a counting bot. Just keep counting numbers.<|end|>\n<|assistant|>\n1,2,3,4,"""
     lm += gen("five", max_tokens=10)
 
     assert "5" in lm["five"]
@@ -158,7 +158,7 @@ def test_phi3_unstable_tokenization(phi3_model: models.Model):
 def test_phi3_basic_completion_badtokens(phi3_model: models.Model):
     lm = phi3_model
     # Bad user tokens, but we should still generate /something/
-    lm += """<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
+    lm += f"""<|use\n\nYou are a counting bot. Just keep counting numbers.<|end|><|assistant|>1,2,3,4,"""
     lm += gen("five", max_tokens=10)
 
     assert len(lm["five"]) > 0

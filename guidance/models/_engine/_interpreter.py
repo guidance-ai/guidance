@@ -68,6 +68,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             ensure_bos_token=True,
             sampling_params=kwargs.pop("sampling_params", None),
         )
+
         delayed_bytes = b""
         while True:
             try:

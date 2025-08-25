@@ -651,7 +651,7 @@ class Transformers(Model):
             interpreter_cls = EngineInterpreter
 
         client = interpreter_cls(
-            engine=TransformersEngine(
+            TransformersEngine(
                 model,
                 tokenizer,
                 chat_template=chat_template,
@@ -661,7 +661,7 @@ class Transformers(Model):
                 enable_token_probabilities=echo,
                 enable_top_k=echo,
                 **kwargs,
-            ),
+            )
         )
         super().__init__(
             interpreter=client,
