@@ -1,5 +1,6 @@
 import builtins
 import inspect
+import textwrap
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, TypeAlias, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
@@ -93,7 +94,7 @@ class Tool(BaseModel):
 
         return Tool(
             name=name or callable.__name__,
-            description=description or (callable.__doc__ or "").strip(),
+            description=description or textwrap.dedent((callable.__doc__ or "").strip()),
             tool=tool,
             callable=callable,
         )
