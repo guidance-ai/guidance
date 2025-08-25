@@ -1,14 +1,15 @@
+import re
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
 from typing import Iterator
 
-from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, ToolCallNode
-from ..._utils import partial_decode, recode_special_tokens, text_to_grammar, to_utf8_or_bytes_string
+from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
+from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from ...types import GenTokenExtra, TokenUsage
 from .._base import Interpreter
-from ._engine import Engine
+from ._engine import Engine, Tokenizer
 from ._state import EngineState
 
 
@@ -173,3 +174,42 @@ class Phi3VisionInterpreter(EngineInterpreter):
         self.state.prompt += f"<|image_{ix}|>"
 
         yield ImageOutput(value=node.data, is_input=True)
+
+
+def partial_decode(data: bytes) -> tuple[str, bytes]:
+    try:
+        return (data.decode("utf-8"), b"")
+    except UnicodeDecodeError as e:
+        valid_part = data[: e.start].decode("utf-8")
+        delayed_part = data[e.start :]
+    return (valid_part, delayed_part)
+
+
+LLG_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
+
+
+def recode_special_tokens(tokenizer: Tokenizer, data: bytes) -> bytes:
+    """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
+    return LLG_SPECIAL_TOKEN_PAT.sub(lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]), data)
+
+
+def text_to_grammar(tokenizer: Tokenizer, text: str) -> GrammarNode:
+    """
+    Convert a text string into a GrammarNode that can be used in the grammar.
+    This is useful for converting static text into a grammar node that can be processed by the engine.
+    """
+    grammar_bits: list[GrammarNode] = []
+    delayed_bytes = b""
+    for token_id in tokenizer.encode(text.encode("utf-8"), parse_special=True):
+        if tokenizer.is_special_token(token_id):
+            assert not delayed_bytes, "Should not have any delayed bytes when encountering a special token"
+            grammar_bits.append(SpecialToken(id=token_id))
+        else:
+            new_bytes = tokenizer.decode([token_id])
+            new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
+            if new_text:
+                grammar_bits.append(LiteralNode(new_text))
+    assert not delayed_bytes, "Should not have any delayed bytes left after processing the text"
+    if len(grammar_bits) == 1:
+        return grammar_bits[0]
+    return JoinNode(tuple(grammar_bits))

@@ -18,12 +18,7 @@ import numpy as np
 import pydantic
 
 if TYPE_CHECKING:
-    from ._ast import GrammarNode, JoinNode
-    from .models._engine import Tokenizer
     from .types import SamplingParams
-
-LLG_SPECIAL_TOKEN_PAT = re.compile(rb"\xff\[([0-9]+)\]")
-
 
 logger = logging.getLogger(__name__)
 
@@ -433,43 +428,3 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["
             logits[sorted_indices_to_remove] = -float("inf")
 
     return logits
-
-
-def partial_decode(data: bytes) -> tuple[str, bytes]:
-    """Decode a byte string into a valid UTF-8 string, handling partial characters.
-    If the byte string contains a partial character, it will return the valid part and the remaining bytes."""
-    try:
-        return (data.decode("utf-8"), b"")
-    except UnicodeDecodeError as e:
-        valid_part = data[: e.start].decode("utf-8")
-        delayed_part = data[e.start :]
-    return (valid_part, delayed_part)
-
-
-def recode_special_tokens(tokenizer: "Tokenizer", data: bytes) -> bytes:
-    """Recode a byte string with special tokens in llguidance format to their actual byte representation."""
-    return LLG_SPECIAL_TOKEN_PAT.sub(lambda m: tokenizer.decode([int(m.group(1).decode("utf-8"))]), data)
-
-
-def text_to_grammar(tokenizer: "Tokenizer", text: str) -> "JoinNode":
-    """
-    Convert a text string into a GrammarNode that can be used in the grammar.
-    This is useful for converting static text into a grammar node that can be processed by the engine.
-    """
-    from guidance._ast import JoinNode, LiteralNode, SpecialToken
-
-    grammar_bits: list["GrammarNode"] = []
-    delayed_bytes = b""
-    for token_id in tokenizer.encode(text.encode("utf-8"), parse_special=True):
-        if tokenizer.is_special_token(token_id):
-            assert not delayed_bytes, "Should not have any delayed bytes when encountering a special token"
-            grammar_bits.append(SpecialToken(id=token_id))
-        else:
-            new_bytes = tokenizer.decode([token_id])
-            new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
-            if new_text:
-                grammar_bits.append(LiteralNode(new_text))
-    assert not delayed_bytes, "Should not have any delayed bytes left after processing the text"
-    if len(grammar_bits) == 1:
-        return grammar_bits[0]
-    return JoinNode(tuple(grammar_bits))

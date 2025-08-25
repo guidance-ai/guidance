@@ -6,7 +6,7 @@ import pytest
 
 import guidance
 from guidance import gen, select
-from guidance._utils import text_to_grammar
+from guidance.models._engine._interpreter import text_to_grammar
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
 
