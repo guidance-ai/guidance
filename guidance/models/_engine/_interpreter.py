@@ -1,8 +1,7 @@
 from base64 import b64decode, b64encode
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, Iterator, Optional
-from uuid import uuid4
+from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, LiteralNode, RoleEnd, RoleStart, ToolCallNode
 from ..._utils import partial_decode, recode_special_tokens, text_to_grammar, to_utf8_or_bytes_string
@@ -12,22 +11,11 @@ from .._base import Interpreter
 from ._engine import Engine
 from ._state import EngineState
 
-if TYPE_CHECKING:
-    from ...tools import ToolCallHandler
-
 
 class EngineInterpreter(Interpreter[EngineState]):
-    def __init__(self, engine: Engine, tool_call_handler_cls: Optional[type["ToolCallHandler"]] = None):
-        from ...tools import ToolCallHandler
-
-        if isinstance(tool_call_handler_cls, ToolCallHandler):
-            raise TypeError(
-                f"tool_call_handler_cls must be a subclass of ToolCallHandler, got instance {tool_call_handler_cls}"
-            )
-
+    def __init__(self, engine: Engine):
         super().__init__(state=EngineState())
         self.engine = engine
-        self.tool_call_handler_cls = tool_call_handler_cls
         self.chat_template = self.engine.get_chat_template()
 
     def __deepcopy__(self, memo):
@@ -145,31 +133,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             raise RuntimeError("Shouldn't have any delayed bytes left...")
 
     def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
-        from ...library import capture
-
-        if self.tool_call_handler_cls is None:
-            raise ValueError(
-                "No tool call handler class provided. Please provide a tool call handler class to handle tool calls."
-            )
-        else:
-            tool_call_handler_cls = self.tool_call_handler_cls
-
-        handler = tool_call_handler_cls(node)
-        grm = handler.build_grammar(self.engine.tokenizer)
-
-        capture_id = f"_tool_call_{uuid4().hex}"
-        yield from self.run(capture(grm, name=capture_id))
-
-        tool_call_text = self.state.captures[capture_id]["value"]
-        tool_calls = handler.parse_tool_calls(tool_call_text)
-        if len(tool_calls) > 1 and not node.parallel_tool_calls:
-            raise ValueError("Multiple tool calls detected, but parallel_tool_calls is set to False. ")
-        if node.tool_choice == "required" and not tool_calls:
-            raise ValueError("No tool calls detected, but tool_choice is set to 'required'.")
-        if tool_calls:
-            for tool_name, tool_args in tool_calls:
-                response = handler.invoke_tool(tool_name, tool_args)
-                yield from self.run(handler.handle_output(self.engine.tokenizer, response))
+        raise NotImplementedError("Tool calling is (temporarily) not supported with local models.")
 
 
 class Llama3VisionInterpreter(EngineInterpreter):

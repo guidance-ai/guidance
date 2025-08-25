@@ -8,14 +8,12 @@ from ._guidance import guidance
 
 # we expose all the library functions at the top level of the module
 from .library import *  # noqa: F403
-from .tools import ToolCallHandler
 
 __all__ = [
     "guidance",
     "models",
     "types",
     "library",
-    "ToolCallHandler",
     *library.__all__,
 ]
 
