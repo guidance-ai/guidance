@@ -167,6 +167,7 @@ class Tool(BaseModel):
                     "name": self.name,
                     "description": self.description,
                     "parameters": self.tool.get_schema(),
+                    "strict": True,
                 },
             }
         elif isinstance(self.tool, CustomTool):
