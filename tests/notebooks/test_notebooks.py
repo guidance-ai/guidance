@@ -60,6 +60,10 @@ class TestTutorials:
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "token_healing.ipynb"
         run_notebook(nb_path)
 
+    def test_tool_calling(self):
+        nb_path = TestTutorials.BASE_TUTORIAL_PATH / "tool_calling.ipynb"
+        run_notebook(nb_path)
+
 
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
