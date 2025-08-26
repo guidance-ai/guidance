@@ -1,8 +1,6 @@
 import logging
-import os
 import pathlib
 from typing import Any, Optional
-from urllib.parse import parse_qs, urlparse
 
 import papermill as pm
 import pytest
