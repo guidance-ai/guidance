@@ -513,11 +513,11 @@ class BaseOpenAIInterpreter(Interpreter[OpenAIState]):
                     name = tool_call.function.name
                     tool = tools[name]
                     args = json.loads(tool_call.function.arguments)
-                    result = tool.callable(**args)
+                    result = tool.call(**args)
                 elif isinstance(tool_call, CustomCall):
                     name = tool_call.custom.name
                     tool = tools[name]
-                    result = tool.callable(tool_call.custom.input)
+                    result = tool.call(tool_call.custom.input)
                 else:
                     raise TypeError(f"Unknown tool call type: {tool_call}")
                 result_str = json.dumps(result)
