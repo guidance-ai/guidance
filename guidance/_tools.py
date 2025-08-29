@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, U
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
 
 if TYPE_CHECKING:
-    from .._ast import GrammarNode
+    from ._ast import GrammarNode
 
 
 class GrammarFormat(BaseModel):

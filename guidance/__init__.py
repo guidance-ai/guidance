@@ -3,17 +3,18 @@ __version__ = "0.2.5"
 import sys
 from types import ModuleType
 
-from . import library, models, types
+from . import library, models
 from ._guidance import guidance
+from ._tools import Tool
 
 # we expose all the library functions at the top level of the module
 from .library import *  # noqa: F403
 
 __all__ = [
     "guidance",
-    "models",
-    "types",
     "library",
+    "models",
+    "Tool",
     *library.__all__,
 ]
 
