@@ -4,7 +4,7 @@ from copy import deepcopy
 from io import BytesIO
 from typing import Iterator
 
-from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken
+from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
 from ..._schema import GenTokenExtra, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
@@ -133,6 +133,9 @@ class EngineInterpreter(Interpreter[EngineState]):
 
         if delayed_bytes:
             raise RuntimeError("Shouldn't have any delayed bytes left...")
+
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
+        raise NotImplementedError("Tool calling is (temporarily) not supported with local models.")
 
 
 class Llama3VisionInterpreter(EngineInterpreter):

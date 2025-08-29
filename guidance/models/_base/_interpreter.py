@@ -20,6 +20,7 @@ from ..._ast import (
     SelectNode,
     SubgrammarNode,
     SubstringNode,
+    ToolCallNode,
 )
 from ..._utils import bytes_from
 from ...trace import OutputAttr
@@ -97,6 +98,9 @@ class Interpreter(Generic[S]):
         raise UnsupportedNodeError(interpreter=self, node=node)
 
     def gen_audio(self, node: GenAudio, **kwargs) -> Iterator[OutputAttr]:  # noqa ARG002
+        raise UnsupportedNodeError(interpreter=self, node=node)
+
+    def tool_call(self, node: ToolCallNode, **kwargs) -> Iterator[OutputAttr]:
         raise UnsupportedNodeError(interpreter=self, node=node)
 
 

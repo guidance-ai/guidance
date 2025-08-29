@@ -1,8 +1,6 @@
 import logging
-import os
 import pathlib
 from typing import Any, Optional
-from urllib.parse import parse_qs, urlparse
 
 import papermill as pm
 import pytest
@@ -58,6 +56,10 @@ class TestTutorials:
 
     def test_token_healing(self):
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "token_healing.ipynb"
+        run_notebook(nb_path)
+
+    def test_tool_calling(self):
+        nb_path = TestTutorials.BASE_TUTORIAL_PATH / "tool_calling.ipynb"
         run_notebook(nb_path)
 
 

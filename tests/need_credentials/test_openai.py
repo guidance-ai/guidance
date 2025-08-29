@@ -82,3 +82,23 @@ def test_openai_image_smoke(openai_image_model: Model):
 
 def test_openai_chat_json(openai_model: Model):
     common_chat_testing.json_output_smoke(openai_model)
+
+
+def test_openai_tools_smoke(openai_model: Model):
+    lm = openai_model
+
+    called = False
+
+    def lookup_capital_of_france() -> str:
+        nonlocal called
+        called = True
+        return "Paris"
+
+    with system():
+        lm += "You are a helpful AI assistant."
+    with user():
+        lm += "What is the capital of France?"
+    with assistant():
+        lm += gen(tools=[lookup_capital_of_france])
+
+    assert called, "The tool should have been called to answer the question."

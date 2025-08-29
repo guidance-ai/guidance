@@ -11,6 +11,7 @@ from typing import (
     Any,
     Callable,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     TypedDict,
@@ -24,6 +25,7 @@ from pydantic import Base64Bytes
 from typing_extensions import assert_never
 
 from ._parser import ByteParser, ByteParserException
+from ._tools import Tool
 from .trace import OutputAttr
 
 if TYPE_CHECKING:
@@ -347,6 +349,10 @@ class SpecialToken(GrammarNode):
     def is_allowed_in_lark_terminal(self) -> bool:
         return False
 
+    @property
+    def is_allowed_in_lark_rule_with_attrs(self) -> bool:
+        return True
+
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         # Just use grammar -- I don't think we need a special case for this
         return interpreter.grammar(self, **kwargs)
@@ -466,14 +472,17 @@ class RuleNode(GrammarNode):
     stop: Optional[Union[RegexNode, LiteralNode]] = None
     suffix: Optional[LiteralNode] = None
     stop_capture: Optional[str] = None
+    lazy: bool = False
 
     def __post_init__(self) -> None:
         if (
+            # Note: capture is very intentionally missing from this list, as it's not like the other attributes
             self.temperature is not None
             or self.max_tokens is not None
             or self.stop is not None
             or self.suffix is not None
             or self.stop_capture is not None
+            or self.lazy
         ) and not self.value.is_allowed_in_lark_rule_with_attrs:
             raise ValueError("RuleNode is not terminal, so it cannot have a temperature, max_tokens, or stop condition")
 
@@ -486,6 +495,7 @@ class RuleNode(GrammarNode):
             and self.stop is None
             and self.suffix is None
             and self.stop_capture is None
+            and not self.lazy
         )
         return check_self and super().is_allowed_in_lark_terminal
 
@@ -600,6 +610,47 @@ class LarkNode(BaseSubgrammarNode):
         return interpreter.lark(self, **kwargs)
 
 
+@dataclass(frozen=True)
+class ToolCallNode(ASTNode):
+    tools: dict[str, Tool]
+    tool_choice: Literal["auto", "required"] = "auto"
+    parallel_tool_calls: bool = False
+    plaintext_regex: Optional[str] = None
+
+    @classmethod
+    def from_tools(
+        cls,
+        tools: list[Union[callable, Tool]],
+        tool_choice: Literal["auto", "required"] = "auto",
+        parallel_tool_calls: bool = False,
+        plaintext_regex: Optional[str] = None,
+    ) -> "ToolCallNode":
+        tool_defs = {}
+        for tool in tools:
+            if isinstance(tool, Tool):
+                tool_def = tool
+            elif callable(tool):
+                tool_def = Tool.from_callable(tool)
+            else:
+                raise ValueError(f"Unsupported tool type: {type(tool)}")
+            if tool_def.name in tool_defs:
+                raise ValueError(f"Duplicate tool name: {tool_def.name}")
+            tool_defs[tool_def.name] = tool_def
+        return cls(
+            tools=tool_defs,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            plaintext_regex=plaintext_regex,
+        )
+
+    def __post_init__(self):
+        if not self.tools:
+            raise ValueError("ToolCallNode must have at least one tool")
+
+    def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
+        return interpreter.tool_call(self, **kwargs)
+
+
 class LarkSerializer:
     def __init__(self, enforce_max_tokens: bool = True):
         self.enforce_max_tokens = enforce_max_tokens
@@ -663,6 +714,8 @@ class LarkSerializer:
                 attrs.append(f"suffix={self.visit(node.suffix)}")
             if node.stop_capture:
                 attrs.append(f"stop_capture={json.dumps(node.stop_capture)}")
+            if node.lazy:
+                attrs.append("lazy")
             if attrs:
                 res += f"[{', '.join(attrs)}]"
 
