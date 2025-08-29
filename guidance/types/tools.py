@@ -1,6 +1,5 @@
 import builtins
 import inspect
-import sys
 import textwrap
 import traceback
 from types import TracebackType
@@ -80,15 +79,18 @@ class Tool(BaseModel):
     description: str
     tool: ToolType
     callable: Callable
-    exc_formatter: Optional[Callable[[type[BaseException], BaseException, TracebackType], str]]
+    exc_formatter: Optional[Callable[[type[BaseException], BaseException, TracebackType], str]] = None
 
     def call(self, *args, **kwargs) -> Any:
         try:
             return self.callable(*args, **kwargs)
-        except BaseException:  # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
+            # Skip the current stack frame to make sure our traceback starts inside of self.callable
+            tb = e.__traceback__.tb_next
+            assert tb is not None  # must exist
             if self.exc_formatter is None:
-                return "".join(traceback.format_exception(*sys.exc_info()))
-            return self.exc_formatter(*sys.exc_info())
+                return "".join(traceback.format_exception(type(e), e, tb))
+            return self.exc_formatter(type(e), e, tb)
 
     @classmethod
     def from_callable(
