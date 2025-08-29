@@ -117,10 +117,10 @@ class Tool(BaseModel):
     def from_regex(
         cls,
         pattern: str,
+        callable: Callable,
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        callable: Callable,
     ) -> "Tool":
         return Tool(
             name=name or callable.__name__,
@@ -138,10 +138,10 @@ class Tool(BaseModel):
     def from_lark(
         cls,
         lark: str,
+        callable: Callable,
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        callable: Callable,
     ) -> "Tool":
         return Tool(
             name=name or callable.__name__,
@@ -159,10 +159,10 @@ class Tool(BaseModel):
     def from_grammar(
         cls,
         grammar: "GrammarNode",
+        callable: Callable,
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        callable: Callable,
     ) -> "Tool":
         from guidance._guidance import GuidanceFunction
 
@@ -171,7 +171,7 @@ class Tool(BaseModel):
                 "An @guidance-wrapped function was passed to Tool.from_grammar. The function must be called and return a valid grammar."
             )
 
-        return cls.from_lark(lark=grammar.ll_grammar(), name=name, description=description, callable=callable)
+        return cls.from_lark(lark=grammar.ll_grammar(), callable=callable, name=name, description=description)
 
     def to_openai_style(self) -> dict[str, Any]:
         if isinstance(self.tool, FunctionTool):
