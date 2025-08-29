@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 class GrammarFormat(BaseModel):
     type: Literal["grammar"] = "grammar"
-    syntax: Union[Literal["lark", "regex"]]
+    syntax: Literal["lark", "regex"]
     definition: str
 
 
