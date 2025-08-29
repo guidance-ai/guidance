@@ -1,6 +1,9 @@
 import builtins
 import inspect
+import sys
 import textwrap
+import traceback
+from types import TracebackType
 from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
@@ -77,6 +80,15 @@ class Tool(BaseModel):
     description: str
     tool: ToolType
     callable: Callable
+    exc_formatter: Optional[Callable[[type[BaseException], BaseException, TracebackType], str]]
+
+    def call(self, *args, **kwargs) -> Any:
+        try:
+            return self.callable(*args, **kwargs)
+        except BaseException:  # noqa: BLE001
+            if self.exc_formatter is None:
+                return "".join(traceback.format_exception(*sys.exc_info()))
+            return self.exc_formatter(*sys.exc_info())
 
     @classmethod
     def from_callable(
