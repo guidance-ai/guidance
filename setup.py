@@ -75,7 +75,7 @@ test_requires = [
     "papermill",
     "pillow",
     "protobuf",
-    sentencepiece_dependency,
+    "sentencepiece",
     "torch",
     "transformers",
     "tiktoken>=0.3",
