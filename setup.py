@@ -44,10 +44,6 @@ all_requires = set()
 for v in extras_requires.values():
     all_requires = all_requires.union(v)
 
-# See
-# https://github.com/guidance-ai/guidance/issues/1222
-sentencepiece_dependency = "sentencepiece" if sys.version_info.minor != 13 else "dbowring-sentencepiece"
-
 # Required for builds etc.
 doc_requires = [
     "ipython",
@@ -79,7 +75,7 @@ test_requires = [
     "papermill",
     "pillow",
     "protobuf",
-    sentencepiece_dependency,
+    "sentencepiece",
     "torch",
     "transformers",
     "tiktoken>=0.3",
