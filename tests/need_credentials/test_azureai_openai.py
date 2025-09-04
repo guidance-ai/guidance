@@ -96,7 +96,10 @@ def azureai_image_model():
 
 
 def test_azureai_openai_chat_smoke(azureai_chat_model):
+    # GPT-5 needs more tokens for doing its reasoning (even though this is not shown)
+    # Ideally the gen() call would support max_completion_tokens
     token_budget_factor = 1 if "gpt-5" not in azureai_chat_model._interpreter.model else 20
+    # GPT-5 reasoning does not support setting a temperature
     temperature_settable = "gpt-5" not in azureai_chat_model._interpreter.model
     common_chat_testing.smoke_chat(
         azureai_chat_model, can_set_temperature=temperature_settable, token_budget_factor=token_budget_factor
