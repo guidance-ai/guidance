@@ -96,8 +96,10 @@ def azureai_image_model():
 
 
 def test_azureai_openai_chat_smoke(azureai_chat_model):
+    token_budget_factor = 1 if "gpt-5" not in azureai_chat_model._interpreter.model else 20
+    temperature_settable = "gpt-5" not in azureai_chat_model._interpreter.model
     common_chat_testing.smoke_chat(
-        azureai_chat_model, can_set_temperature=("gpt-5" not in azureai_chat_model._interpreter.model)
+        azureai_chat_model, can_set_temperature=temperature_settable, token_budget_factor=token_budget_factor
     )
 
 
@@ -132,11 +134,13 @@ def test_azureai_openai_image_smoke(azureai_image_model: models.Model):
 
 
 def test_azureai_openai_chat_longer_1(azureai_chat_model):
-    common_chat_testing.longer_chat_1(azureai_chat_model)
+    token_budget_factor = 1 if "gpt-5" not in azureai_chat_model._interpreter.model else 20
+    common_chat_testing.longer_chat_1(azureai_chat_model, token_budget_factor=token_budget_factor)
 
 
 def test_azureai_openai_chat_longer_2(azureai_chat_model):
-    common_chat_testing.longer_chat_2(azureai_chat_model)
+    token_budget_factor = 1 if "gpt-5" not in azureai_chat_model._interpreter.model else 20
+    common_chat_testing.longer_chat_2(azureai_chat_model, token_budget_factor=token_budget_factor)
 
 
 def test_azureai_openai_chat_loop(azureai_chat_model):

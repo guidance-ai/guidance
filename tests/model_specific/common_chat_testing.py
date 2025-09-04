@@ -4,7 +4,9 @@ from guidance import assistant, gen, models, system, user
 from guidance import json as gen_json
 
 
-def smoke_chat(lm: models.Model, has_system_role: bool = True, can_set_temperature: bool = True):
+def smoke_chat(
+    lm: models.Model, has_system_role: bool = True, can_set_temperature: bool = True, token_budget_factor: int = 1
+):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
@@ -15,12 +17,13 @@ def smoke_chat(lm: models.Model, has_system_role: bool = True, can_set_temperatu
         lm += "What is 1 + 1?"
 
     with assistant():
-        lm += gen(max_tokens=10, name="text", temperature=response_temperature)
+        lm += gen(max_tokens=10 * token_budget_factor, name="text", temperature=response_temperature)
 
+    print(str(lm))
     assert len(lm["text"]) > 0
 
 
-def longer_chat_1(lm: models.Model, has_system_role: bool = True):
+def longer_chat_1(lm: models.Model, has_system_role: bool = True, token_budget_factor: int = 1):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
@@ -29,7 +32,7 @@ def longer_chat_1(lm: models.Model, has_system_role: bool = True):
         lm += "What is 1 + 1?"
 
     with assistant():
-        lm += gen(max_tokens=10, name="text")
+        lm += gen(max_tokens=10 * token_budget_factor, name="text")
 
     print(str(lm))
     assert len(lm["text"]) > 0
@@ -38,13 +41,13 @@ def longer_chat_1(lm: models.Model, has_system_role: bool = True):
         lm += "10. Now you pick a number between 0 and 20"
 
     with assistant():
-        lm += gen(max_tokens=2, name="number")
+        lm += gen(max_tokens=20 * token_budget_factor, name="number")
 
     print(str(lm))
     assert len(lm["number"]) > 0
 
 
-def longer_chat_2(lm: models.Model, has_system_role: bool = True):
+def longer_chat_2(lm: models.Model, has_system_role: bool = True, token_budget_factor: int = 1):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
@@ -61,7 +64,7 @@ def longer_chat_2(lm: models.Model, has_system_role: bool = True):
 
     # Resume the previous
     with assistant():
-        lm += gen(max_tokens=10, name="text")
+        lm += gen(max_tokens=10 * token_budget_factor, name="text")
 
     print(str(lm))
     assert len(lm["text"]) > 0
@@ -70,7 +73,7 @@ def longer_chat_2(lm: models.Model, has_system_role: bool = True):
         lm += "10. Now you pick a number between 0 and 20"
 
     with assistant():
-        lm += gen(max_tokens=2, name="number")
+        lm += gen(max_tokens=20 * token_budget_factor, name="number")
 
     print(str(lm))
     assert len(lm["number"]) > 0
