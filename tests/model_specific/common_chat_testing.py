@@ -4,16 +4,18 @@ from guidance import assistant, gen, models, system, user
 from guidance import json as gen_json
 
 
-def smoke_chat(lm: models.Model, has_system_role: bool = True):
+def smoke_chat(lm: models.Model, has_system_role: bool = True, can_set_temperature: bool = True):
     if has_system_role:
         with system():
             lm += "You are a math wiz."
+
+    response_temperature = 0.5 if can_set_temperature else None
 
     with user():
         lm += "What is 1 + 1?"
 
     with assistant():
-        lm += gen(max_tokens=10, name="text", temperature=0.5)
+        lm += gen(max_tokens=10, name="text", temperature=response_temperature)
 
     assert len(lm["text"]) > 0
 

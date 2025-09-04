@@ -96,7 +96,9 @@ def azureai_image_model():
 
 
 def test_azureai_openai_chat_smoke(azureai_chat_model):
-    common_chat_testing.smoke_chat(azureai_chat_model)
+    common_chat_testing.smoke_chat(
+        azureai_chat_model, can_set_temperature=("gpt-5" not in azureai_chat_model._interpreter.model)
+    )
 
 
 def test_azureai_openai_chat_json(azureai_chat_model: models.Model):
