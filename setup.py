@@ -20,7 +20,7 @@ from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.14"]
+llamacpp_requires = ["llama-cpp-python==0.3.16"]
 transformers_requires = ["transformers==4.53.3"]
 
 install_requires = [
