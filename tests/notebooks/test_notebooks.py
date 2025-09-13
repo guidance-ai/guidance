@@ -28,6 +28,16 @@ def test_guarantee_valid_syntax():
     )
 
 
+def test_anachronism():
+    call_delay_secs = slowdown()
+    # Note, this might fail if the dataset can't be fetched from the Bigbench git repo
+    nb_path = BASE_NB_PATH / "anachronism.ipynb"
+    run_notebook(
+        nb_path,
+        params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+    )
+
+
 def test_engine_chat_completion():
     call_delay_secs = slowdown()
     nb_path = BASE_NB_PATH / "engine_chat_completion.ipynb"
