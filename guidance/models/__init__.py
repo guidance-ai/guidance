@@ -5,6 +5,7 @@ from ._llama_cpp import LlamaCpp
 from ._mock import Mock
 from ._openai import OpenAI
 from ._transformers import Transformers
+from ._onnxruntime import OnnxRuntimeGenAI
 
 __all__ = [
     "LlamaCpp",
@@ -12,7 +13,8 @@ __all__ = [
     "Model",
     "OpenAI",
     "Transformers",
+    "OnnxRuntimeGenAI",
     "create_azure_aifoundry_model",
     "create_azure_openai_model",
-    "experimental",
+    "experimental",    
 ]
