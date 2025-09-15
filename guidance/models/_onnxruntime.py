@@ -1,12 +1,13 @@
 import operator
 from itertools import takewhile
-from typing import Optional, Union, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union, cast
 
 from guidance._schema import SamplingParams
 
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._transformers import TransformersTokenizer
+
 if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 import transformers as transformers_package
