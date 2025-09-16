@@ -2,6 +2,8 @@ import operator
 from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
+from transformers import AutoTokenizer
+
 from guidance._schema import SamplingParams
 
 from ._base import Model
@@ -9,8 +11,7 @@ from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 from ._transformers import TransformersTokenizer
 
 if TYPE_CHECKING:
-    from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
-import transformers as transformers_package
+    from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 try:
     import onnxruntime_genai as og
@@ -54,7 +55,7 @@ class OnnxRuntimeGenAIEngine(Engine):
         self.params.set_search_options(**self.search_options)
 
         self.hf_tokenizer = TransformersTokenizer(
-            hf_tokenizer=tokenizer,
+            hf_tokenizer=AutoTokenizer.from_pretrained(model) if tokenizer is None else tokenizer,
             chat_template=chat_template,
         )
 
@@ -111,6 +112,9 @@ class OnnxRuntimeGenAIEngine(Engine):
 
         self.generator.append_tokens(new_token_ids)
         logits = self.generator.get_logits()[0]
+
+        logits = logits[:, :self.hf_tokenizer._vocab_size]
+
         self._cached_logits = logits
         self._cached_token_ids.extend(new_token_ids)
 
@@ -128,7 +132,8 @@ class OnnxRuntimeGenAI(Model):
         hf_tokenizer: Union[
             "PreTrainedTokenizer",
             "PreTrainedTokenizerFast",
-        ],
+            None
+        ] = None,
         interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         chat_template=None,
