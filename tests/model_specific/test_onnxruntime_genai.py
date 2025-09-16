@@ -9,15 +9,18 @@ from guidance import gen, select
 from guidance.models._engine._interpreter import text_to_grammar
 from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS
 
+
 def test_onnxrt_gen(onnxrt_model: guidance.models.Model):
     lm = onnxrt_model
     lm = lm + "this is a test" + gen("test", max_tokens=10)
     assert len(str(lm)) > len("this is a test")
 
+
 def test_onnxrt_gen_log_probs(onnxrt_model: guidance.models.Model):
     lm = onnxrt_model
     lm = lm + "this is a test" + gen("test", max_tokens=1)
     assert 1 >= np.exp(lm.log_prob("test")) >= 0
+
 
 def test_onnxrt_recursion_error(onnxrt_model: guidance.models.Model):
     lm = onnxrt_model
@@ -41,6 +44,7 @@ def test_onnxrt_select2(onnxrt_model: guidance.models.Model):
         "this is a test1 item2 and test2 item3",
         "this is a test1 item2 and test2 item4",
     ]
+
 
 def test_suffix(onnxrt_model: guidance.models.Model):
     llama2 = onnxrt_model

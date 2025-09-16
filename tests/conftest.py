@@ -205,17 +205,14 @@ def selected_model(selected_model_name: str) -> models.Model:
             ),
             n_ctx=4096,
         )
-    
+
     if selected_model_name == "onnxruntime_phi4_mini_instruct":
+        import torch
         from huggingface_hub import snapshot_download
         from transformers import AutoTokenizer
-        import torch
 
         sub_dir = "gpu/gpu-int4-rtn-block-32"
-        base_model_path = snapshot_download(
-            repo_id="microsoft/Phi-4-mini-instruct-onnx",
-            allow_patterns=f"{sub_dir}/*"
-        )
+        base_model_path = snapshot_download(repo_id="microsoft/Phi-4-mini-instruct-onnx", allow_patterns=f"{sub_dir}/*")
 
         kwargs = {}
         if torch.cuda.is_available():
@@ -232,11 +229,13 @@ def llamacpp_model(selected_model: models.Model, selected_model_name: str) -> mo
         return selected_model
     pytest.skip(f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture")
 
+
 @pytest.fixture(scope="module")
 def onnxrt_model(selected_model: models.Model, selected_model_name: str) -> models.OnnxRuntimeGenAI:
     if isinstance(selected_model, models.OnnxRuntimeGenAI):
         return selected_model
     pytest.skip(f"Selected model {selected_model_name} is not an OnnxRuntimeGenAI model, skipping onnxrt_model fixture")
+
 
 @pytest.fixture(scope="module")
 def transformers_model(selected_model: models.Model, selected_model_name: str) -> models.Transformers:
