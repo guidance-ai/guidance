@@ -216,7 +216,7 @@ def selected_model(selected_model_name: str) -> models.Model:
 
         kwargs = {}
         if torch.cuda.is_available():
-            kwargs["execution_provider"] = "CUDAExecutionProvider"
+            kwargs["execution_provider"] = "cuda"
 
         return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), **kwargs)
 
