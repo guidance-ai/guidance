@@ -216,10 +216,7 @@ def selected_model(selected_model_name: str) -> models.Model:
             allow_patterns=f"{sub_dir}/*"
         )
 
-        # hf_tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-4-mini-instruct")
-
-        # return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), execution_provider="cuda")
-        return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir))
+        return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), execution_provider="cuda")
 
     raise ValueError(f"No support for selected_model_name {selected_model_name}")  # pragma: no cover
 
