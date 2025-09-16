@@ -47,6 +47,10 @@ class OnnxRuntimeGenAIEngine(Engine):
             )
 
         self.config = og.Config(model)
+        self.config.clear_providers()
+        if "execution_provider" in kwargs:
+            self.config.append_provider(kwargs["execution_provider"])
+
         self.model = og.Model(self.config)
         self.tokenizer = og.Tokenizer(self.model)
 
