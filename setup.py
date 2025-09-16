@@ -22,7 +22,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 llamacpp_requires = ["llama-cpp-python==0.3.16"]
 transformers_requires = ["transformers==4.53.3"]
-onnxruntime_genai_requires = ["onnxruntime-gpu>=1.22.0", "onnxruntime-genai-cuda>=0.9.2"]
+onnxruntime_genai_requires = ["onnxruntime-gpu>=1.19.2", "onnxruntime-genai-cuda>=0.9.2"]
 
 install_requires = [
     "jinja2",
