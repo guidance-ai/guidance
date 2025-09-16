@@ -209,6 +209,7 @@ def selected_model(selected_model_name: str) -> models.Model:
     if selected_model_name == "onnxruntime_phi4_mini_instruct":
         from huggingface_hub import snapshot_download
         from transformers import AutoTokenizer
+        import torch
 
         sub_dir = "gpu/gpu-int4-rtn-block-32"
         base_model_path = snapshot_download(
@@ -216,7 +217,11 @@ def selected_model(selected_model_name: str) -> models.Model:
             allow_patterns=f"{sub_dir}/*"
         )
 
-        return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), execution_provider="cuda")
+        kwargs = {}
+        if torch.cuda.is_available():
+            kwargs["execution_provider"] = "CUDAExecutionProvider"
+
+        return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), **kwargs)
 
     raise ValueError(f"No support for selected_model_name {selected_model_name}")  # pragma: no cover
 
