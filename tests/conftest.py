@@ -205,6 +205,21 @@ def selected_model(selected_model_name: str) -> models.Model:
             ),
             n_ctx=4096,
         )
+    
+    if selected_model_name == "onnxruntime_phi4_mini_instruct":
+        from huggingface_hub import snapshot_download
+        from transformers import AutoTokenizer
+
+        sub_dir = "gpu/gpu-int4-rtn-block-32"
+        base_model_path = snapshot_download(
+            repo_id="microsoft/Phi-4-mini-instruct-onnx",
+            allow_patterns=f"{sub_dir}/*"
+        )
+
+        # hf_tokenizer = AutoTokenizer.from_pretrained("microsoft/Phi-4-mini-instruct")
+
+        # return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), execution_provider="cuda")
+        return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir))
 
     raise ValueError(f"No support for selected_model_name {selected_model_name}")  # pragma: no cover
 
@@ -215,6 +230,11 @@ def llamacpp_model(selected_model: models.Model, selected_model_name: str) -> mo
         return selected_model
     pytest.skip(f"Selected model {selected_model_name} is not a LlamaCpp model, skipping llamacpp_model fixture")
 
+@pytest.fixture(scope="module")
+def onnxrt_model(selected_model: models.Model, selected_model_name: str) -> models.OnnxRuntimeGenAI:
+    if isinstance(selected_model, models.OnnxRuntimeGenAI):
+        return selected_model
+    pytest.skip(f"Selected model {selected_model_name} is not an OnnxRuntimeGenAI model, skipping onnxrt_model fixture")
 
 @pytest.fixture(scope="module")
 def transformers_model(selected_model: models.Model, selected_model_name: str) -> models.Transformers:
