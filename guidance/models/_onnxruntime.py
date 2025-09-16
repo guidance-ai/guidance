@@ -2,13 +2,18 @@ import operator
 from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
-from transformers import AutoTokenizer
+try:
+    from transformers import AutoTokenizer
+
+    from ._transformers import TransformersTokenizer
+    has_transformers = True
+except ModuleNotFoundError:
+    has_transformers = False
 
 from guidance._schema import SamplingParams
 
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
-from ._transformers import TransformersTokenizer
 
 if TYPE_CHECKING:
     from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
@@ -44,6 +49,11 @@ class OnnxRuntimeGenAIEngine(Engine):
         if not is_onnxrt_genai:
             raise Exception(
                 "Please install onnxruntime-genai with `pip install --pre onnxruntime-genai` in order to use guidance.models.OnnxRuntimeGenAI!"
+            )
+        
+        if not has_transformers:
+            raise Exception(
+                "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
             )
 
         self.config = og.Config(model)
