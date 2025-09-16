@@ -6,6 +6,7 @@ try:
     from transformers import AutoTokenizer
 
     from ._transformers import TransformersTokenizer
+
     has_transformers = True
 except ModuleNotFoundError:
     has_transformers = False
@@ -50,7 +51,7 @@ class OnnxRuntimeGenAIEngine(Engine):
             raise Exception(
                 "Please install onnxruntime-genai with `pip install --pre onnxruntime-genai` in order to use guidance.models.OnnxRuntimeGenAI!"
             )
-        
+
         if not has_transformers:
             raise Exception(
                 "Please install transformers with `pip install transformers` in order to use guidance.models.Transformers!"
@@ -124,7 +125,7 @@ class OnnxRuntimeGenAIEngine(Engine):
             self.generator.append_tokens(new_token_ids)
 
         logits = self.generator.get_logits()[0]
-        logits = logits[:, :self.hf_tokenizer._vocab_size]
+        logits = logits[:, : self.hf_tokenizer._vocab_size]
         self._cached_logits = logits
         self._cached_token_ids.extend(new_token_ids)
 
@@ -139,11 +140,7 @@ class OnnxRuntimeGenAI(Model):
     def __init__(
         self,
         model: str,
-        hf_tokenizer: Union[
-            "PreTrainedTokenizer",
-            "PreTrainedTokenizerFast",
-            None
-        ] = None,
+        hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast", None] = None,
         interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         chat_template=None,
