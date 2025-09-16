@@ -105,20 +105,16 @@ class OnnxRuntimeGenAIEngine(Engine):
                 "n_cached": num_cached,
             }
         else:
-            if num_cached == len(token_ids):
-                # we need to pass at least one new token
-                num_cached = num_cached - 1
-
             self.generator.rewind_to(num_cached - 1)
             self._cached_token_ids = self._cached_token_ids[:num_cached]  # truncate cached token ids
             extra_token_ids = len(token_ids) - num_cached
             new_token_ids.extend(token_ids[-extra_token_ids:])
 
-        self.generator.append_tokens(new_token_ids)
+        if len(new_token_ids) > 0:
+            self.generator.append_tokens(new_token_ids)
+
         logits = self.generator.get_logits()[0]
-
         logits = logits[:, :self.hf_tokenizer._vocab_size]
-
         self._cached_logits = logits
         self._cached_token_ids.extend(new_token_ids)
 
