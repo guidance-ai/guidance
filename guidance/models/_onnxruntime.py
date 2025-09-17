@@ -3,8 +3,6 @@ from itertools import takewhile
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 try:
-    from transformers import AutoTokenizer
-
     from ._transformers import TransformersTokenizer
 
     has_transformers = True
@@ -17,7 +15,7 @@ from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 
 if TYPE_CHECKING:
-    from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
+    from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 try:
     import onnxruntime_genai as og
@@ -32,8 +30,8 @@ class OnnxRuntimeGenAIEngine(Engine):
 
     def __init__(
         self,
-        model,
-        tokenizer,
+        model: str,
+        tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast", None] = None,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
@@ -65,9 +63,13 @@ class OnnxRuntimeGenAIEngine(Engine):
         self.params = og.GeneratorParams(self.model)
         self.params.set_search_options(**self.search_options)
 
-        self.hf_tokenizer = TransformersTokenizer(
-            hf_tokenizer=AutoTokenizer.from_pretrained(model) if tokenizer is None else tokenizer,
-            chat_template=chat_template,
+        transformers_tokenizer = (
+            TransformersTokenizer(
+                hf_tokenizer=tokenizer,
+                chat_template=chat_template,
+            )
+            if tokenizer is not None
+            else TransformersTokenizer.from_pretrained(model, chat_template)
         )
 
         self._cached_token_ids = []
@@ -76,7 +78,7 @@ class OnnxRuntimeGenAIEngine(Engine):
         self.generator = None
 
         super().__init__(
-            self.hf_tokenizer,
+            transformers_tokenizer,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
             enable_monitoring=enable_monitoring,
@@ -132,8 +134,8 @@ class OnnxRuntimeGenAIEngine(Engine):
         logits = self.generator.get_logits()[0]
 
         # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
-        logits = logits[:, : self.hf_tokenizer._vocab_size]
-        
+        logits = logits[:, : self.tokenizer._vocab_size]
+
         self._cached_logits = logits
         self._cached_token_ids.extend(new_token_ids)
 
@@ -148,7 +150,7 @@ class OnnxRuntimeGenAI(Model):
     def __init__(
         self,
         model: str,
-        hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast", None] = None,
+        transformers_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast", None] = None,
         interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         chat_template=None,
@@ -163,7 +165,7 @@ class OnnxRuntimeGenAI(Model):
 
         engine = OnnxRuntimeGenAIEngine(
             model=model,
-            tokenizer=hf_tokenizer,
+            tokenizer=transformers_tokenizer,
             chat_template=chat_template,
             enable_backtrack=enable_backtrack,
             enable_ff_tokens=enable_ff_tokens,
