@@ -619,7 +619,7 @@ class ToolCallNode(ASTNode):
     @classmethod
     def from_tools(
         cls,
-        tools: list[callable | Tool],
+        tools: list[Callable | Tool],
         tool_choice: Literal["auto", "required"] = "auto",
         parallel_tool_calls: bool = False,
         plaintext_regex: str | None = None,
