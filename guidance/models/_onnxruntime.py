@@ -151,7 +151,6 @@ class OnnxRuntimeGenAI(Model):
         self,
         model: str,
         transformers_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast", None] = None,
-        interpreter_cls: Optional[type[EngineInterpreter]] = None,
         echo=True,
         chat_template=None,
         enable_backtrack=True,
@@ -160,9 +159,6 @@ class OnnxRuntimeGenAI(Model):
         sampling_params: Optional[SamplingParams] = None,
         **kwargs,
     ):
-        if interpreter_cls is None:
-            interpreter_cls = EngineInterpreter
-
         engine = OnnxRuntimeGenAIEngine(
             model=model,
             tokenizer=transformers_tokenizer,
@@ -173,9 +169,8 @@ class OnnxRuntimeGenAI(Model):
             sampling_params=sampling_params,
             **kwargs,
         )
-        client = interpreter_cls(engine)
         super().__init__(
-            interpreter=client,
+            interpreter=EngineInterpreter(engine),
             sampling_params=SamplingParams() if sampling_params is None else sampling_params,
             echo=echo,
         )
