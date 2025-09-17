@@ -130,7 +130,10 @@ class OnnxRuntimeGenAIEngine(Engine):
             self.generator.append_tokens(new_token_ids)
 
         logits = self.generator.get_logits()[0]
+
+        # Need to add special truncating logic here for weird models that have a different output size than tokenizer vocab
         logits = logits[:, : self.hf_tokenizer._vocab_size]
+        
         self._cached_logits = logits
         self._cached_token_ids.extend(new_token_ids)
 
