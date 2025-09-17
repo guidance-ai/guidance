@@ -156,7 +156,7 @@ class OnnxRuntimeGenAI(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         **kwargs,
     ):
         engine = OnnxRuntimeGenAIEngine(
