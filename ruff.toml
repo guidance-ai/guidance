@@ -1,5 +1,5 @@
 # Assume Python 3.9 (oldest supported)
-target-version = "py39"
+target-version = "py310"
 
 # We have agreed on longer lines
 line-length = 120
