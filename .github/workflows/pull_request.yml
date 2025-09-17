@@ -71,7 +71,7 @@ jobs:
   #     fail-fast: false # Don't cancel all on first failure
   #     matrix:
   #       os: ["gpu-runner"]
-  #       python-version: ["3.10", "3.12"]
+  #       python-version: ["3.10", "3.13"]
   #       model:
   #         - "transformers_gpt2_gpu"
   #         - "llamacpp_llama2_7b_gpu"
