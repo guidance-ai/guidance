@@ -3,7 +3,7 @@
 import logging
 import weakref
 from itertools import count
-from typing import Annotated, Any, ClassVar, Generator, Optional
+from typing import Annotated, Any, ClassVar, Generator, Optional, Union
 
 from pydantic import Base64Bytes, BaseModel, Discriminator, Field, Tag, computed_field, model_validator
 
@@ -37,7 +37,7 @@ class NodeAttr(BaseModel):
     @classmethod
     def as_discriminated_union(cls) -> type["NodeAttr"]:
         return Annotated[
-            tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses),
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],  # noqa: UP007
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             ),

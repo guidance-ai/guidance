@@ -4,7 +4,7 @@ Messages are required to be added to the model registry for serialization.
 """
 
 from itertools import count
-from typing import Annotated, ClassVar
+from typing import Annotated, ClassVar, Union
 
 from pydantic import BaseModel, Discriminator, Field, Tag, TypeAdapter, computed_field, model_validator
 
@@ -38,7 +38,7 @@ class GuidanceMessage(BaseModel):
     @classmethod
     def as_discriminated_union(cls) -> type["GuidanceMessage"]:
         return Annotated[
-            tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses),
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],  # noqa: UP007
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             ),
