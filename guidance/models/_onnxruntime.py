@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 try:
     import onnxruntime_genai as og
 
-    is_onnxrt_genai = True
+    has_onnxrt_genai = True
 except ModuleNotFoundError:
-    is_onnxrt_genai = False
+    has_onnxrt_genai = False
 
 
 class OnnxRuntimeGenAIEngine(Engine):
@@ -43,7 +43,7 @@ class OnnxRuntimeGenAIEngine(Engine):
         top_k: int = 5,
         **kwargs,
     ):
-        if not is_onnxrt_genai:
+        if not has_onnxrt_genai:
             raise Exception(
                 "Please install onnxruntime-genai with `pip install --pre onnxruntime-genai` in order to use guidance.models.OnnxRuntimeGenAI!"
             )
