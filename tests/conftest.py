@@ -207,6 +207,8 @@ def selected_model(selected_model_name: str) -> models.Model:
         )
 
     if selected_model_name == "onnxruntime_phi4_mini_instruct":
+        import json
+
         import torch
         from huggingface_hub import snapshot_download
         from transformers import AutoTokenizer
@@ -217,6 +219,13 @@ def selected_model(selected_model_name: str) -> models.Model:
         kwargs = {}
         if torch.cuda.is_available():
             kwargs["execution_provider"] = "cuda"
+
+        # modify context length in genai_config.json file
+        config_path = os.path.join(base_model_path, sub_dir, "genai_config.json")
+        config = json.load(open(config_path, "r"))
+        config["model"]["context_length"] = 4096
+        config["search"]["max_length"] = 4096
+        json.dump(config, open(config_path, "w"))
 
         return models.OnnxRuntimeGenAI(model=os.path.join(base_model_path, sub_dir), **kwargs)
 

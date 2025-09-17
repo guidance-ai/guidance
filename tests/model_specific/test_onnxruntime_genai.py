@@ -118,7 +118,7 @@ def test_onnxrt_with_temp(onnxrt_genai_model: guidance.models.Model):
     lm = onnxrt_genai_model
     lm += "Here is a cute 5-line poem about cats and dogs:\n"
     for i in range(5):
-        lm += f"LINE {i + 1}: " + gen(temperature=0.8, suffix="\n")
+        lm += f"LINE {i + 1}: " + gen(temperature=0.8, suffix="\n", max_tokens=128)
     # we just want to make sure we don't crash the numpy sampler
 
 
