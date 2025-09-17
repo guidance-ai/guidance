@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, TypedDict, Union
+from typing import Optional, TypedDict
 
 from ..._schema import TokenUsage
 from ...metrics import emit_usage
@@ -36,7 +36,7 @@ class State(ABC):
         pass
 
     def apply_capture(
-        self, name: str, value: str | None, log_prob=Optional[float], is_append: bool = False
+        self, name: str, value: str | None, log_prob: float | None, is_append: bool = False
     ) -> CaptureOutput:
         if value is None:
             # A "reset" signal
