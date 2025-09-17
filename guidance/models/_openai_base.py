@@ -5,7 +5,7 @@ import wave
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, TypeAlias, Union, cast
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never
@@ -81,7 +81,7 @@ class ImageUrlContent(BaseModel):
     image_url: ImageUrlContentInner
 
 
-Content = Annotated[TextContent | AudioContent | ImageUrlContent, Discriminator("type")]
+Content: TypeAlias = Annotated[TextContent | AudioContent | ImageUrlContent, Discriminator("type")]
 
 
 class ContentMessage(BaseModel):
@@ -125,7 +125,7 @@ class ToolCallResult(BaseModel):
     content: str
 
 
-Message = Union[ContentMessage, AssistantAudioMessage, ToolCallMessage, ToolCallResult]
+Message: TypeAlias = ContentMessage | AssistantAudioMessage | ToolCallMessage | ToolCallResult
 
 
 class OpenAIState(State):

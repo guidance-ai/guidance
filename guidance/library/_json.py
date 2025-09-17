@@ -1,5 +1,5 @@
 from json import loads as json_loads
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, TypeAlias, Union
 
 import pydantic
 
@@ -7,7 +7,7 @@ from .._ast import JsonNode, LLGJsonCompileOptions, RuleNode
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
-JSONSchema = Union[bool, Mapping[str, Any]]
+JSONSchema: TypeAlias = bool | Mapping[str, Any]
 
 
 def json(
