@@ -27,10 +27,6 @@ except ModuleNotFoundError:
     is_onnxrt_genai = False
 
 
-class OnnxRuntimeGenAITokenizer(Tokenizer):
-    pass
-
-
 class OnnxRuntimeGenAIEngine(Engine):
     """The core class that runs inference using onnxruntime-genai."""
 
@@ -104,9 +100,12 @@ class OnnxRuntimeGenAIEngine(Engine):
         new_token_ids = []
         num_cached = sum(takewhile(operator.truth, map(operator.eq, token_ids, self._cached_token_ids)))
 
-        if num_cached == 0:
+        if self.generator is None:
             self.generator = og.Generator(self.model, self.params)
+
+        if num_cached == 0:
             self._cached_token_ids.clear()
+            self.generator.rewind_to(0)
             new_token_ids.extend(token_ids)
         elif num_cached == len(token_ids) and num_cached == len(self._cached_token_ids):
             # last token input is the same as the last cached token, so return the last cached logits
@@ -116,10 +115,16 @@ class OnnxRuntimeGenAIEngine(Engine):
                 "n_cached": num_cached,
             }
         else:
-            self.generator.rewind_to(num_cached - 1)
-            self._cached_token_ids = self._cached_token_ids[:num_cached]  # truncate cached token ids
-            extra_token_ids = len(token_ids) - num_cached
-            new_token_ids.extend(token_ids[-extra_token_ids:])
+            if num_cached == len(token_ids):
+                # NOTE (loc): Optimize this code. Somehow rewinding to the current location does not yield same result.
+                self._cached_token_ids.clear()
+                self.generator.rewind_to(0)
+                new_token_ids.extend(token_ids)
+            else:
+                extra_token_ids = len(token_ids) - num_cached
+                self._cached_token_ids = self._cached_token_ids[:num_cached]
+                new_token_ids.extend(token_ids[-extra_token_ids:])
+                self.generator.rewind_to(num_cached)
 
         if len(new_token_ids) > 0:
             self.generator.append_tokens(new_token_ids)
