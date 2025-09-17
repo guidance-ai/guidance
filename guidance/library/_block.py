@@ -6,9 +6,7 @@ from ..models._base._model import _active_blocks
 
 
 class Block:
-    def __init__(
-        self, name: str | None, opener: str | Function | ASTNode, closer: str | Function | ASTNode
-    ):
+    def __init__(self, name: str | None, opener: str | Function | ASTNode, closer: str | Function | ASTNode):
         self.name = name
         self.opener = opener
         self.closer = closer

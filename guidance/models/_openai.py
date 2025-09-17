@@ -1,4 +1,3 @@
-
 from guidance._schema import SamplingParams
 
 from ._base import Model

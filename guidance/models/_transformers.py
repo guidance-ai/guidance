@@ -383,7 +383,9 @@ class TransformersEngine(Engine):
             self.model = model
         self.device = self.model_obj.device  # otherwise note the current device
 
-        self._past_key_values: transformers_package.Cache | tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]] | None = None
+        self._past_key_values: (
+            transformers_package.Cache | tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]] | None
+        ) = None
         self._cached_logits = None
         self._cached_token_ids: list[int] = []
 
