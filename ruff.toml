@@ -1,4 +1,4 @@
-# Assume Python 3.9 (oldest supported)
+# Assume Python 3.10 (oldest supported)
 target-version = "py310"
 
 # We have agreed on longer lines
