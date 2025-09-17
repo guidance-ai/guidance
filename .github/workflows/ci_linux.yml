@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         model:
           - "transformers_gpt2_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"
@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         model:
           - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
@@ -66,7 +66,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         model:
           - "transformers_gpt2_gpu"
           - "transformers_gemma2_9b_gpu"
