@@ -1,4 +1,3 @@
-from typing import Optional
 
 from llguidance.gbnf_to_lark import gbnf_to_lark as _gbnf_to_lark
 

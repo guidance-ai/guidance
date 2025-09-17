@@ -1,7 +1,6 @@
 """Debug utilities for the guidance widget."""
 
 import logging
-from typing import Optional
 
 from .registry import get_renderer
 from .visual._renderer import AutoRenderer, JupyterWidgetRenderer

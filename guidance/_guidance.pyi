@@ -5,7 +5,6 @@ from typing import (
     Callable,
     Literal,
     TypeVar,
-    Union,
     overload,
 )
 

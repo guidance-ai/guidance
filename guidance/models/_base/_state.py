@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, TypedDict
+from typing import TypedDict
 
 from ..._schema import TokenUsage
 from ...metrics import emit_usage

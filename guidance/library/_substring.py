@@ -1,5 +1,5 @@
 import re
-from typing import Callable, Iterable, Literal, Optional, Union
+from typing import Callable, Iterable, Literal
 
 from .._ast import RuleNode, SubstringNode
 

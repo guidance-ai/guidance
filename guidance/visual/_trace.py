@@ -2,7 +2,6 @@
 
 import html
 import json
-from typing import Optional
 
 from ..trace import (
     ImageOutput,

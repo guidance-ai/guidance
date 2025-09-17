@@ -3,7 +3,7 @@ import inspect
 import textwrap
 import traceback
 from types import TracebackType
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
 

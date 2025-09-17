@@ -12,7 +12,7 @@ import textwrap
 import types
 import urllib
 import weakref
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 import numpy as np
 import pydantic

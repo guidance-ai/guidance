@@ -3,7 +3,7 @@
 import logging
 import weakref
 from itertools import count
-from typing import Annotated, Any, ClassVar, Generator, Optional, Union
+from typing import Annotated, Any, ClassVar, Generator, Optional
 
 from pydantic import Base64Bytes, BaseModel, Discriminator, Field, Tag, computed_field, model_validator
 

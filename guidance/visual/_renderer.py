@@ -10,7 +10,7 @@ import traceback
 from asyncio import Queue
 from functools import lru_cache, partial
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from warnings import warn
 from weakref import ReferenceType, WeakKeyDictionary, WeakValueDictionary, finalize, ref
 

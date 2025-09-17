@@ -1,7 +1,7 @@
 import os
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import TYPE_CHECKING, Any, Generator, Optional
+from typing import TYPE_CHECKING, Any, Generator
 
 import llguidance  # type: ignore[import-untyped]
 import numpy as np

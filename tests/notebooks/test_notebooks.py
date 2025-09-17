@@ -1,6 +1,6 @@
 import logging
 import pathlib
-from typing import Any, Optional
+from typing import Any
 
 import papermill as pm
 import pytest

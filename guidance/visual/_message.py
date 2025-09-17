@@ -4,7 +4,7 @@ Messages are required to be added to the model registry for serialization.
 """
 
 from itertools import count
-from typing import Annotated, ClassVar, Optional, Union
+from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Discriminator, Field, Tag, TypeAdapter, computed_field, model_validator
 

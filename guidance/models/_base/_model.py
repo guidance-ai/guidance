@@ -4,7 +4,7 @@ import queue
 import threading
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterator, TypeVar, Union
 
 from typing_extensions import Self
 

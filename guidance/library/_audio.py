@@ -1,6 +1,5 @@
 import base64
 import pathlib
-import typing
 
 from .._ast import AudioBlob, GenAudio
 from .._guidance import guidance

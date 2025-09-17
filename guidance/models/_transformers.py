@@ -4,7 +4,7 @@ import re
 import textwrap
 import warnings
 from itertools import takewhile
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Union, cast
 
 import numpy as np
 

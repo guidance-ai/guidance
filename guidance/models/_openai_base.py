@@ -5,7 +5,7 @@ import wave
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, TypeAlias, Union, cast
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Literal, TypeAlias, cast
 
 from pydantic import BaseModel, Discriminator, Field, TypeAdapter
 from typing_extensions import Annotated, assert_never

@@ -2,7 +2,6 @@ import base64
 import importlib.resources
 import pathlib
 import re
-import typing
 
 from .._ast import ImageBlob, ImageUrl
 from .._guidance import guidance

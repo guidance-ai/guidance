@@ -1,5 +1,5 @@
 import logging
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from .._ast import ToolCallNode
 from .._grammar import capture, quote_regex

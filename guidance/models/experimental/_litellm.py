@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ContextManager, Iterator, Optional
+from typing import TYPE_CHECKING, Any, ContextManager, Iterator
 
 from guidance._schema import SamplingParams
 

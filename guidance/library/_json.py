@@ -1,5 +1,5 @@
 from json import loads as json_loads
-from typing import Any, Mapping, TypeAlias, Union
+from typing import Any, Mapping, TypeAlias
 
 import pydantic
 

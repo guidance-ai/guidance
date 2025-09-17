@@ -1,4 +1,3 @@
-from typing import Optional
 
 from guidance._schema import SamplingParams
 

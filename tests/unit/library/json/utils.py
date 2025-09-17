@@ -2,7 +2,7 @@ import json
 from functools import partial
 from json import dumps as json_dumps
 from json import loads as json_loads
-from typing import Any, Optional, Union
+from typing import Any
 
 from jsonschema import validate
 

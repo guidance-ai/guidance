@@ -1,6 +1,6 @@
 import dataclasses
 import re
-from typing import Optional, Sequence, Union
+from typing import Sequence
 
 from ._ast import (
     Function,

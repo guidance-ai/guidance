@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Generator, Optional, TypedDict, Union
+from typing import Any, Generator, TypedDict
 
 import numpy as np
 from jinja2 import BaseLoader, Environment

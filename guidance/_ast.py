@@ -12,7 +12,6 @@ from typing import (
     Callable,
     Iterator,
     Literal,
-    Optional,
     Sequence,
     TypedDict,
     TypeVar,

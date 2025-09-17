@@ -1,4 +1,3 @@
-from typing import Union
 
 from .._grammar import repeat
 from .._guidance import guidance
