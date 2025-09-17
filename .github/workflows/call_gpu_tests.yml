@@ -74,7 +74,7 @@ jobs:
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
         run: |
-          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,test]
+          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
       - name: Check GPU available
         shell: bash
         run: |
