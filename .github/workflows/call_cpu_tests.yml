@@ -60,7 +60,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e .[llamacpp,transformers,test]
+          python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
