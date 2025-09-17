@@ -53,11 +53,11 @@ class TokenParser:
         return self._done
 
     def advance(
-        self, token_id: Optional[int]
+        self, token_id: int | None
     ) -> tuple[
         int,
         list[int],
-        Future[tuple[Optional[bytes], LLInterpreterResponse, float]],
+        Future[tuple[bytes | None, LLInterpreterResponse, float]],
     ]:
         if self.done():
             raise TokenParserException("Cannot advance on a done parser")
@@ -74,7 +74,7 @@ class TokenParser:
         int,  # backtrack
         list[int],  # ff_tokens
         # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse
-        Future[tuple[Optional[bytes], LLInterpreterResponse]],
+        Future[tuple[bytes | None, LLInterpreterResponse]],
     ]:
         new_prompt_tokens = self.ll_interpreter.process_prompt(prompt_tokens)
         if (
@@ -110,7 +110,7 @@ class TokenParser:
 
         return prefix_tokens, backtrack, ff_tokens, mask_fut
 
-    def compute_mask(self) -> tuple[Optional[bytes], LLInterpreterResponse, float]:
+    def compute_mask(self) -> tuple[bytes | None, LLInterpreterResponse, float]:
         t0 = time.monotonic()
         mask, ll_response_string = self.ll_interpreter.compute_mask()
         ll_response = LLInterpreterResponse.model_validate_json(ll_response_string)
@@ -123,14 +123,14 @@ class TokenParser:
             int,  # backtrack
             list[int],  # ff_tokens
             # mask: Optional[bytes] (None if stop), ll_response: LLInterpreterResponse, mask_compute_ms: float
-            Future[tuple[Optional[bytes], LLInterpreterResponse, float]],
+            Future[tuple[bytes | None, LLInterpreterResponse, float]],
         ],
-        Optional[int],
+        int | None,
         None,
     ]:
         backtrack = 0
         ff_tokens: list[int] = []
-        token_id: Optional[int] = None
+        token_id: int | None = None
         while True:
             # Note: need to call/set has_pending_stop before spinning up the compute mask
             # future as the two methods cannot be called concurrently
@@ -205,7 +205,7 @@ class ByteParser:
         self.tokenizer = ByteTokenizer()
         self.token_parser = TokenParser(grammar, self.tokenizer)
         self.bytes = b""
-        self.gen_data: Optional[GenData] = None
+        self.gen_data: GenData | None = None
         self.pos = 0
         self._variables: dict[str, Any] = {}
         self._variables_log_probs: dict[str, Any] = {}
@@ -230,7 +230,7 @@ class ByteParser:
             mask[t[0]] = 1
         return mask
 
-    def _advance(self, token_id: Optional[int]) -> None:
+    def _advance(self, token_id: int | None) -> None:
         if self.gen_data is not None:
             tokens = self.gen_data.tokens
         else:

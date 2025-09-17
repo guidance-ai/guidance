@@ -12,8 +12,8 @@ class SglangInterpreter(BaseOpenAIInterpreter):
     def __init__(
         self,
         model: str,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         **kwargs,
     ):
         try:
@@ -156,7 +156,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
 
 
 class SglangModel(Model):
-    def __init__(self, model: str, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs):
+    def __init__(self, model: str, sampling_params: SamplingParams | None = None, echo: bool = True, **kwargs):
         super().__init__(
             interpreter=SglangInterpreter(model=model, **kwargs),
             sampling_params=SamplingParams() if sampling_params is None else sampling_params,

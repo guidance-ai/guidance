@@ -58,7 +58,7 @@ class TransformersTokenizer(Tokenizer):
     def __init__(
         self,
         hf_tokenizer: Union["PreTrainedTokenizer", "PreTrainedTokenizerFast"],
-        chat_template: Union[str, ChatTemplate, None] = None,
+        chat_template: str | ChatTemplate | None = None,
     ):
         self._orig_tokenizer = hf_tokenizer
 
@@ -95,7 +95,7 @@ class TransformersTokenizer(Tokenizer):
     def from_pretrained(
         cls,
         pretrained_model_name_or_path: str,
-        chat_template: Union[str, ChatTemplate, None] = None,
+        chat_template: str | ChatTemplate | None = None,
         use_fast=True,
         **kwargs,
     ) -> "TransformersTokenizer":
@@ -383,11 +383,7 @@ class TransformersEngine(Engine):
             self.model = model
         self.device = self.model_obj.device  # otherwise note the current device
 
-        self._past_key_values: Union[
-            transformers_package.Cache,
-            tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]],
-            None,
-        ] = None
+        self._past_key_values: transformers_package.Cache | tuple[tuple[torch.Tensor, ...], tuple[torch.Tensor, ...]] | None = None
         self._cached_logits = None
         self._cached_token_ids: list[int] = []
 
@@ -632,13 +628,13 @@ class Transformers(Model):
             "PreTrainedTokenizerFast",
             None,
         ] = None,
-        interpreter_cls: Optional[type[EngineInterpreter]] = None,
+        interpreter_cls: type[EngineInterpreter] | None = None,
         echo=True,
         chat_template=None,
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         **kwargs,
     ):
         """Build a new Transformers model object that represents a model in a given state."""

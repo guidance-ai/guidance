@@ -15,7 +15,7 @@ def at_most_n_repeats(model, value, n_repeats: int):
 
 
 @guidance(stateless=True)
-def sequence(model, value, min_length: int = 0, max_length: Union[int, None] = None):
+def sequence(model, value, min_length: int = 0, max_length: int | None = None):
     # Just an alias for repeat for now -- TODO: remove?
     return model + repeat(value, min=min_length, max=max_length)
 

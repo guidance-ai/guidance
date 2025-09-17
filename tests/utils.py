@@ -125,9 +125,9 @@ def check_match_success_with_guards(grammar, test_string: str):
 def check_match_failure(
     *,
     bad_string: str,
-    good_bytes: Optional[bytes] = None,
-    failure_byte: Optional[bytes] = None,
-    allowed_bytes: Optional[set[bytes]] = None,
+    good_bytes: bytes | None = None,
+    failure_byte: bytes | None = None,
+    allowed_bytes: set[bytes] | None = None,
     grammar: GrammarNode,
 ):
     """

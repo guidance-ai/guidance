@@ -28,7 +28,7 @@ class CustomTool(BaseModel):
 
 class FunctionTool(BaseModel):
     type: Literal["function"] = "function"
-    parameters: Union[builtins.type[BaseModel], dict[str, Any]]
+    parameters: builtins.type[BaseModel] | dict[str, Any]
 
     @classmethod
     def from_callable(cls, callable: Callable) -> "FunctionTool":
@@ -62,7 +62,7 @@ class FunctionTool(BaseModel):
         return self.serialize_parameters(self.parameters)
 
     @field_serializer("parameters", mode="plain")
-    def serialize_parameters(self, parameters: Union[builtins.type[BaseModel], dict[str, Any]]) -> dict[str, Any]:
+    def serialize_parameters(self, parameters: builtins.type[BaseModel] | dict[str, Any]) -> dict[str, Any]:
         if isinstance(parameters, type) and issubclass(parameters, BaseModel):
             return parameters.model_json_schema()
         elif isinstance(parameters, dict):
@@ -71,7 +71,7 @@ class FunctionTool(BaseModel):
             raise TypeError(f"Unsupported parameters type: {type(parameters)}. Expected a Pydantic model or a dict.")
 
 
-ToolType = Annotated[Union[FunctionTool, CustomTool], Field(discriminator="type")]
+ToolType = Annotated[FunctionTool | CustomTool, Field(discriminator="type")]
 
 
 class Tool(BaseModel):
@@ -79,7 +79,7 @@ class Tool(BaseModel):
     description: str
     tool: ToolType
     callable: Callable
-    exc_formatter: Optional[Callable[[type[BaseException], BaseException, TracebackType], str]] = None
+    exc_formatter: Callable[[type[BaseException], BaseException, TracebackType], str] | None = None
 
     def call(self, *args, **kwargs) -> Any:
         try:
@@ -97,9 +97,9 @@ class Tool(BaseModel):
         cls,
         callable: Callable,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        parameters: Optional[Union[builtins.type[BaseModel], dict[str, Any]]] = None,
+        name: str | None = None,
+        description: str | None = None,
+        parameters: builtins.type[BaseModel] | dict[str, Any] | None = None,
     ) -> "Tool":
         if parameters is not None:
             tool = FunctionTool(parameters=parameters)
@@ -119,8 +119,8 @@ class Tool(BaseModel):
         pattern: str,
         callable: Callable,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> "Tool":
         return Tool(
             name=name or callable.__name__,
@@ -140,8 +140,8 @@ class Tool(BaseModel):
         lark: str,
         callable: Callable,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> "Tool":
         return Tool(
             name=name or callable.__name__,
@@ -161,8 +161,8 @@ class Tool(BaseModel):
         grammar: "GrammarNode",
         callable: Callable,
         *,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
+        name: str | None = None,
+        description: str | None = None,
     ) -> "Tool":
         from guidance._guidance import GuidanceFunction
 

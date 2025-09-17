@@ -24,7 +24,7 @@ def json_dumps(target: Any) -> str:
 
 def validate_obj(
     target_obj: Any,
-    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: type[pydantic.BaseModel] | pydantic.TypeAdapter,
 ):
     if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate(target_obj, strict=True)
@@ -35,7 +35,7 @@ def validate_obj(
 
 def validate_string(
     target_str: Any,
-    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: type[pydantic.BaseModel] | pydantic.TypeAdapter,
 ):
     if inspect.isclass(pydantic_model) and issubclass(pydantic_model, pydantic.BaseModel):
         return pydantic_model.model_validate_json(target_str, strict=True)
@@ -46,7 +46,7 @@ def validate_string(
 
 def generate_and_check(
     target_obj: Any,
-    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: type[pydantic.BaseModel] | pydantic.TypeAdapter,
 ):
     # Sanity check what we're being asked
     target_obj = validate_obj(target_obj, pydantic_model)
@@ -63,7 +63,7 @@ def check_match_failure(
     good_bytes: bytes,
     failure_byte: bytes,
     allowed_bytes: set[bytes],
-    pydantic_model: Union[type[pydantic.BaseModel], pydantic.TypeAdapter],
+    pydantic_model: type[pydantic.BaseModel] | pydantic.TypeAdapter,
 ):
     bad_string = json_dumps(bad_obj)
     grammar = gen_json(schema=pydantic_model)
@@ -115,7 +115,7 @@ def test_model_with_optional(has_A):
 
     class B(pydantic.BaseModel):
         b_str: str = pydantic.Field(default="Some string")
-        my_A: Union[A, None] = pydantic.Field(default=None)
+        my_A: A | None = pydantic.Field(default=None)
 
     if has_A:
         my_obj = B(my_A=A(my_str="a long string or two"))

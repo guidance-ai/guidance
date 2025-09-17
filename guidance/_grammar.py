@@ -25,20 +25,20 @@ def regex(pattern: str) -> RegexNode:
 
 
 def gen(
-    regex: Optional[str] = None,
-    stop: Optional[str] = None,
-    stop_regex: Optional[str] = None,
-    suffix: Optional[str] = None,
-    stop_capture: Optional[str] = None,
-    name: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
+    regex: str | None = None,
+    stop: str | None = None,
+    stop_regex: str | None = None,
+    suffix: str | None = None,
+    stop_capture: str | None = None,
+    name: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
     list_append: bool = False,
 ) -> RuleNode:
     if stop is not None and stop_regex is not None:
         raise ValueError("You cannot specify both a stop and a stop_regex")
 
-    stop_value: Union[LiteralNode, RegexNode, None] = None
+    stop_value: LiteralNode | RegexNode | None = None
     if stop is not None:
         stop_value = LiteralNode(stop)
     elif stop_regex is not None:
@@ -59,8 +59,8 @@ def gen(
 
 
 def select(
-    options: Sequence[Union[str, int, float, GrammarNode]],
-    name: Optional[str] = None,
+    options: Sequence[str | int | float | GrammarNode],
+    name: str | None = None,
     list_append: bool = False,
 ) -> GrammarNode:
     """Choose between a set of options.
@@ -114,7 +114,7 @@ def select(
     )
 
 
-def repeat(value: Union[str, int, float, GrammarNode], min: int, max: Optional[int] = None) -> GrammarNode:
+def repeat(value: str | int | float | GrammarNode, min: int, max: int | None = None) -> GrammarNode:
     node: GrammarNode
     if isinstance(value, (int, float)):
         node = string(str(value))
@@ -181,10 +181,10 @@ def capture(value: GrammarNode, name: str, list_append: bool = False) -> RuleNod
 
 def subgrammar(
     body: GrammarNode,
-    name: Optional[str] = None,
-    skip_regex: Optional[str] = None,
-    max_tokens: Optional[int] = None,
-    temperature: Optional[float] = None,
+    name: str | None = None,
+    skip_regex: str | None = None,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
 ) -> RuleNode:
     capture_name = name
     name = name or (body.name if isinstance(body, RuleNode) else "subgrammar")

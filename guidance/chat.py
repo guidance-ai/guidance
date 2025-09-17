@@ -9,7 +9,7 @@ class ChatTemplate:
     def get_role_start(self, role_name: str, **kwargs):
         raise NotImplementedError("You need to use a ChatTemplate subclass that overrides the get_role_start method")
 
-    def get_role_end(self, role_name: Union[str, None] = None):
+    def get_role_end(self, role_name: str | None = None):
         raise NotImplementedError("You need to use a ChatTemplate subclass that overrides the get_role_start method")
 
 

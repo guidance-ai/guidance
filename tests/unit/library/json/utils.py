@@ -16,8 +16,8 @@ from ....utils import generate_and_check as _generate_and_check
 
 def generate_and_check(
     target_obj: Any,
-    schema_obj: Union[str, JSONSchema],
-    desired_temperature: Optional[float] = None,
+    schema_obj: str | JSONSchema,
+    desired_temperature: float | None = None,
 ):
     if isinstance(schema_obj, str):
         schema_obj = json_loads(schema_obj)
@@ -44,10 +44,10 @@ def generate_and_check(
 def check_match_failure(
     *,
     bad_string: str,
-    good_bytes: Optional[bytes] = None,
-    failure_byte: Optional[bytes] = None,
-    allowed_bytes: Optional[set[bytes]] = None,
-    schema_obj: Union[str, JSONSchema],
+    good_bytes: bytes | None = None,
+    failure_byte: bytes | None = None,
+    allowed_bytes: set[bytes] | None = None,
+    schema_obj: str | JSONSchema,
 ):
     grammar = gen_json(schema=schema_obj)
 

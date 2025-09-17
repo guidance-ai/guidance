@@ -264,7 +264,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
 
 class LiteLLM(Model):
     def __init__(
-        self, model_description: dict, sampling_params: Optional[SamplingParams] = None, echo: bool = True, **kwargs
+        self, model_description: dict, sampling_params: SamplingParams | None = None, echo: bool = True, **kwargs
     ):
         interpreter = LiteLLMInterpreter(model_description=model_description, **kwargs)
         super().__init__(

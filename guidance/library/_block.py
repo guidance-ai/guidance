@@ -8,7 +8,7 @@ from ..models._base._model import _active_blocks
 
 class Block:
     def __init__(
-        self, name: Optional[str], opener: Union[str, Function, ASTNode], closer: Union[str, Function, ASTNode]
+        self, name: str | None, opener: str | Function | ASTNode, closer: str | Function | ASTNode
     ):
         self.name = name
         self.opener = opener

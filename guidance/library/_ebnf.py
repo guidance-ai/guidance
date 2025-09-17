@@ -9,9 +9,9 @@ from .._grammar import capture, token_limit, with_temperature
 def lark(
     lark_grammar: str,
     *,
-    name: Optional[str] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
+    name: str | None = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
 ) -> GrammarNode:
     """
     Builds a guidance grammar from (a variant of) the EBNF syntax used by the Lark parsing toolkit.

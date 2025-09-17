@@ -36,11 +36,11 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
         azure_endpoint: str,
         azure_deployment: str,
         model_name: str,
-        api_version: Optional[str] = None,
-        api_key: Optional[str] = None,
-        azure_ad_token: Optional[str] = None,
-        azure_ad_token_provider: Optional[Callable[[], str]] = None,
-        reasoning_effort: Optional[str] = None,
+        api_version: str | None = None,
+        api_key: str | None = None,
+        azure_ad_token: str | None = None,
+        azure_ad_token_provider: Callable[[], str] | None = None,
+        reasoning_effort: str | None = None,
         **kwargs,
     ):
         try:
@@ -79,14 +79,14 @@ def create_azure_openai_model(
     echo: bool = True,
     *,
     model_name: str,
-    api_version: Optional[str] = None,
-    api_key: Optional[str] = None,
-    azure_ad_token: Optional[str] = None,
-    azure_ad_token_provider: Optional[Callable[[], str]] = None,
+    api_version: str | None = None,
+    api_key: str | None = None,
+    azure_ad_token: str | None = None,
+    azure_ad_token_provider: Callable[[], str] | None = None,
     has_audio_support: bool = False,
     has_image_support: bool = False,
-    sampling_params: Optional[SamplingParams] = None,
-    reasoning_effort: Optional[str] = None,
+    sampling_params: SamplingParams | None = None,
+    reasoning_effort: str | None = None,
     **kwargs,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
@@ -192,7 +192,7 @@ class AzureInferenceInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMix
         endpoint: str,
         credential: Union["AzureKeyCredential", "TokenCredential"],
         model_name: str,
-        reasoning_effort: Optional[str] = None,
+        reasoning_effort: str | None = None,
     ):
         try:
             import azure.ai.inference
@@ -222,10 +222,10 @@ def create_azure_aifoundry_model(
     echo: bool = True,
     *,
     model_name: str,
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
     token_credential: Optional["TokenCredential"] = None,
-    sampling_params: Optional[SamplingParams] = None,
-    reasoning_effort: Optional[str] = None,
+    sampling_params: SamplingParams | None = None,
+    reasoning_effort: str | None = None,
 ) -> Model:
     """Create a Model capable of interacting with an Azure AI OpenAI deployment
 
@@ -251,7 +251,7 @@ def create_azure_aifoundry_model(
             "Please install the azure-core package using `pip install -U azure-core` in order to use guidance.models.AzureAI!"
         ) from ie
 
-    credential: Union[AzureKeyCredential, TokenCredential, None] = None
+    credential: AzureKeyCredential | TokenCredential | None = None
     if api_key and token_credential:
         raise ValueError("Specify either api_key or token_credential")
     elif api_key:

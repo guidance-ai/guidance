@@ -18,13 +18,13 @@ def gen(
     regex=None,
     tools=None,
     hide_tool_call=False,
-    stop: Union[str, list[str], None] = None,
-    stop_regex: Union[str, list[str], None] = None,
-    suffix: Optional[str] = None,
+    stop: str | list[str] | None = None,
+    stop_regex: str | list[str] | None = None,
+    suffix: str | None = None,
     n=1,
     temperature=None,
     top_p=1.0,
-    save_stop_text: Union[bool, str] = False,
+    save_stop_text: bool | str = False,
     tool_choice: Literal["auto", "required"] = "auto",
 ):
     """Generate a set of tokens until a given stop criteria has been met.
