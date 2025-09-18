@@ -22,6 +22,6 @@ select = [
   # "F541",     # flake8 f-string without any placeholders
   "BLE001",   # No bare 'except' clauses
   "RUF022",   # Sort __all__
-  # "UP007",    # PEP 604 Union[X, Y] -> X | Y
-  # "UP045",    # PEP 604 Optional[X] -> X | None
+  "UP007",    # PEP 604 Union[X, Y] -> X | Y
+  "UP045",    # PEP 604 Optional[X] -> X | None
 ]
