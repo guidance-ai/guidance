@@ -67,7 +67,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(regex=node.regex))
+        kwargs["extra_body"].update({"regex": node.regex})
 
         buffer: str = ""
         for attr in self._run(**kwargs):

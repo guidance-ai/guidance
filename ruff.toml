@@ -18,7 +18,7 @@ select = [
   # "B",        # flake8-bugbear
   "I",        # isort
   # "ARG",      # flake8-unused-arguments
-  # "C4",       # flake8-comprehensions
+  "C4",       # flake8-comprehensions
   "F401",     # flake8-unused-imports
   "F541",     # flake8 f-string without any placeholders
   "BLE001",   # No bare 'except' clauses

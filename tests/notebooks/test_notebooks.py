@@ -24,7 +24,7 @@ def test_guarantee_valid_syntax():
     nb_path = BASE_NB_PATH / "guaranteeing_valid_syntax.ipynb"
     run_notebook(
         nb_path,
-        params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+        params={"call_delay_secs": call_delay_secs, "requested_log_level": logging.DEBUG},
     )
 
 
@@ -34,7 +34,7 @@ def test_anachronism():
     nb_path = BASE_NB_PATH / "anachronism.ipynb"
     run_notebook(
         nb_path,
-        params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+        params={"call_delay_secs": call_delay_secs, "requested_log_level": logging.DEBUG},
     )
 
 
@@ -43,7 +43,7 @@ def test_engine_chat_completion():
     nb_path = BASE_NB_PATH / "engine_chat_completion.ipynb"
     run_notebook(
         nb_path,
-        params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+        params={"call_delay_secs": call_delay_secs, "requested_log_level": logging.DEBUG},
     )
 
 
@@ -57,7 +57,7 @@ class TestTutorials:
         nb_path = TestTutorials.BASE_TUTORIAL_PATH / "chat.ipynb"
         run_notebook(
             nb_path,
-            params=dict(call_delay_secs=call_delay_secs, requested_log_level=logging.DEBUG),
+            params={"call_delay_secs": call_delay_secs, "requested_log_level": logging.DEBUG},
         )
 
     def test_regex_constraints(self):
@@ -79,7 +79,7 @@ class TestModels:
     def test_azure_openai(self):
         call_delay_secs = slowdown()
         nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=call_delay_secs))
+        run_notebook(nb_path, params={"call_delay_secs": call_delay_secs})
 
     def test_openai(self):
         nb_path = TestModels.BASE_MODEL_PATH / "OpenAI.ipynb"
@@ -107,4 +107,4 @@ class TestArtOfPromptDesign:
         call_delay_secs = slowdown()
 
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "use_clear_syntax.ipynb"
-        run_notebook(nb_path, params=dict(call_delay_secs=call_delay_secs))
+        run_notebook(nb_path, params={"call_delay_secs": call_delay_secs})

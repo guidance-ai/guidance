@@ -160,7 +160,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(guided_decoding_backend="guidance", guided_regex=node.regex))
+        kwargs["extra_body"].update({"guided_decoding_backend": "guidance", "guided_regex": node.regex})
 
         buffer: str = ""
         for attr in self._run(**kwargs):
@@ -211,7 +211,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(guided_decoding_backend="guidance", guided_grammar=node.ll_grammar()))
+        kwargs["extra_body"].update({"guided_decoding_backend": "guidance", "guided_grammar": node.ll_grammar()})
 
         buffer: str = ""
         for attr in self._run(**kwargs):

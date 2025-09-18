@@ -199,10 +199,10 @@ class VertexAIChatEngine(VertexAIEngine):
                 if end_pos < 0:
                     break
                 messages.append(
-                    dict(
-                        role="user",
-                        content=prompt[pos : pos + end_pos].decode("utf8"),
-                    )
+                    {
+                        "role": "user",
+                        "content": prompt[pos : pos + end_pos].decode("utf8"),
+                    }
                 )
                 pos += end_pos + len(role_end)
             elif prompt[pos:].startswith(assistant_start):
@@ -212,10 +212,10 @@ class VertexAIChatEngine(VertexAIEngine):
                     valid_end = True
                     break
                 messages.append(
-                    dict(
-                        role="assistant",
-                        content=prompt[pos : pos + end_pos].decode("utf8"),
-                    )
+                    {
+                        "role": "assistant",
+                        "content": prompt[pos : pos + end_pos].decode("utf8"),
+                    }
                 )
                 pos += end_pos + len(role_end)
             else:

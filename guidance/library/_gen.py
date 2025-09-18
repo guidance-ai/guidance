@@ -128,7 +128,7 @@ def gen(
         stop_regex = [quote_regex(s) for s in stop]
         stop = None
     if isinstance(stop_regex, list):
-        stop_regex = "|".join([r for r in stop_regex])
+        stop_regex = "|".join(list(stop_regex))
 
     if save_stop_text is False:
         save_stop_name = None
