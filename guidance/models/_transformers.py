@@ -339,7 +339,7 @@ class TransformersTokenizer(Tokenizer):
                 cs.append(256 + n)
                 n += 1
         cs = [chr(n) for n in cs]
-        return dict(zip(bs, cs))
+        return dict(zip(bs, cs, strict=True))
 
 
 class TransformersEngine(Engine):

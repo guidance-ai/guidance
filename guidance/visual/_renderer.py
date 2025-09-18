@@ -150,7 +150,7 @@ def _on_cell_completion(renderer_weakref: ReferenceType["JupyterWidgetRenderer"]
             is_err=info.error_in_exec is not None,
         )
         renderer.update(message)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.error(f"CELL_COMPLETE:{traceback.format_exc()}")
 
 
@@ -192,7 +192,7 @@ async def _handle_recv_messages(
                 get_exchange().publish(ClientReadyAckMessage(), VISUAL_TOPIC)
 
             renderer.recv_queue.task_done()
-        except Exception as _:
+        except Exception as _:  # noqa: BLE001
             logger.error(f"RECV:err:{traceback.format_exc()}")
 
 
@@ -234,7 +234,7 @@ async def _handle_send_messages(
             else:
                 logger.debug("SEND:jupyter:send but no widget")
             renderer.send_queue.task_done()
-        except Exception as _:
+        except Exception as _:  # noqa: BLE001
             logger.error(f"SEND:err:{traceback.format_exc()}")
 
 
@@ -451,7 +451,7 @@ class JupyterWidgetRenderer(Renderer):
 
             # Redraw
             display(widget)
-            logger.debug(f"RENDERER:widget displayed")
+            logger.debug("RENDERER:widget displayed")
 
             self._last_cell_session_id = last_cell_session_id
             self._running = True
@@ -607,7 +607,7 @@ class AutoRenderer(Renderer):
             self._renderer = DoNothingRenderer(trace_handler=trace_handler)
         else:  # pragma: no cover
             logger.error("Env detection has failed. This is a bug.")
-            warn("Env detection has failed. No renderer will be provided.")
+            warn("Env detection has failed. No renderer will be provided.", stacklevel=2)
             self._renderer = DoNothingRenderer(trace_handler=trace_handler)
 
         super().__init__()

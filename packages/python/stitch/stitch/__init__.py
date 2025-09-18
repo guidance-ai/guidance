@@ -7,6 +7,8 @@
 from ._version import __version__, version_info
 from .stitch import StitchWidget
 
+__all__ = ["StitchWidget", "__version__", "_jupyter_labextension_paths", "_jupyter_nbextension_paths", "version_info"]
+
 
 def _jupyter_labextension_paths():
     """Called by Jupyter Lab Server to detect if it is a valid labextension and

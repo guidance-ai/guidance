@@ -201,4 +201,4 @@ def check_run_with_temperature(lm: models.Model, desired_temperature: float):
         # Check that all temperatures were 0 or the desired temperature
         # If there has been a forced byte, then get_logits() is
         # called with a temperature of zero
-        assert all([(x == desired_temperature or x == 0) for x in lm.engine.called_temperatures])
+        assert all((x == desired_temperature or x == 0) for x in lm.engine.called_temperatures)

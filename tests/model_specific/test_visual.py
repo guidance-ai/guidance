@@ -9,7 +9,7 @@ def test_repeat_simple_model():
 
     trace_handler = get_trace_handler()
     original_renderer = get_renderer()
-    for i in range(2):
+    for _ in range(2):
         set_renderer(JupyterWidgetRenderer(trace_handler))
 
         lm = Transformers("gpt2")

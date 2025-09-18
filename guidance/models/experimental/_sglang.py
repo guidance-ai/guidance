@@ -31,9 +31,9 @@ class SglangInterpreter(BaseOpenAIInterpreter):
 
         # Disable this check for now as all the supported endpoints have 'stop' support.
         if node.suffix:
-            raise ValueError(f"suffix not yet supported for sglang endpoint")
+            raise ValueError("suffix not yet supported for sglang endpoint")
         if node.stop_capture:
-            raise ValueError(f"stop_capture not yet supported for sglang endpoint")
+            raise ValueError("stop_capture not yet supported for sglang endpoint")
 
         kwargs = kwargs.copy()
         if node.temperature:
@@ -67,7 +67,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(regex=node.regex))
+        kwargs["extra_body"].update({"regex": node.regex})
 
         buffer: str = ""
         for attr in self._run(**kwargs):
@@ -123,7 +123,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
                 if isinstance(value, list):
                     assert isinstance(log_probs, list)
                     assert len(value) == len(log_probs)
-                    for v, l in zip(value, log_probs):
+                    for v, l in zip(value, log_probs, strict=True):
                         yield self.state.apply_capture(name=name, value=v, log_prob=l, is_append=True)
                 else:
                     yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)

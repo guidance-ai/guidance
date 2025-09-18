@@ -408,7 +408,7 @@ class TestAlternations:
                 "ae",
                 b"a",
                 b"e",
-                {b"c", b"c"},
+                {b"c"},
             ),  # Neither 'ac' nor 'bc' nor 'd'
             (
                 r"(a|b)+",

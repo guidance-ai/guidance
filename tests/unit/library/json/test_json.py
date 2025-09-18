@@ -585,7 +585,7 @@ class TestSimpleObject:
             "required": ["a"]
         }
     """
-        target_obj = dict(a=1)
+        target_obj = {"a": 1}
 
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
@@ -610,7 +610,7 @@ class TestSimpleObject:
             "required": ["a", "b", "c", "d", "e", "f", "g", "h"]
         }
     """
-        target_obj = dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8)
+        target_obj = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8}
 
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
@@ -642,7 +642,7 @@ class TestSimpleObject:
             "required": ["name", "info"]
         }
     """
-        target_obj = dict(name="my product", info=dict(a=1, b=2))
+        target_obj = {"name": "my product", "info": {"a": 1, "b": 2}}
 
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
@@ -833,7 +833,7 @@ class TestSimpleArray:
 
     @pytest.mark.parametrize(
         "target_obj",
-        [[], [dict(a=1)], [dict(a=2), dict(a=3)], [dict(a=4), dict(a=5), dict(a=6)]],
+        [[], [{"a": 1}], [{"a": 2}, {"a": 3}], [{"a": 4}, {"a": 5}, {"a": 6}]],
     )
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
     def test_object_list(self, target_obj, temperature):
@@ -1242,8 +1242,8 @@ class TestAnyOf:
     @pytest.mark.parametrize(
         "target_obj",
         [
-            dict(my_val=dict(my_int=1)),
-            dict(my_val=dict(my_str="Some long string or other")),
+            {"my_val": {"my_int": 1}},
+            {"my_val": {"my_str": "Some long string or other"}},
         ],
     )
     @pytest.mark.parametrize("temperature", [None, 0.1, 1])
@@ -1361,7 +1361,7 @@ class TestAllOf:
         }
         """
 
-        target_obj = dict(my_cat=dict(name="Sampson"))
+        target_obj = {"my_cat": {"name": "Sampson"}}
         # First sanity check what we're setting up
         schema_obj = json.loads(schema)
         validate(instance=target_obj, schema=schema_obj)
@@ -1850,9 +1850,9 @@ class TestRecursiveStructures:
     @pytest.mark.parametrize(
         "target_obj",
         [
-            dict(my_list=None),
-            dict(my_list=dict(my_str="a", next=None)),
-            dict(my_list=dict(my_str="a", next=dict(my_str="b", next=None))),
+            {"my_list": None},
+            {"my_list": {"my_str": "a", "next": None}},
+            {"my_list": {"my_str": "a", "next": {"my_str": "b", "next": None}}},
         ],
     )
     def test_linked_list(self, target_obj):

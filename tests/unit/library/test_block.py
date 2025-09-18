@@ -36,7 +36,7 @@ def test_grammar_closer():
             model += regex(r".")
     except:
         return  # we expect an exception
-    assert False, "We should have thrown an exception using a context (prompt) based grammar in the closer!"
+    raise AssertionError("We should have thrown an exception using a context (prompt) based grammar in the closer!")
 
 
 def test_block_name_capture():

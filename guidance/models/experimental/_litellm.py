@@ -160,7 +160,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(guided_decoding_backend="guidance", guided_regex=node.regex))
+        kwargs["extra_body"].update({"guided_decoding_backend": "guidance", "guided_regex": node.regex})
 
         buffer: str = ""
         for attr in self._run(**kwargs):
@@ -211,7 +211,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if "extra_body" not in kwargs:
             kwargs["extra_body"] = {}
 
-        kwargs["extra_body"].update(dict(guided_decoding_backend="guidance", guided_grammar=node.ll_grammar()))
+        kwargs["extra_body"].update({"guided_decoding_backend": "guidance", "guided_grammar": node.ll_grammar()})
 
         buffer: str = ""
         for attr in self._run(**kwargs):
@@ -234,7 +234,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                 if isinstance(value, list):
                     assert isinstance(log_probs, list)
                     assert len(value) == len(log_probs)
-                    for v, l in zip(value, log_probs):
+                    for v, l in zip(value, log_probs, strict=True):
                         yield self.state.apply_capture(name=name, value=v, log_prob=l, is_append=True)
                 else:
                     yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)

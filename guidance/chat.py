@@ -72,7 +72,8 @@ def load_template_class(chat_template=None):
         warnings.warn(
             f"""Chat template {chat_template} was unable to be loaded directly into guidance.
                         Defaulting to the ChatML format which may not be optimal for the selected model. 
-                        For best results, create and pass in a `guidance.ChatTemplate` subclass for your model."""
+                        For best results, create and pass in a `guidance.ChatTemplate` subclass for your model.""",
+            stacklevel=2,
         )
 
     # By default, use the ChatML Template. Warnings to user will happen downstream only if they use chat roles.
