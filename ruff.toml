@@ -15,13 +15,13 @@ exclude = [
 [lint]
 select = [
   # "B",        # flake8-bugbear
-  # "I",        # isort
+  "I",        # isort
   # "ARG",      # flake8-unused-arguments
   # "C4",       # flake8-comprehensions
   # "F401",     # flake8-unused-imports
   # "F541",     # flake8 f-string without any placeholders
   # "BLE001",   # No bare 'except' clauses
-  # "RUF022",   # Sort __all__
+  "RUF022",   # Sort __all__
   # "UP007",    # PEP 604 Union[X, Y] -> X | Y
   # "UP045",    # PEP 604 Optional[X] -> X | None
 ]
