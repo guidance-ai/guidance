@@ -437,7 +437,7 @@ class Engine(ABC):
                 is_generated=True,
                 is_masked=mask is not None and bool(mask[token_id] == 0),
             )
-            for token_id, token_bytes in zip(top_k, top_k_token_bytes)
+            for token_id, token_bytes in zip(top_k, top_k_token_bytes, strict=True)
         ]
 
         return GenTokenExtra(

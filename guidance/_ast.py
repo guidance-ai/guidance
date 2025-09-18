@@ -598,7 +598,7 @@ class JsonNode(BaseSubgrammarNode):
         else:
             # this will warn about oneOf coercion, and any other unsupported features if lenient is enabled
             for message in messages:
-                warnings.warn(message)
+                warnings.warn(message, stacklevel=2)
 
 
 @dataclass(frozen=True, eq=False)

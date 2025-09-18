@@ -157,7 +157,7 @@ def test_inconsistent_indentation():
 def test_exception_on_repeat_calls():
     @guidance(stateless=True, dedent=False)
     def raises(lm):
-        assert False
+        raise AssertionError()
 
     with pytest.raises(AssertionError):
         raises()

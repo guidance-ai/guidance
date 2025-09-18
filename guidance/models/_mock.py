@@ -165,14 +165,15 @@ class MockEngine(Engine):
 class Mock(Model):
     def __init__(
         self,
-        byte_patterns=[],
+        byte_patterns=None,
         sampling_params: SamplingParams | None = None,
         echo=False,
         force=False,
         **kwargs,
     ):
         """Build a new Mock model object that represents a model in a given state."""
-
+        if byte_patterns is None:
+            byte_patterns = []
         # Our tokens are all bytes and all lowercase letter pairs
         all_lc_pairs = [bytes([i, j]) for i in range(ord("a"), ord("z")) for j in range(ord("a"), ord("z"))]
         all_bytes = [bytes([i]) for i in range(256)]

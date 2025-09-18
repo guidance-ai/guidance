@@ -607,7 +607,7 @@ class AutoRenderer(Renderer):
             self._renderer = DoNothingRenderer(trace_handler=trace_handler)
         else:  # pragma: no cover
             logger.error("Env detection has failed. This is a bug.")
-            warn("Env detection has failed. No renderer will be provided.")
+            warn("Env detection has failed. No renderer will be provided.", stacklevel=2)
             self._renderer = DoNothingRenderer(trace_handler=trace_handler)
 
         super().__init__()

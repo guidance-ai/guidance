@@ -75,10 +75,10 @@ def test_stream_propagate_errors(selected_model):
 
     @guidance
     def my_function(lm):
-        raise Exception()
+        raise AssertionError("test error")
 
     lm += my_function()
-    with pytest.raises(Exception):
+    with pytest.raises(AssertionError, match="test error"):
         list(lm)
 
 

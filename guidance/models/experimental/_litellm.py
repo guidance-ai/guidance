@@ -234,7 +234,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
                 if isinstance(value, list):
                     assert isinstance(log_probs, list)
                     assert len(value) == len(log_probs)
-                    for v, l in zip(value, log_probs):
+                    for v, l in zip(value, log_probs, strict=True):
                         yield self.state.apply_capture(name=name, value=v, log_prob=l, is_append=True)
                 else:
                     yield self.state.apply_capture(name=name, value=value, log_prob=log_probs, is_append=False)

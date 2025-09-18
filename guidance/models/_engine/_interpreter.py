@@ -125,7 +125,7 @@ class EngineInterpreter(Interpreter[EngineState]):
                 if isinstance(values, list):
                     assert isinstance(log_probs, list)
                     assert len(values) == len(log_probs)
-                    for value, log_prob in zip(values, log_probs):
+                    for value, log_prob in zip(values, log_probs, strict=True):
                         yield self.state.apply_capture(name, value.decode("utf-8"), log_prob=log_prob, is_append=True)
                 else:
                     assert isinstance(log_probs, float)

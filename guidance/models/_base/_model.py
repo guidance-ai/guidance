@@ -305,7 +305,7 @@ class Model:
     def __getattribute__(self, name):
         if name == "engine":
             # For legacy model.engine access (mostly for tests...)
-            return getattr(self._interpreter, "engine")
+            return self._interpreter.engine
         return super().__getattribute__(name)
 
     def _get_usage(self) -> TokenUsage:

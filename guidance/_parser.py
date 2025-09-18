@@ -101,7 +101,7 @@ class TokenParser:
         #       else prompt_tokens
         #   ) + ff_tokens
         backtrack = len(prompt_tokens)
-        for old, new in zip(prompt_tokens, new_prompt_tokens):
+        for old, new in zip(prompt_tokens, new_prompt_tokens, strict=False):
             if old != new:
                 break
             backtrack -= 1

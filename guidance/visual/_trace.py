@@ -119,8 +119,8 @@ def trace_node_to_str(node: TraceNode) -> str:
         Output as string.
     """
     buffer = []
-    for node in node.path():
-        for output_attr in node.output:
+    for subnode in node.path():
+        for output_attr in subnode.output:
             if isinstance(output_attr, TextOutput):
                 buffer.append(str(output_attr))
     return "".join(buffer)
@@ -144,6 +144,6 @@ def display_trace_tree(trace_handler: TraceHandler) -> None:
         trace_viz_map[node] = viz_node
     viz_root = trace_viz_map[root]
 
-    for pre, fill, node in RenderTree(viz_root):
+    for pre, _fill, node in RenderTree(viz_root):
         tree_str = "%s%s" % (pre, node.name)
         print(tree_str)
