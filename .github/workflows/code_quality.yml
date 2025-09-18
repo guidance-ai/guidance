@@ -65,8 +65,6 @@ jobs:
               }
             })
 
-  # Have a separate workflow because we don't want to enforce this at all
-  # It will have too many errors initially and is likely to deter contributors
   ruff-linting:
     name: Linting with ruff
     runs-on: ubuntu-latest
@@ -81,10 +79,31 @@ jobs:
         run: pip install -e .[dev]
       - name: Run ruff linting
         shell: bash
+        id: ruff_lint
         continue-on-error: true
         run: |
-          ruff check
-
+          if ! ruff check; then
+            echo "::warning title=ruff lint::Ruff found linting issues)"
+            exit 78  # no longer works in github, but would mark action step with a warning
+          fi
+      - name: Mark step with a warning
+        if: ${{ steps.ruff_lint.outcome == 'failure' }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.checks.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'Failed ruff linting',
+              head_sha: context.sha,
+              status: 'completed',
+              conclusion: 'neutral',
+              completed_at: new Date().toISOString(),
+              output: {
+                title: 'ruff found linting issues',
+                summary: 'Run `ruff check` locally and fix the issues.'
+              }
+            })
 
   run-mypy:
     name: Run informational mypy
