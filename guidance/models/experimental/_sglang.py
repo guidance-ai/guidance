@@ -31,9 +31,9 @@ class SglangInterpreter(BaseOpenAIInterpreter):
 
         # Disable this check for now as all the supported endpoints have 'stop' support.
         if node.suffix:
-            raise ValueError(f"suffix not yet supported for sglang endpoint")
+            raise ValueError("suffix not yet supported for sglang endpoint")
         if node.stop_capture:
-            raise ValueError(f"stop_capture not yet supported for sglang endpoint")
+            raise ValueError("stop_capture not yet supported for sglang endpoint")
 
         kwargs = kwargs.copy()
         if node.temperature:

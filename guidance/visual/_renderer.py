@@ -451,7 +451,7 @@ class JupyterWidgetRenderer(Renderer):
 
             # Redraw
             display(widget)
-            logger.debug(f"RENDERER:widget displayed")
+            logger.debug("RENDERER:widget displayed")
 
             self._last_cell_session_id = last_cell_session_id
             self._running = True

@@ -93,7 +93,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                 # Check if any input in active role is a RoleCloserInput
                 has_role_closer = any(isinstance(inp, RoleCloserInput) for inp in active_role.input)
                 if has_role_closer and prettify_roles:
-                    buffer.append(f"</div></div>")
+                    buffer.append("</div></div>")
                 active_role = None
             elif isinstance(output_attr, ImageOutput):
                 buffer.append(
