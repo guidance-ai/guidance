@@ -5,7 +5,7 @@ import os
 import sys
 from itertools import takewhile
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -59,7 +59,7 @@ class _LlamaBatchContext:
 
 
 class LlamaCppTokenizer(Tokenizer):
-    def __init__(self, model_obj: "Llama", chat_template: Union[str, ChatTemplate, None] = None):
+    def __init__(self, model_obj: "Llama", chat_template: str | ChatTemplate | None = None):
         self._model_obj = model_obj
 
         vocab = llama_cpp.llama_model_get_vocab(model_obj.model)
@@ -245,7 +245,7 @@ class LlamaCpp(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         **llama_cpp_kwargs,
     ):
         """Build a new LlamaCpp model object that represents a model in a given state."""

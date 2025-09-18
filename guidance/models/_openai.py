@@ -1,5 +1,3 @@
-from typing import Optional
-
 from guidance._schema import SamplingParams
 
 from ._base import Model
@@ -18,8 +16,8 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
     def __init__(
         self,
         model: str,
-        api_key: Optional[str] = None,
-        reasoning_effort: Optional[str] = None,
+        api_key: str | None = None,
+        reasoning_effort: str | None = None,
         **kwargs,
     ):
         try:
@@ -37,11 +35,11 @@ class OpenAI(Model):
     def __init__(
         self,
         model: str,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         echo: bool = True,
         *,
-        api_key: Optional[str] = None,
-        reasoning_effort: Optional[str] = None,
+        api_key: str | None = None,
+        reasoning_effort: str | None = None,
         **kwargs,
     ):
         """Build a new OpenAI model object that represents a model in a given state.

@@ -12,7 +12,6 @@ from typing import (
     Callable,
     Iterator,
     Literal,
-    Optional,
     Sequence,
     TypedDict,
     TypeVar,
@@ -278,11 +277,11 @@ class GrammarNode(Tagged, ASTNode):
 
     def match(
         self,
-        byte_string: Union[str, bytes],
+        byte_string: str | bytes,
         allow_partial: bool = False,
         raise_exceptions: bool = False,
         enforce_max_tokens: bool = True,
-    ) -> Union[Match, None]:
+    ) -> Match | None:
         if isinstance(byte_string, str):
             byte_string = byte_string.encode()
         parser = ByteParser(self.ll_grammar(enforce_max_tokens=enforce_max_tokens))
@@ -328,9 +327,9 @@ class LiteralNode(GrammarNode):
 
 @dataclass(frozen=True)
 class SpecialToken(GrammarNode):
-    text: Optional[str] = None
-    id: Optional[int] = None
-    range: Optional[tuple[int, int]] = None
+    text: str | None = None
+    id: int | None = None
+    range: tuple[int, int] | None = None
 
     def __post_init__(self):
         if [self.text, self.id, self.range].count(None) != 2:
@@ -360,7 +359,7 @@ class SpecialToken(GrammarNode):
 
 @dataclass(frozen=True)
 class RegexNode(GrammarNode):
-    regex: Optional[str]
+    regex: str | None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.regex(self, **kwargs)
@@ -421,7 +420,7 @@ class JoinNode(GrammarNode):
 class RepeatNode(GrammarNode):
     node: GrammarNode
     min: int
-    max: Optional[int]
+    max: int | None
 
     @property
     def is_null(self) -> bool:
@@ -465,13 +464,13 @@ class SubstringNode(GrammarNode):
 class RuleNode(GrammarNode):
     name: str
     value: GrammarNode
-    capture: Optional[str] = None
+    capture: str | None = None
     list_append: bool = False
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    stop: Optional[Union[RegexNode, LiteralNode]] = None
-    suffix: Optional[LiteralNode] = None
-    stop_capture: Optional[str] = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    stop: RegexNode | LiteralNode | None = None
+    suffix: LiteralNode | None = None
+    stop_capture: str | None = None
     lazy: bool = False
 
     def __post_init__(self) -> None:
@@ -508,7 +507,7 @@ class RuleNode(GrammarNode):
 
 @dataclass(frozen=True, eq=False)
 class RuleRefNode(GrammarNode):
-    target: Optional[RuleNode] = field(default=None, init=False)
+    target: RuleNode | None = field(default=None, init=False)
 
     def set_target(self, target: RuleNode) -> None:
         if self.target is not None:
@@ -544,7 +543,7 @@ class BaseSubgrammarNode(GrammarNode):
 @dataclass(frozen=True)
 class SubgrammarNode(BaseSubgrammarNode):
     body: GrammarNode
-    skip_regex: Optional[str] = None
+    skip_regex: str | None = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.subgrammar(self, **kwargs)
@@ -552,23 +551,23 @@ class SubgrammarNode(BaseSubgrammarNode):
 
 class LLGJsonCompileOptions(TypedDict):
     # defaults to ","
-    item_separator: Optional[str]
+    item_separator: str | None
     # defaults to ":"
-    key_separator: Optional[str]
+    key_separator: str | None
     # defaults to None - depends on whitespace_flexible
-    whitespace_pattern: Optional[str]
+    whitespace_pattern: str | None
     # defaults to true (r"[\x20\x0A\x0D\x09]+"); if false, no whitespace is allowed
-    whitespace_flexible: Optional[bool]
+    whitespace_flexible: bool | None
     # defaults to false
-    coerce_one_of: Optional[bool]
+    coerce_one_of: bool | None
     # ignore unimplemented keywords; defaults to false
-    lenient: Optional[bool]
+    lenient: bool | None
 
 
 @dataclass(frozen=True, eq=False)
 class JsonNode(BaseSubgrammarNode):
-    schema: Optional[dict[str, Any]] = None
-    llg_options: Optional[LLGJsonCompileOptions] = None
+    schema: dict[str, Any] | None = None
+    llg_options: LLGJsonCompileOptions | None = None
 
     def _run(self, interpreter: "Interpreter[S]", **kwargs) -> Iterator[OutputAttr]:
         return interpreter.json(self, **kwargs)
@@ -615,15 +614,15 @@ class ToolCallNode(ASTNode):
     tools: dict[str, Tool]
     tool_choice: Literal["auto", "required"] = "auto"
     parallel_tool_calls: bool = False
-    plaintext_regex: Optional[str] = None
+    plaintext_regex: str | None = None
 
     @classmethod
     def from_tools(
         cls,
-        tools: list[Union[callable, Tool]],
+        tools: list[Callable | Tool],
         tool_choice: Literal["auto", "required"] = "auto",
         parallel_tool_calls: bool = False,
-        plaintext_regex: Optional[str] = None,
+        plaintext_regex: str | None = None,
     ) -> "ToolCallNode":
         tool_defs = {}
         for tool in tools:

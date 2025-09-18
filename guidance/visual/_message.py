@@ -4,7 +4,7 @@ Messages are required to be added to the model registry for serialization.
 """
 
 from itertools import count
-from typing import Annotated, ClassVar, Optional, Union
+from typing import Annotated, ClassVar, Union
 
 from pydantic import BaseModel, Discriminator, Field, Tag, TypeAdapter, computed_field, model_validator
 
@@ -38,7 +38,7 @@ class GuidanceMessage(BaseModel):
     @classmethod
     def as_discriminated_union(cls) -> type["GuidanceMessage"]:
         return Annotated[
-            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],  # noqa: UP007
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             ),
@@ -49,15 +49,15 @@ class TraceMessage(GuidanceMessage):
     """Update on a trace node."""
 
     trace_id: int
-    parent_trace_id: Optional[int] = None
-    node_attr: Optional[NodeAttr.as_discriminated_union()] = None  # type: ignore
+    parent_trace_id: int | None = None
+    node_attr: NodeAttr.as_discriminated_union() | None = None  # type: ignore
 
 
 class MetricMessage(GuidanceMessage):
     """Metric that has been emitted."""
 
     name: str
-    value: Union[float, str, list[float], list[str]] = Field(union_mode="left_to_right")
+    value: float | str | list[float] | list[str] = Field(union_mode="left_to_right")
     scalar: bool = True
 
 
@@ -71,7 +71,7 @@ class ExecutionCompletedMessage(GuidanceMessage):
     This functions as the last message sent to client.
     """
 
-    last_trace_id: Optional[int] = None
+    last_trace_id: int | None = None
     is_err: bool = False
 
 

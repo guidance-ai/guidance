@@ -37,7 +37,7 @@ class NodeAttr(BaseModel):
     @classmethod
     def as_discriminated_union(cls) -> type["NodeAttr"]:
         return Annotated[
-            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],
+            Union[tuple(Annotated[tp, Tag(tp.__name__)] for tp in cls._subclasses)],  # noqa: UP007
             Discriminator(
                 lambda x: x["class_name"] if isinstance(x, dict) else x.class_name,
             ),
@@ -121,9 +121,9 @@ class RoleOpenerInput(InputAttr):
     This usually occurs as a role context and __enter__ is called.
     """
 
-    name: Optional[str] = None
-    text: Optional[str] = None
-    closer_text: Optional[str] = None
+    name: str | None = None
+    text: str | None = None
+    closer_text: str | None = None
 
 
 class RoleCloserInput(InputAttr):
@@ -132,8 +132,8 @@ class RoleCloserInput(InputAttr):
     This usually occurs as a role context and __exit__ is called.
     """
 
-    name: Optional[str] = None
-    text: Optional[str] = None
+    name: str | None = None
+    text: str | None = None
 
 
 class AudioOutput(OutputAttr):
@@ -182,7 +182,7 @@ class Token(BaseModel):
 
 class TokenOutput(TextOutput):
     token: Token
-    top_k: Optional[list[Token]] = None
+    top_k: list[Token] | None = None
 
 
 class Backtrack(OutputAttr):
@@ -197,7 +197,7 @@ class CaptureOutput(OutputAttr):
     """
 
     name: str
-    value: Optional[str] = None
+    value: str | None = None
     is_append: bool = False
     log_probs: float = 0.0
 
@@ -354,7 +354,7 @@ class TraceHandler(BaseModel):
     def __hash__(self):
         return hash(id(self))
 
-    def update_node(self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None) -> TraceNode:
+    def update_node(self, identifier: int, parent_id: int | None, node_attr: NodeAttr | None = None) -> TraceNode:
         """Update the trace node with the given identifier.
 
         If the trace node does not exist, it will be created.

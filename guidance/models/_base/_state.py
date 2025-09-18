@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, TypedDict, Union
+from typing import TypedDict
 
 from ..._schema import TokenUsage
 from ...metrics import emit_usage
@@ -8,13 +8,13 @@ from ...trace import CaptureOutput
 
 class CaptureVar(TypedDict):
     value: str
-    log_prob: Optional[float]
+    log_prob: float | None
 
 
 class State(ABC):
-    def __init__(self, token_usage: Optional[TokenUsage] = None) -> None:
-        self.captures: dict[str, Union[CaptureVar, list[CaptureVar]]] = {}
-        self.active_role: Optional[str] = None
+    def __init__(self, token_usage: TokenUsage | None = None) -> None:
+        self.captures: dict[str, CaptureVar | list[CaptureVar]] = {}
+        self.active_role: str | None = None
         self._token_usage: TokenUsage = token_usage or TokenUsage()
 
     def add_usage(self, usage: TokenUsage) -> None:
@@ -36,7 +36,7 @@ class State(ABC):
         pass
 
     def apply_capture(
-        self, name: str, value: Optional[str], log_prob=Optional[float], is_append: bool = False
+        self, name: str, value: str | None, log_prob: float | None, is_append: bool = False
     ) -> CaptureOutput:
         if value is None:
             # A "reset" signal

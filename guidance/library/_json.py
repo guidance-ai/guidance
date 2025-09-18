@@ -1,5 +1,5 @@
 from json import loads as json_loads
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, TypeAlias
 
 import pydantic
 
@@ -7,24 +7,18 @@ from .._ast import JsonNode, LLGJsonCompileOptions, RuleNode
 from .._grammar import capture, token_limit, with_temperature
 from ._pydantic import pydantic_to_json_schema
 
-JSONSchema = Union[bool, Mapping[str, Any]]
+JSONSchema: TypeAlias = bool | Mapping[str, Any]
 
 
 def json(
-    name: Optional[str] = None,
+    name: str | None = None,
     *,
-    schema: Union[
-        None,
-        str,
-        JSONSchema,
-        type[pydantic.BaseModel],
-        pydantic.TypeAdapter[Any],
-    ] = None,
-    temperature: Optional[float] = None,
-    max_tokens: Optional[int] = None,
-    separators: Optional[tuple[str, str]] = None,
+    schema: None | str | JSONSchema | type[pydantic.BaseModel] | pydantic.TypeAdapter[Any] = None,
+    temperature: float | None = None,
+    max_tokens: int | None = None,
+    separators: tuple[str, str] | None = None,
     whitespace_flexible: bool = False,
-    whitespace_pattern: Optional[str] = None,
+    whitespace_pattern: str | None = None,
     lenient: bool = False,
 ):
     """Generate valid JSON according to the supplied JSON schema or `pydantic` model.

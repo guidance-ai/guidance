@@ -211,7 +211,6 @@ def selected_model(selected_model_name: str) -> models.Model:
 
         import torch
         from huggingface_hub import snapshot_download
-        from transformers import AutoTokenizer
 
         sub_dir = "gpu/gpu-int4-rtn-block-32"
         base_model_path = snapshot_download(repo_id="microsoft/Phi-4-mini-instruct-onnx", allow_patterns=f"{sub_dir}/*")

@@ -1,6 +1,6 @@
 import operator
 from itertools import takewhile
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Union
 
 try:
     from ._transformers import TransformersTokenizer
@@ -12,7 +12,7 @@ except ModuleNotFoundError:
 from guidance._schema import SamplingParams
 
 from ._base import Model
-from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
+from ._engine import Engine, EngineInterpreter, LogitsOutput
 
 if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
@@ -156,7 +156,7 @@ class OnnxRuntimeGenAI(Model):
         enable_backtrack=True,
         enable_ff_tokens=True,
         enable_monitoring=True,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         **kwargs,
     ):
         engine = OnnxRuntimeGenAIEngine(

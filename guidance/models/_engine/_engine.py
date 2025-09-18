@@ -3,7 +3,7 @@
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Generator, Optional, TypedDict, Union
+from typing import Any, Generator, TypedDict
 
 import numpy as np
 from jinja2 import BaseLoader, Environment
@@ -87,7 +87,7 @@ class Engine(ABC):
         state: EngineState,
         grammar: str,
         ensure_bos_token: bool = True,
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
     ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -120,7 +120,7 @@ class Engine(ABC):
         )
 
         last_temperature = 1.0
-        issued_token: Optional[GenToken] = None
+        issued_token: GenToken | None = None
         usage = TokenUsage(round_trips=1, ff_tokens=0)
 
         while not parser.done():
@@ -201,7 +201,7 @@ class Engine(ABC):
 
             legacy_engine_response = ll_response.progress.to_engine_call_response()
 
-            ff_probs: Optional[NDArray] = None
+            ff_probs: NDArray | None = None
             if logits is not None and self._enable_token_probabilities:
                 # Exclude the "next token" logits
                 # Note: may not have logits for all ff tokens if some prefix of them hit cache
@@ -337,11 +337,11 @@ class Engine(ABC):
         logits: NDArray,
         logits_lat_ms: float,
         token_ids: list[int],
-        mask: Optional[bytes],
+        mask: bytes | None,
         temperature: float,
         k: int,
         compute_unmasked_probs: bool,
-        sampling_params: Optional[SamplingParams],
+        sampling_params: SamplingParams | None,
     ) -> GenTokenExtra:
         """Get the next token and associated top-k tokens from the engine.
 
@@ -376,7 +376,7 @@ class Engine(ABC):
         if k > 0 and not compute_unmasked_probs:
             raise ValueError("If k > 0, compute_unmasked_probs must be True to get the top-k tokens.")
 
-        probs: Optional[NDArray] = None
+        probs: NDArray | None = None
         top_k: list[int] = []
         if compute_unmasked_probs or mask is None:
             # NOTE: we clone logits here to avoid modifying the original logits twice
@@ -387,7 +387,7 @@ class Engine(ABC):
             # Get the top-k tokens from the unmasked logits
             top_k = get_top_k(probs, k)
 
-        masked_probs: Optional[NDArray] = None
+        masked_probs: NDArray | None = None
         if mask is not None:
             np_mask = np.frombuffer(mask, dtype=np.uint8)
             masked_logits = np.where(np_mask != 0, logits, -np.inf)
@@ -450,7 +450,7 @@ class Engine(ABC):
         )
 
     def chat_completion_streaming(
-        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+        self, messages: dict[str, str], grammar: str, tools: list[dict[str, Any]] | None = None
     ) -> Generator[tuple[bytes, dict[str, str]], None, None]:
         """Generate a single streaming chat completion, constrained by a Lark grammar.
 
@@ -483,7 +483,7 @@ class Engine(ABC):
             yield nxt_bytes, nxt_captures
 
     def chat_completion(
-        self, messages: dict[str, str], grammar: str, tools: Union[list[dict[str, Any]], None] = None
+        self, messages: dict[str, str], grammar: str, tools: list[dict[str, Any]] | None = None
     ) -> tuple[str, dict[str, str]]:
         """Generate a single chat completion, constrained by a Lark grammar.
 
@@ -527,7 +527,7 @@ def apply_temp_and_sampling_params(
     logits: NDArray,
     token_ids: list[int],
     temperature: float,
-    sampling_params: Optional[SamplingParams],
+    sampling_params: SamplingParams | None,
 ) -> NDArray:
     """Apply the sampling parameters to the logits."""
     if sampling_params is None:

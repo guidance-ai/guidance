@@ -12,7 +12,7 @@ import textwrap
 import types
 import urllib
 import weakref
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, cast
 
 import numpy as np
 import pydantic
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def bytes_from(src: Union[str, pathlib.Path, bytes], allow_local: bool) -> bytes:
+def bytes_from(src: str | pathlib.Path | bytes, allow_local: bool) -> bytes:
     if isinstance(src, str) and re.match(r"[^:/]+://", src):
         with urllib.request.urlopen(src) as response:
             response = cast(http.client.HTTPResponse, response)

@@ -1,5 +1,5 @@
 import re
-from typing import Callable, Iterable, Literal, Optional, Union
+from typing import Callable, Iterable, Literal
 
 from .._ast import RuleNode, SubstringNode
 
@@ -11,8 +11,8 @@ def chunk_on_word(text: str) -> list[str]:
 def substring(
     target_string: str,
     *,
-    chunk: Union[Literal["word", "character"], Callable[[str], Iterable[str]]] = "word",
-    name: Optional[str] = None,
+    chunk: Literal["word", "character"] | Callable[[str], Iterable[str]] = "word",
+    name: str | None = None,
 ) -> RuleNode:
     chunks: Iterable[str]
     if chunk == "word":

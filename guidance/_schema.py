@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Any, Literal, Optional, TypedDict, Union
+from typing import Any, Literal, TypedDict
 
 from annotated_types import Ge, Le
 from pydantic import BaseModel, Field, NonNegativeInt, RootModel, computed_field, model_validator
@@ -19,7 +19,7 @@ class TokenUsage(BaseModel):
     cached_output_tokens: NonNegativeInt = 0
     """Number of forward passes we avoided by hitting the KV cache."""
 
-    ff_tokens: Optional[NonNegativeInt] = None
+    ff_tokens: NonNegativeInt | None = None
     """Number of output tokens that were fast-forwarded by the parser (if applicable)."""
 
     round_trips: NonNegativeInt = 0
@@ -54,7 +54,7 @@ class TokenUsage(BaseModel):
 
     @computed_field  # type: ignore[misc]
     @property
-    def token_savings(self) -> Optional[Annotated[float, Ge(0), Le(1)]]:
+    def token_savings(self) -> Annotated[float, Ge(0), Le(1)] | None:
         """The fraction of output tokens that were fast-forwarded by the parser (if applicable)."""
         if self.ff_tokens is None:
             return None
@@ -172,7 +172,7 @@ class LLProgressFinalText(BaseModel):
 
 
 LLProgressItem = Annotated[
-    Union[LLProgressCapture, LLProgressText, LLProgressFinalText],
+    LLProgressCapture | LLProgressText | LLProgressFinalText,
     Field(discriminator="object"),
 ]
 
@@ -226,11 +226,11 @@ class LLProgress(RootModel):
 class LLInterpreterResponse(BaseModel):
     progress: LLProgress
     stop: bool
-    temperature: Optional[float]
+    temperature: float | None
 
 
 class SamplingParams(TypedDict):
-    top_p: Optional[float]
-    top_k: Optional[int]
-    min_p: Optional[float]
-    repetition_penalty: Optional[float]
+    top_p: float | None
+    top_k: int | None
+    min_p: float | None
+    repetition_penalty: float | None

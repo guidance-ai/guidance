@@ -5,7 +5,6 @@ from typing import (
     Callable,
     Literal,
     TypeVar,
-    Union,
     overload,
 )
 
@@ -21,7 +20,7 @@ _in_stateless_context: ContextVar[bool]
 
 P = ParamSpec("P")
 M: TypeAlias = Any  # sort of Union[Model, GrammarNode]?
-R = TypeVar("R", bound=Union[Function, RuleNode])
+R = TypeVar("R", bound=Function | RuleNode)
 GuidanceWrappable = Callable[Concatenate[M, P], M]
 GuidanceFunction = Callable[P, R]
 StatefulGuidanceFunction = GuidanceFunction[P, Function]
@@ -71,7 +70,7 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> GuidanceFunction[P, Union[Function, RuleNode]]: ...
+) -> GuidanceFunction[P, Function | RuleNode]: ...
 @overload
 def guidance(
     f: None = None,
@@ -80,4 +79,4 @@ def guidance(
     cache: bool = ...,
     dedent: bool = ...,
     model: type[Model] = ...,
-) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Union[Function, RuleNode]]]: ...
+) -> Callable[[GuidanceWrappable[P]], GuidanceFunction[P, Function | RuleNode]]: ...

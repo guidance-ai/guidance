@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Sequence
+from typing import Sequence
 
 import numpy as np
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class MockTokenizer(Tokenizer):
-    def __init__(self, tokens: Sequence[bytes], special_token_ids: Optional[list[int]] = None):
+    def __init__(self, tokens: Sequence[bytes], special_token_ids: list[int] | None = None):
         self.tokens = tokens
         self.byte_trie = ByteTrie(self.tokens, np.arange(len(self.tokens)))
 
@@ -93,14 +93,14 @@ class MockEngine(Engine):
 
     def get_next_token_with_top_k(
         self,
-        logits: Optional[np.ndarray],
-        logits_lat_ms: Optional[float],
+        logits: np.ndarray | None,
+        logits_lat_ms: float | None,
         token_ids: list[int],
-        mask: Optional[bytes],
+        mask: bytes | None,
         temperature: float,
         k: int,
         compute_unmasked_probs: bool,
-        sampling_params: Optional[SamplingParams],
+        sampling_params: SamplingParams | None,
     ) -> GenTokenExtra:
         self.called_temperatures.append(temperature)
         return super().get_next_token_with_top_k(
@@ -166,7 +166,7 @@ class Mock(Model):
     def __init__(
         self,
         byte_patterns=[],
-        sampling_params: Optional[SamplingParams] = None,
+        sampling_params: SamplingParams | None = None,
         echo=False,
         force=False,
         **kwargs,

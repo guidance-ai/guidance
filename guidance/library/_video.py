@@ -1,7 +1,6 @@
 import base64
 import importlib.resources
 import pathlib
-import typing
 
 from .._guidance import guidance
 from .._utils import bytes_from
@@ -11,7 +10,7 @@ from ..trace._trace import VideoOutput
 
 
 @guidance
-def video(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = True):
+def video(lm, src: str | pathlib.Path | bytes, allow_local: bool = True):
     # TODO(nopdive): Mock for testing. Remove all of this code later.
     bytes_data = bytes_from(src, allow_local=allow_local)
     base64_bytes = base64.b64encode(bytes_data)

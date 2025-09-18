@@ -1,7 +1,6 @@
 """Debug utilities for the guidance widget."""
 
 import logging
-from typing import Optional
 
 from .registry import get_renderer
 from .visual._renderer import AutoRenderer, JupyterWidgetRenderer
@@ -34,7 +33,7 @@ def enable_widget_debug() -> None:
         logger.warning(f"Debug mode only available with Jupyter widget renderer, got {type(renderer)}")
 
 
-def dump_widget_debug() -> Optional[str]:
+def dump_widget_debug() -> str | None:
     """Get captured debug data as a JSON string.
 
     Returns the captured widget messages and state as a JSON string,

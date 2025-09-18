@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable, Optional, Sequence, Union
+from typing import Any, Callable, Sequence
 
 import llguidance
 
@@ -10,7 +10,7 @@ from ...chat import ChatTemplate, load_template_class
 @dataclass
 class TokenizerWrappable:
     eos_token_id: int
-    bos_token_id: Optional[int]
+    bos_token_id: int | None
     tokens: list[bytes]
     special_token_ids: list[int]
     encode_callable: Callable[[bytes], list[int]]
@@ -33,8 +33,8 @@ class Tokenizer:
     def __init__(
         self,
         ll_tokenizer: llguidance.LLTokenizer,
-        chat_template: Union[str, ChatTemplate, None],
-        bos_token_id: Optional[int] = None,
+        chat_template: str | ChatTemplate | None,
+        bos_token_id: int | None = None,
     ):
         self._ll_tokenizer = ll_tokenizer
         # This method supports None, a huggingface style jinja2_template_str, or a ChatTemplate subclass
@@ -47,7 +47,7 @@ class Tokenizer:
         return self._ll_tokenizer.is_special_token(token_id)
 
     @property
-    def bos_token_id(self) -> Union[int, None]:
+    def bos_token_id(self) -> int | None:
         # Currently, lltokenizer does not have a bos_token attribute,
         # so we have to store our own if we want to use it
         return self._bos_token_id
@@ -57,7 +57,7 @@ class Tokenizer:
         return self._ll_tokenizer.eos_token
 
     @cached_property
-    def bos_token(self) -> Union[bytes, None]:
+    def bos_token(self) -> bytes | None:
         if self.bos_token_id is None:
             return None
         return self.decode([self.bos_token_id])
@@ -67,7 +67,7 @@ class Tokenizer:
         return self.decode([self.eos_token_id])
 
     @property
-    def chat_template(self) -> Union[Any, None]:
+    def chat_template(self) -> Any | None:
         return self._chat_template
 
     def __call__(self, byte_string: bytes):

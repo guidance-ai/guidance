@@ -4,7 +4,7 @@ import queue
 import threading
 from contextvars import ContextVar, copy_context
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any, Iterator, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Iterator, TypeVar, Union
 
 from typing_extensions import Self
 
@@ -72,14 +72,14 @@ class Model:
         self._active_blocks: dict[Block, int] = {}
         self.sampling_params: SamplingParams = sampling_params
 
-        self._parent: Optional["Model"] = None
-        self._parent_id: Optional[int] = None
+        self._parent: "Model" | None = None
+        self._parent_id: int | None = None
         self._id: int = _gen_id()
         self._trace_nodes: set[TraceNode] = set()
         self._update_trace_node(self._id, self._parent_id, None, False)
 
     def _update_trace_node(
-        self, identifier: int, parent_id: Optional[int], node_attr: Optional[NodeAttr] = None, echo=False
+        self, identifier: int, parent_id: int | None, node_attr: NodeAttr | None = None, echo=False
     ) -> None:
         from ..._topics import TRACE_TOPIC
         from ...registry import get_exchange, get_trace_handler
@@ -97,7 +97,7 @@ class Model:
                 topic=TRACE_TOPIC,
             )
 
-    def __add__(self, other: Union[str, Function, ASTNode]) -> Self:
+    def __add__(self, other: str | Function | ASTNode) -> Self:
         self = self.copy()
         self = self._apply_blocks()
         if isinstance(other, str):
@@ -233,7 +233,7 @@ class Model:
     def __contains__(self, key: str) -> bool:
         return key in self._interpreter.state.captures
 
-    def get(self, key: str, default: Optional[D] = None) -> Union[str, list[str], None, D]:
+    def get(self, key: str, default: D | None = None) -> str | list[str] | None | D:
         """Return the value of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -248,7 +248,7 @@ class Model:
         except KeyError:
             return default
 
-    def set(self, key: str, value: Union[str, list[str]]) -> Self:
+    def set(self, key: str, value: str | list[str]) -> Self:
         """Return a new model with the given variable value set.
 
         Parameters
@@ -277,7 +277,7 @@ class Model:
         self._interpreter.state.captures.pop(key)
         return self
 
-    def log_prob(self, key: str, default: Optional[D] = None) -> Union[float, list[Union[float, None]], None, D]:
+    def log_prob(self, key: str, default: D | None = None) -> float | list[float | None] | None | D:
         """Return the log probability of a variable, or a default value if the variable is not present.
 
         Parameters
@@ -332,7 +332,7 @@ class ModelStream:
         self.grammar = grammar
         self.timeout = timeout
 
-    def __add__(self, grammar: Union[str, ASTNode]) -> Self:
+    def __add__(self, grammar: str | ASTNode) -> Self:
         """Extend this delayed chain of execution with another grammar append."""
         if self.grammar is None:
             return ModelStream(self.model, grammar)

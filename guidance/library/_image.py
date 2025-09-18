@@ -2,7 +2,6 @@ import base64
 import importlib.resources
 import pathlib
 import re
-import typing
 
 from .._ast import ImageBlob, ImageUrl
 from .._guidance import guidance
@@ -11,7 +10,7 @@ from ..trace._trace import ImageOutput
 
 
 @guidance
-def image(lm, src: typing.Union[str, pathlib.Path, bytes], allow_local: bool = True):
+def image(lm, src: str | pathlib.Path | bytes, allow_local: bool = True):
     if isinstance(src, str) and re.match(r"^(?!file://)[^:/]+://", src):
         lm += ImageUrl(url=src)
     else:

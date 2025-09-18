@@ -10,7 +10,7 @@ import traceback
 from asyncio import Queue
 from functools import lru_cache, partial
 from importlib.util import find_spec
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from warnings import warn
 from weakref import ReferenceType, WeakKeyDictionary, WeakValueDictionary, finalize, ref
 
@@ -111,7 +111,7 @@ def _put_nowait_queue(queue: Queue, val: object) -> None:
     get_bg_async().call_soon_threadsafe(queue.put_nowait, val)
 
 
-def _cleanup(recv_queue: Optional[Queue], send_queue: Optional[Queue], log_msg: str, exchange_cb) -> None:
+def _cleanup(recv_queue: Queue | None, send_queue: Queue | None, log_msg: str, exchange_cb) -> None:
     from ..registry import get_exchange
 
     log_cleanup(log_msg)
@@ -289,9 +289,9 @@ class JupyterWidgetRenderer(Renderer):
         self.widget_messages: WeakKeyDictionary["StitchWidget", list[GuidanceMessage]] = WeakKeyDictionary()
         self.widgets: WeakValueDictionary[str, "StitchWidget"] = WeakValueDictionary()
         self.last_widget_key = ""
-        self.last_widget: Optional[ReferenceType["StitchWidget"]] = None
-        self.last_trace_id: Optional[int] = None
-        self._last_cell_session_id: Optional[str] = None
+        self.last_widget: ReferenceType["StitchWidget"] | None = None
+        self.last_trace_id: int | None = None
+        self._last_cell_session_id: str | None = None
 
         self._trace_handler = trace_handler
         self._completed = False
@@ -521,7 +521,7 @@ class JupyterWidgetRenderer(Renderer):
         self._debug_messages = []
         logger.info("Debug messages cleared")
 
-    def get_debug_data(self) -> Optional[str]:
+    def get_debug_data(self) -> str | None:
         """Get debug data as a JSON string.
 
         Returns:

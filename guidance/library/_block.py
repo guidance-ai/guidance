@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from typing import Optional, Union
 
 from .._ast import ASTNode, Function
 from .._guidance import _in_stateless_context
@@ -7,9 +6,7 @@ from ..models._base._model import _active_blocks
 
 
 class Block:
-    def __init__(
-        self, name: Optional[str], opener: Union[str, Function, ASTNode], closer: Union[str, Function, ASTNode]
-    ):
+    def __init__(self, name: str | None, opener: str | Function | ASTNode, closer: str | Function | ASTNode):
         self.name = name
         self.opener = opener
         self.closer = closer

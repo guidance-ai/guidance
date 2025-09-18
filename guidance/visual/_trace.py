@@ -2,7 +2,6 @@
 
 import html
 import json
-from typing import Optional
 
 from ..trace import (
     ImageOutput,
@@ -27,7 +26,7 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
     """
     buffer = []
     node_path = list(node.path())
-    active_role: Optional[TraceNode] = None
+    active_role: TraceNode | None = None
 
     for node in node_path:
         # Check if any input is a role opener or closer
