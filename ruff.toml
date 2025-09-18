@@ -8,6 +8,7 @@ line-length = 120
 # Because notebooks are tougher
 include = [ "*.py", "*.pyi", "pyproject.toml" ]
 exclude = [
+    "docs",
     ".eggs",
     ".git",
 ]
@@ -18,7 +19,7 @@ select = [
   "I",        # isort
   # "ARG",      # flake8-unused-arguments
   # "C4",       # flake8-comprehensions
-  # "F401",     # flake8-unused-imports
+  "F401",     # flake8-unused-imports
   "F541",     # flake8 f-string without any placeholders
   "BLE001",   # No bare 'except' clauses
   "RUF022",   # Sort __all__
