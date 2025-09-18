@@ -83,7 +83,7 @@ test_requires = [
     "mypy==1.9.0",
 ] + unittest_requires
 
-dev_requires = ["ruff==0.11.11", "mypy"]
+dev_requires = ["ruff==0.13.0", "mypy"]
 
 
 def read(*parts):
