@@ -325,6 +325,7 @@ class Engine(ABC):
                 # Type checker needs some help
                 assert self.tokenizer.eos_token_id is not None
                 issued_token.token_id = self.tokenizer.eos_token_id
+                issued_token.bytes = self.tokenizer.decode([self.tokenizer.eos_token_id])
 
             if usage.ttft_ms == 0:
                 usage.ttft_ms += (time.monotonic() - t0) * 1000
