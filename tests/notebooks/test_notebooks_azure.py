@@ -4,6 +4,7 @@
 from ..utils import slowdown
 from .nb_test_utils import BASE_NB_PATH, run_notebook
 
+
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
 

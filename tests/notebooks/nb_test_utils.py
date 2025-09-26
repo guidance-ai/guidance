@@ -1,9 +1,7 @@
 import pathlib
-
 from typing import Any
 
 import papermill as pm
-
 
 BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
