@@ -13,12 +13,12 @@ BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
 
 
 def run_notebook(notebook_path: pathlib.Path, params: dict[str, Any] | None = None):
-    # Force an Azure token refresh, since the builds have had timeouts
+    # Force an Azure credential refresh, since the builds have had timeouts
     # My suspicion is that notebooks which don't use the Azure are letting the
     # Azure credentials expire
     _ = get_bearer_token_provider(DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default")
 
-
+    # Now the actual notebook run
     assert notebook_path.exists(), f"Checking for: {notebook_path}"
     output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
     output_path = notebook_path.parent / output_nb
