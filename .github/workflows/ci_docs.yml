@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.12", "3.14"]
+        python-version: ["3.12", "3.13"]
     steps:
     - name: Checkout repo at ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       uses: actions/checkout@v4
