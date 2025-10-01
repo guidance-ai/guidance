@@ -22,7 +22,7 @@ on:
 
 jobs:
   check_ReadMe:
-    runs-on: ubuntu-latest
+    runs-on: Large_Linux
     environment: test
     strategy:
       fail-fast: false # Don't cancel all on first failure

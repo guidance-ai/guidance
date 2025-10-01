@@ -76,7 +76,7 @@ jobs:
             ./tests/notebooks/test_notebooks_azure.py
 
           # Then do the rest
-          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
+          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing --cov-append \
             ./tests/notebooks/test_notebooks.py
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
