@@ -468,8 +468,11 @@ class Engine(ABC):
         # Render the messages
         chat_template = self.get_chat_template().template_str
         rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
-        rendered_prompt = rtemplate.render(messages=messages, tools=tools, **tokens)
-        rendered_prompt += self.get_chat_template().get_role_start("assistant")
+        rendered_prompt = rtemplate.render(add_generation_prompt=True, messages=messages, tools=tools, **tokens)
+
+        print("rendered_prompt")
+        print(rendered_prompt)
+        print()
 
         # Load into a State object
         state = EngineState()
