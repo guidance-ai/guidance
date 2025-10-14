@@ -470,10 +470,6 @@ class Engine(ABC):
         rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
         rendered_prompt = rtemplate.render(add_generation_prompt=True, messages=messages, tools=tools, **tokens)
 
-        print("rendered_prompt")
-        print(rendered_prompt)
-        print()
-
         # Load into a State object
         state = EngineState()
         state.prompt = rendered_prompt
