@@ -9,7 +9,7 @@ from .utils import check_match_failure
 
 
 class TestXGuidance:
-    @pytest.mark.parametrize("desired_indent", [2, 4, None])
+    @pytest.mark.parametrize("desired_indent", [None, 2, 4])
     @pytest.mark.parametrize("separators", [None, (",", ":"), (", ", ": "), (",     ", ":      ")])
     def test_whitespace_flexible(self, desired_indent, separators):
         schema = """{
