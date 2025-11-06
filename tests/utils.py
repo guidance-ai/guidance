@@ -138,13 +138,20 @@ def check_match_failure(
     allowed_bytes is allowed to be None, since it could be really complicated
     """
     with pytest.raises(ByteParserException) as pe:
+        print(f"{bad_string=}")
         grammar.match(bad_string, raise_exceptions=True)
     if good_bytes is not None:
-        assert pe.value.consumed_bytes == good_bytes
+        assert pe.value.consumed_bytes == good_bytes, (
+            f"Expected consumed_bytes {good_bytes}, got {pe.value.consumed_bytes}"
+        )
     if failure_byte is not None:
-        assert pe.value.current_byte == failure_byte
+        assert pe.value.current_byte == failure_byte, (
+            f"Expected failure_byte {failure_byte}, got {pe.value.current_byte}"
+        )
     if allowed_bytes is not None:
-        assert pe.value.allowed_bytes == allowed_bytes
+        assert pe.value.allowed_bytes == allowed_bytes, (
+            f"Expected allowed_bytes {allowed_bytes}, got {pe.value.allowed_bytes}"
+        )
 
 
 class GrammarNodeCallable(Protocol):
