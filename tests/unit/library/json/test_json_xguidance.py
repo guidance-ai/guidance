@@ -18,7 +18,7 @@ class TestXGuidance:
                 "a" : {"type": "integer"},
                 "b" : {"type": "integer"}
             },
-            "required": ["a"],
+            "required": ["a", "b"],
             "additionalProperties": false,
             "x-guidance" : {
               "whitespace_flexible": true
@@ -33,6 +33,7 @@ class TestXGuidance:
 
         # Now, check an indented string
         indented_string = json_dumps(target_obj, indent=desired_indent, separators=separators)
+        print(f"{indented_string=}")
         gen_json_grammar = gen_json(schema=schema)
 
         match = gen_json_grammar.match(indented_string, raise_exceptions=True)
@@ -45,7 +46,7 @@ class TestXGuidance:
                 "a" : {"type": "integer"},
                 "b" : {"type": "integer"}
             },
-            "required": ["a"],
+            "required": ["a", "b"],
             "additionalProperties": false,
             "x-guidance" : {
               "whitespace_flexible": false
@@ -74,7 +75,7 @@ class TestXGuidance:
                 "a" : {"type": "integer"},
                 "b" : {"type": "integer"}
             },
-            "required": ["a"],
+            "required": ["a", "b"],
             "additionalProperties": false,
             "x-guidance": {
               "whitespace_flexible": false,
