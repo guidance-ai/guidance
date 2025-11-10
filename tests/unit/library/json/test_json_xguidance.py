@@ -2,7 +2,7 @@ from json import dumps as json_dumps
 from json import loads as json_loads
 
 import pytest
-from jsonschema import ValidationError, validate
+from jsonschema import validate
 
 from guidance import json as gen_json
 
@@ -34,6 +34,11 @@ class TestXGuidance:
 
         # Now, check an indented string
         indented_string = json_dumps(target_obj, indent=desired_indent, separators=separators)
+        # Round trip to make sure it still agrees with Python's own JSON parser
+        reloaded_obj = json_loads(indented_string)
+        validate(instance=reloaded_obj, schema=schema_obj)
+        assert reloaded_obj == target_obj, "Round-tripped object does not match target"
+
         print(f"{indented_string=}")
         gen_json_grammar = gen_json(schema=schema)
 
