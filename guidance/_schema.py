@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Any, Literal, TypedDict
+from typing import Any, Callable, Literal, Set, TypedDict
 
 from annotated_types import Ge, Le
 from pydantic import BaseModel, Field, NonNegativeInt, RootModel, computed_field, model_validator
@@ -234,3 +234,27 @@ class SamplingParams(TypedDict):
     top_k: int | None
     min_p: float | None
     repetition_penalty: float | None
+
+
+class StepContext(TypedDict):
+    last_step_text: str
+    last_step_tokens: list[int]
+    all_text: str
+    all_tokens: list[int]
+    captures: dict
+
+
+class StepFeedback(TypedDict, total=False):
+    # Either injected_text (utf-8) or injected_bytes can be provided.
+    injected_text: str
+    injected_bytes: bytes
+
+
+class StepConfig(TypedDict, total=False):
+    # Trigger every k generated tokens (including fast-forwarded and injected)
+    step_every_k: int
+    # Trigger when the last generated token id is in this set
+    step_stop_token_ids: Set[int]
+    # Callback invoked at each step boundary
+    # Returns optional feedback to inject next.
+    callback: Callable[[StepContext], StepFeedback]

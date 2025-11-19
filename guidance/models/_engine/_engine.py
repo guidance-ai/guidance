@@ -10,7 +10,7 @@ from jinja2 import BaseLoader, Environment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage
+from ..._schema import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage, StepConfig, StepContext, StepFeedback
 from ..._utils import apply_min_p_filter, apply_repetition_penalty, apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
@@ -88,6 +88,7 @@ class Engine(ABC):
         grammar: str,
         ensure_bos_token: bool = True,
         sampling_params: SamplingParams | None = None,
+        step_config: StepConfig | None = None,
     ) -> Generator[EngineResponse, None, TokenUsage]:
         """Main entry point for the inference-parser loop. Yields EngineCallResponse objects as
         the parser advances through the grammar.
@@ -122,6 +123,18 @@ class Engine(ABC):
         last_temperature = 1.0
         issued_token: GenToken | None = None
         usage = TokenUsage(round_trips=1, ff_tokens=0)
+
+        step_every_k: int | None = None
+        step_stop_token_ids: set[int] = set()
+        step_callback = None
+        if step_config is not None:
+            step_every_k = step_config.get("step_every_k")  # type: ignore[assignment]
+            step_stop_token_ids = set(step_config.get("step_stop_token_ids", set()))  # type: ignore[assignment]
+            step_callback = step_config.get("callback")  # type: ignore[assignment]
+
+        step_tokens_buffer: list[int] = []
+        all_generated_tokens: list[int] = []
+        all_text_bytes = bytearray()
 
         while not parser.done():
             t1 = time.monotonic()
@@ -269,18 +282,101 @@ class Engine(ABC):
                     )
                 )
 
+            new_bytes_acc = bytearray(legacy_engine_response.new_bytes)
+            captures_acc = dict(legacy_engine_response.capture_groups)
+            cap_log_probs_acc = dict(legacy_engine_response.capture_group_log_probs)
+
+            new_token_ids_this_iter = [t.token_id for t in gen_tokens]
+            step_tokens_buffer.extend(new_token_ids_this_iter)
+            all_generated_tokens.extend(new_token_ids_this_iter)
+            all_text_bytes += legacy_engine_response.new_bytes
+
+            boundary_hit = False
+            if new_token_ids_this_iter:
+                if step_every_k is not None and step_every_k > 0:
+                    boundary_hit = boundary_hit or (len(step_tokens_buffer) >= step_every_k)
+                if step_stop_token_ids:
+                    boundary_hit = boundary_hit or (new_token_ids_this_iter[-1] in step_stop_token_ids)
+
+            if boundary_hit and step_callback is not None:
+                ctx: StepContext = {
+                    "last_step_text": self.tokenizer.decode(step_tokens_buffer).decode("utf-8", errors="ignore"),
+                    "last_step_tokens": list(step_tokens_buffer),
+                    "all_text": bytes(all_text_bytes).decode("utf-8", errors="ignore"),
+                    "all_tokens": list(all_generated_tokens),
+                    "captures": dict(captures_acc),
+                }
+                feedback: StepFeedback | None = step_callback(ctx)  # type: ignore[misc]
+                if feedback:
+                    inj_bytes: bytes | None = None
+                    if "injected_bytes" in feedback and feedback["injected_bytes"]:
+                        inj_bytes = feedback["injected_bytes"]
+                    elif "injected_text" in feedback and feedback["injected_text"]:
+                        inj_bytes = feedback["injected_text"].encode("utf-8")
+                    if inj_bytes:
+                        inj_token_ids = self.tokenizer.encode(inj_bytes)
+                        for inj_token_id in inj_token_ids:
+                            backtrack2, ff_tokens2, mask_fut2 = parser.advance(token_id=inj_token_id)
+                            if backtrack2:
+                                backtracked_bytes2 = self.tokenizer.decode(tokens[-backtrack2:])
+                                tokens[:] = tokens[:-backtrack2]
+                            else:
+                                backtracked_bytes2 = b""
+                            tokens += ff_tokens2
+                            mask2, ll_response2, _ = mask_fut2.result()
+                            legacy2 = ll_response2.progress.to_engine_call_response()
+                            new_bytes_acc += legacy2.new_bytes
+                            for k, v in legacy2.capture_groups.items():
+                                captures_acc[k] = v
+                            for k, v in legacy2.capture_group_log_probs.items():
+                                cap_log_probs_acc[k] = v
+
+                            gen_tokens.append(
+                                GenTokenExtra(
+                                    token_id=inj_token_id,
+                                    bytes=self.tokenizer.decode([inj_token_id]),
+                                    prob=float("nan"),
+                                    latency_ms=0.0,
+                                    is_generated=False,
+                                    is_force_forwarded=True,
+                                    is_input=False,
+                                    is_backtracked=False,
+                                    is_masked=False,
+                                    top_k=[],
+                                )
+                            )
+                            for t_id in ff_tokens2:
+                                gen_tokens.append(
+                                    GenTokenExtra(
+                                        token_id=t_id,
+                                        bytes=self.tokenizer.decode([t_id]),
+                                        prob=float("nan"),
+                                        latency_ms=0.0,
+                                        is_generated=False,
+                                        is_force_forwarded=True,
+                                        is_input=False,
+                                        is_backtracked=False,
+                                        is_masked=False,
+                                        top_k=[],
+                                    )
+                                )
+                            usage.ff_tokens += len(ff_tokens2)
+                            step_tokens_buffer.append(inj_token_id)
+                            step_tokens_buffer.extend(ff_tokens2)
+                            all_generated_tokens.append(inj_token_id)
+                            all_generated_tokens.extend(ff_tokens2)
+                            all_text_bytes += legacy2.new_bytes
+                step_tokens_buffer = []
+
             engine_response = EngineResponse(
-                new_bytes=legacy_engine_response.new_bytes,
+                new_bytes=bytes(new_bytes_acc),
                 backtrack_bytes=backtracked_bytes,
-                capture_groups=legacy_engine_response.capture_groups,
-                capture_group_log_probs=legacy_engine_response.capture_group_log_probs,
+                capture_groups=captures_acc,
+                capture_group_log_probs=cap_log_probs_acc,
                 backtrack=backtrack,
                 tokens=gen_tokens,
             )
 
-            # process engine_response
-            # NOTE (loc): We should not yield the engine_response if new_bytes are invalid utf-8 bytes
-            # delayed bytes should be handled here in the engine
             yield engine_response
 
             if ll_response.stop:

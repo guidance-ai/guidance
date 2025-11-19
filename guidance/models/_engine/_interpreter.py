@@ -5,7 +5,7 @@ from io import BytesIO
 from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
-from ..._schema import GenTokenExtra, TokenUsage
+from ..._schema import GenTokenExtra, TokenUsage, StepConfig
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
@@ -18,6 +18,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         super().__init__(state=EngineState())
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
+        self.step_config: StepConfig | None = None
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
@@ -67,6 +68,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             sampling_params=kwargs.pop("sampling_params", None),
+            step_config=self.step_config,
         )
 
         delayed_bytes = b""

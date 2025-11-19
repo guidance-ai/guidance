@@ -53,3 +53,49 @@ def test_trace():
         m2 = m1 + "Roses are red and " + gen(name="suffix", regex="[A-Za-z]{2,5}", max_tokens=5)
 
     assert m2["suffix"] is not None
+
+
+def test_step_every_k_injection():
+    lm = models.Mock(echo=False)
+
+    calls = {"count": 0}
+
+    def cb(ctx):
+        calls["count"] += 1
+        return {"injected_text": "[FIX]"}
+
+    cfg = {
+        "step_every_k": 2,
+        "callback": cb,
+    }
+    lm = lm.with_step_config(cfg)
+
+    lm = lm + gen(max_tokens=64, stop="\n", temperature=0.0)
+
+    s = str(lm)
+    assert "[FIX]" in s
+    assert calls["count"] >= 1
+
+
+def test_step_stop_token_trigger_injection():
+    lm = models.Mock(byte_patterns=[b"abc!\n"], echo=False)
+
+    calls = {"count": 0}
+
+    def cb(ctx):
+        calls["count"] += 1
+        return {"injected_text": "[FIX2]"}
+
+    exclam_token_id = lm.engine.tokenizer.encode(b"!")[-1]
+
+    cfg = {
+        "step_stop_token_ids": {exclam_token_id},
+        "callback": cb,
+    }
+    lm = lm.with_step_config(cfg)
+
+    lm = lm + gen(max_tokens=64, stop="\n", temperature=0.0)
+
+    s = str(lm)
+    assert "[FIX2]" in s
+    assert calls["count"] >= 1
