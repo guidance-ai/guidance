@@ -131,8 +131,10 @@ def strip_multiline_string_indents(f):
 
     # find the code block
     for i in range(len(new_code_obj.co_consts)):
-        if str(type(new_code_obj.co_consts[i])) == "<class 'code'>":
+        if type(new_code_obj.co_consts[i]) == types.CodeType and new_code_obj.co_consts[i].co_name == f.__name__:
             break
+    else:
+        raise RuntimeError("Could not find function code object in modified code!")
 
     # create a new function based on the modified code
     new_f = types.FunctionType(
