@@ -74,7 +74,7 @@ jobs:
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
         run: |
-          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,test] # TODO: add onnxruntime_genai when GPU support for python 3.14 is available
+          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
       - name: Check GPU available
         shell: bash
         run: |
