@@ -19,7 +19,7 @@ from ..._ast import (
     RoleStart,
     _parse_tags,
 )
-from ..._schema import SamplingParams, TokenUsage
+from ..._schema import SamplingParams, StepConfig, TokenUsage
 from ...trace import (
     ImageInput,
     LiteralInput,
@@ -300,6 +300,16 @@ class Model:
         """Return a new model with the given sampling parameters set."""
         self = self.copy()
         self.sampling_params = sampling_params
+        return self
+
+    def with_step_config(self, step_config: StepConfig) -> Self:
+        """Return a new model with step interjection configured (engine-backed models only)."""
+        self = self.copy()
+        # Only EngineInterpreter has step_config; guard for other interpreter types
+        if hasattr(self._interpreter, "step_config"):
+            setattr(self._interpreter, "step_config", step_config)
+        else:
+            raise NotImplementedError("Step interjection is only supported for engine-backed models.")
         return self
 
     def __getattribute__(self, name):
