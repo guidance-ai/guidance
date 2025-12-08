@@ -101,10 +101,6 @@ class EngineInterpreter(Interpreter[EngineState]):
                 self.state.prompt += new_text
                 
                 if chunk.backtrack:
-                    # Remove backtracked text from the prompt
-                    backtrack_text = chunk.backtrack_bytes.decode("utf-8", errors="ignore")
-                    if self.state.prompt.endswith(backtrack_text):
-                        self.state.prompt = self.state.prompt[:-len(backtrack_text)]
                     yield Backtrack(
                         n_tokens=chunk.backtrack,
                         bytes=b64encode(chunk.backtrack_bytes),
