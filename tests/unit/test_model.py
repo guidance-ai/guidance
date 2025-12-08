@@ -57,6 +57,7 @@ def test_trace():
 
 def test_step_every_k_injection():
     import re
+
     lm = models.Mock(echo=False)
 
     calls = {"count": 0}

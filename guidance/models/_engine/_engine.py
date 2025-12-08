@@ -10,7 +10,16 @@ from jinja2 import BaseLoader, Environment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
-from ..._schema import EngineResponse, GenToken, GenTokenExtra, SamplingParams, TokenUsage, StepConfig, StepContext, StepFeedback
+from ..._schema import (
+    EngineResponse,
+    GenToken,
+    GenTokenExtra,
+    SamplingParams,
+    TokenUsage,
+    StepConfig,
+    StepContext,
+    StepFeedback,
+)
 from ..._utils import apply_min_p_filter, apply_repetition_penalty, apply_top_k_and_top_p_filter, log_init, softmax
 from ._state import EngineState
 from ._tokenizer import Tokenizer
@@ -141,7 +150,7 @@ class Engine(ABC):
             t1 = time.monotonic()
             recode = False
             has_injection_backtrack = False  # Track if this response has injection backtrack
-            
+
             if issued_token is None:
                 prefix_tokens, backtrack, ff_tokens, mask_fut = parser.process_prompt(
                     prompt_tokens=tokens,
@@ -336,7 +345,7 @@ class Engine(ABC):
                             # Calculate how many tokens to backtrack based on the matched stop string
                             # We need to find which recent tokens form the stop string
                             stop_string_bytes = matched_stop_string.encode("utf-8")
-                            
+
                             # Search backwards through recent tokens to find which ones form the stop string
                             accumulated_bytes = b""
                             for i in range(len(all_generated_tokens) - 1, -1, -1):
@@ -344,23 +353,25 @@ class Engine(ABC):
                                 token_bytes = self.tokenizer.decode([token_id])
                                 accumulated_bytes = token_bytes + accumulated_bytes
                                 backtrack_token_ids.insert(0, token_id)
-                                
+
                                 # Check if we've accumulated enough to match the stop string
                                 accumulated_text = accumulated_bytes.decode("utf-8", errors="ignore")
                                 if stop_string_bytes.decode("utf-8", errors="ignore") in accumulated_text:
                                     # We've found all tokens that contribute to the stop string
                                     break
-                                
+
                                 # Safety: don't go back more than 20 tokens
                                 if len(backtrack_token_ids) >= 20:
                                     break
-                            
-                            backtrack_bytes_to_remove = self.tokenizer.decode(backtrack_token_ids) if backtrack_token_ids else b""
-                                                    
+
+                            backtrack_bytes_to_remove = (
+                                self.tokenizer.decode(backtrack_token_ids) if backtrack_token_ids else b""
+                            )
+
                             # Remove the tokens from model context
                             if len(tokens) >= len(backtrack_token_ids):
-                                tokens = tokens[:-len(backtrack_token_ids)]
-                            
+                                tokens = tokens[: -len(backtrack_token_ids)]
+
                             # Determine which backtrack tokens are in the current response vs previous
                             # Tokens in current response are in new_bytes_acc and gen_tokens
                             current_response_token_count = 0
@@ -369,46 +380,52 @@ class Engine(ABC):
                                 token_bytes = self.tokenizer.decode([backtrack_token_ids[i]])
                                 if temp_bytes.endswith(token_bytes):
                                     current_response_token_count += 1
-                                    temp_bytes = temp_bytes[:-len(token_bytes)]
+                                    temp_bytes = temp_bytes[: -len(token_bytes)]
                                 else:
                                     break
-                            
+
                             previous_response_token_count = len(backtrack_token_ids) - current_response_token_count
-                                                    
+
                             # Remove tokens from current response
                             if current_response_token_count > 0:
                                 # Remove from new_bytes_acc
-                                for i in range(len(backtrack_token_ids) - 1, len(backtrack_token_ids) - 1 - current_response_token_count, -1):
+                                for i in range(
+                                    len(backtrack_token_ids) - 1,
+                                    len(backtrack_token_ids) - 1 - current_response_token_count,
+                                    -1,
+                                ):
                                     token_bytes = self.tokenizer.decode([backtrack_token_ids[i]])
                                     if new_bytes_acc.endswith(token_bytes):
-                                        new_bytes_acc = new_bytes_acc[:-len(token_bytes)]
+                                        new_bytes_acc = new_bytes_acc[: -len(token_bytes)]
                                 # Remove from gen_tokens
                                 if len(gen_tokens) >= current_response_token_count:
                                     gen_tokens = gen_tokens[:-current_response_token_count]
-                            
+
                             # Backtrack bytes are only from previous responses
-                            backtrack_bytes_from_previous = self.tokenizer.decode(
-                                backtrack_token_ids[:previous_response_token_count]
-                            ) if previous_response_token_count > 0 else b""
-                                                    
+                            backtrack_bytes_from_previous = (
+                                self.tokenizer.decode(backtrack_token_ids[:previous_response_token_count])
+                                if previous_response_token_count > 0
+                                else b""
+                            )
+
                             # Remove from tracking buffers (for future context)
                             if len(step_tokens_buffer) >= len(backtrack_token_ids):
-                                step_tokens_buffer = step_tokens_buffer[:-len(backtrack_token_ids)]
+                                step_tokens_buffer = step_tokens_buffer[: -len(backtrack_token_ids)]
                             if len(all_generated_tokens) >= len(backtrack_token_ids):
-                                all_generated_tokens = all_generated_tokens[:-len(backtrack_token_ids)]
+                                all_generated_tokens = all_generated_tokens[: -len(backtrack_token_ids)]
                             if backtrack_bytes_to_remove and all_text_bytes.endswith(backtrack_bytes_to_remove):
-                                all_text_bytes = all_text_bytes[:-len(backtrack_bytes_to_remove)]
-                            
+                                all_text_bytes = all_text_bytes[: -len(backtrack_bytes_to_remove)]
+
                             # Add injection backtrack to any existing parser backtrack
                             # For injection: only backtrack what's in previous responses
                             backtracked_bytes = backtrack_bytes_from_previous + backtracked_bytes
                             backtrack = previous_response_token_count + backtrack
                             backtracked_bytes = backtrack_bytes_from_previous + backtracked_bytes
                             backtrack = previous_response_token_count + backtrack
-                            
+
                             # Set flag to indicate this is an injection backtrack
                             has_injection_backtrack = True
-                        
+
                         # Inject tokens (applies to both every_k and stop_string cases)
                         inj_token_ids = self.tokenizer.encode(inj_bytes)
                         for inj_token_id in inj_token_ids:
@@ -425,14 +442,14 @@ class Engine(ABC):
                                 captures_acc[k] = v
                             for k, v in legacy2.capture_group_log_probs.items():
                                 cap_log_probs_acc[k] = v
-                            
+
                             usage.ff_tokens += len(ff_tokens2)
                             step_tokens_buffer.append(inj_token_id)
                             step_tokens_buffer.extend(ff_tokens2)
                             all_generated_tokens.append(inj_token_id)
                             all_generated_tokens.extend(ff_tokens2)
                             all_text_bytes += legacy2.new_bytes
-                                                
+
                         # Add injected tokens to the CURRENT response
                         inj_bytes_acc = bytearray()
                         for inj_token_id in inj_token_ids:
@@ -451,13 +468,13 @@ class Engine(ABC):
                                 )
                             )
                             inj_bytes_acc += self.tokenizer.decode([inj_token_id])
-                        
+
                         new_bytes_acc += inj_bytes_acc
-                        
+
                         # Set flag to indicate this is an injection backtrack
                         if boundary_type == "stop_string" and matched_stop_string:
                             has_injection_backtrack = True
-                        
+
                 step_tokens_buffer = []
 
             engine_response = EngineResponse(
