@@ -56,6 +56,7 @@ def test_trace():
 
 
 def test_step_every_k_injection():
+    import re
     lm = models.Mock(echo=False)
 
     calls = {"count": 0}
@@ -65,16 +66,18 @@ def test_step_every_k_injection():
         return {"injected_text": "[FIX]"}
 
     cfg = {
-        "step_every_k": 2,
+        "step_every_k": 4,
         "callback": cb,
     }
     lm = lm.with_step_config(cfg)
 
-    lm = lm + gen(max_tokens=64, stop="\n", temperature=0.0)
+    lm = lm + gen(max_tokens=20, stop="\n", temperature=0.0)
 
     s = str(lm)
-    assert "[FIX]" in s
-    assert calls["count"] >= 1
+    # find all occurrences of [FIX] in s and their positions
+    occurrences = [m.start() for m in re.finditer(r"\[FIX\]", s)]
+    assert occurrences == [6, 18]
+    assert calls["count"] == len(occurrences)
 
 
 def test_step_stop_token_trigger_injection():
@@ -86,16 +89,14 @@ def test_step_stop_token_trigger_injection():
         calls["count"] += 1
         return {"injected_text": "[FIX2]"}
 
-    exclam_token_id = lm.engine.tokenizer.encode(b"!")[-1]
-
     cfg = {
-        "step_stop_token_ids": {exclam_token_id},
+        "step_stop_tokens": {"ym"},
         "callback": cb,
     }
     lm = lm.with_step_config(cfg)
 
-    lm = lm + gen(max_tokens=64, stop="\n", temperature=0.0)
+    lm = lm + gen(max_tokens=20, stop="\n", temperature=0.0)
 
     s = str(lm)
-    assert "[FIX2]" in s
-    assert calls["count"] >= 1
+    assert "[FIX2]" in s and "ym" not in s
+    assert calls["count"] == 1
