@@ -83,13 +83,32 @@ class EngineInterpreter(Interpreter[EngineState]):
 
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
-            self.state.prompt += new_text
-
-            if chunk.backtrack:
+            
+            # Check if this is an injection backtrack (should happen before adding text)
+            if chunk.injection_backtrack and chunk.backtrack:
+                # Remove backtracked text from the prompt BEFORE adding new text
+                backtrack_text = chunk.backtrack_bytes.decode("utf-8", errors="ignore")
+                if self.state.prompt.endswith(backtrack_text):
+                    self.state.prompt = self.state.prompt[:-len(backtrack_text)]
                 yield Backtrack(
                     n_tokens=chunk.backtrack,
                     bytes=b64encode(chunk.backtrack_bytes),
                 )
+                # Now add new text after backtrack
+                self.state.prompt += new_text
+            else:
+                # Normal flow: add text first, then backtrack
+                self.state.prompt += new_text
+                
+                if chunk.backtrack:
+                    # Remove backtracked text from the prompt
+                    backtrack_text = chunk.backtrack_bytes.decode("utf-8", errors="ignore")
+                    if self.state.prompt.endswith(backtrack_text):
+                        self.state.prompt = self.state.prompt[:-len(backtrack_text)]
+                    yield Backtrack(
+                        n_tokens=chunk.backtrack,
+                        bytes=b64encode(chunk.backtrack_bytes),
+                    )
 
             for token in chunk.tokens:
                 if isinstance(token, GenTokenExtra):
