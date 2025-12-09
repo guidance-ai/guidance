@@ -53,3 +53,51 @@ def test_trace():
         m2 = m1 + "Roses are red and " + gen(name="suffix", regex="[A-Za-z]{2,5}", max_tokens=5)
 
     assert m2["suffix"] is not None
+
+
+def test_step_every_k_injection():
+    import re
+
+    lm = models.Mock(echo=False)
+
+    calls = {"count": 0}
+
+    def cb(ctx):
+        calls["count"] += 1
+        return {"injected_text": "[FIX]"}
+
+    cfg = {
+        "step_every_k": 4,
+        "callback": cb,
+    }
+    lm = lm.with_step_config(cfg)
+
+    lm = lm + gen(max_tokens=20, stop="\n", temperature=0.0)
+
+    s = str(lm)
+    # find all occurrences of [FIX] in s and their positions
+    occurrences = [m.start() for m in re.finditer(r"\[FIX\]", s)]
+    assert occurrences == [6, 18]
+    assert calls["count"] == len(occurrences)
+
+
+def test_step_stop_token_trigger_injection():
+    lm = models.Mock(byte_patterns=[b"abc!\n"], echo=False)
+
+    calls = {"count": 0}
+
+    def cb(ctx):
+        calls["count"] += 1
+        return {"injected_text": "[FIX2]"}
+
+    cfg = {
+        "step_stop_tokens": {"ym"},
+        "callback": cb,
+    }
+    lm = lm.with_step_config(cfg)
+
+    lm = lm + gen(max_tokens=20, stop="\n", temperature=0.0)
+
+    s = str(lm)
+    assert "[FIX2]" in s and "ym" not in s
+    assert calls["count"] == 1

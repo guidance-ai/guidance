@@ -5,7 +5,7 @@ from io import BytesIO
 from typing import Iterator
 
 from ..._ast import GrammarNode, ImageBlob, JoinNode, LiteralNode, RoleEnd, RoleStart, SpecialToken, ToolCallNode
-from ..._schema import GenTokenExtra, TokenUsage
+from ..._schema import GenTokenExtra, StepConfig, TokenUsage
 from ..._utils import to_utf8_or_bytes_string
 from ...trace import Backtrack, ImageOutput, OutputAttr, Token, TokenOutput
 from .._base import Interpreter
@@ -18,6 +18,7 @@ class EngineInterpreter(Interpreter[EngineState]):
         super().__init__(state=EngineState())
         self.engine = engine
         self.chat_template = self.engine.get_chat_template()
+        self.step_config: StepConfig | None = None
 
     def __deepcopy__(self, memo):
         """Custom deepcopy to ensure engine is not copied."""
@@ -67,6 +68,7 @@ class EngineInterpreter(Interpreter[EngineState]):
             grammar=node.ll_grammar(),
             ensure_bos_token=True,
             sampling_params=kwargs.pop("sampling_params", None),
+            step_config=self.step_config,
         )
 
         delayed_bytes = b""
@@ -81,13 +83,28 @@ class EngineInterpreter(Interpreter[EngineState]):
 
             new_bytes = recode_special_tokens(self.engine.tokenizer, chunk.new_bytes)
             new_text, delayed_bytes = partial_decode(delayed_bytes + new_bytes)
-            self.state.prompt += new_text
 
-            if chunk.backtrack:
+            # Check if this is an injection backtrack (should happen before adding text)
+            if chunk.injection_backtrack and chunk.backtrack:
+                # Remove backtracked text from the prompt BEFORE adding new text
+                backtrack_text = chunk.backtrack_bytes.decode("utf-8", errors="ignore")
+                if self.state.prompt.endswith(backtrack_text):
+                    self.state.prompt = self.state.prompt[: -len(backtrack_text)]
                 yield Backtrack(
                     n_tokens=chunk.backtrack,
                     bytes=b64encode(chunk.backtrack_bytes),
                 )
+                # Now add new text after backtrack
+                self.state.prompt += new_text
+            else:
+                # Normal flow: add text first, then backtrack
+                self.state.prompt += new_text
+
+                if chunk.backtrack:
+                    yield Backtrack(
+                        n_tokens=chunk.backtrack,
+                        bytes=b64encode(chunk.backtrack_bytes),
+                    )
 
             for token in chunk.tokens:
                 if isinstance(token, GenTokenExtra):
