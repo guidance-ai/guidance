@@ -53,6 +53,9 @@ jobs:
           - "transformers_llama3_8b_cpu"
           - "transformers_phi4_mini_cpu"
           - "onnxruntime_phi4_mini_instruct"
+        exclude:
+          - model: "onnxruntime_phi4_mini_instruct"
+            python-version: "3.14"  # Waiting for ONNX update
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
       os: Large_Linux
@@ -75,6 +78,9 @@ jobs:
           - "transformers_gemma2_9b_cpu"  # CUDA is required for this model
           - "transformers_phi4_mini_gpu"
           - "onnxruntime_phi4_mini_instruct"
+        exclude:
+          - model: "onnxruntime_phi4_mini_instruct"
+            python-version: "3.14"  # Waiting for ONNX update
     uses: ./.github/workflows/call_gpu_tests.yml
     with:
       os: "gpu-runner"
