@@ -79,6 +79,7 @@ jobs:
           - "transformers_phi4_mini_gpu"
           - "onnxruntime_phi4_mini_instruct"
         exclude:
+          # https://github.com/microsoft/onnxruntime/issues/26547
           - model: "onnxruntime_phi4_mini_instruct"
             python-version: "3.14"  # Waiting for ONNX update
     uses: ./.github/workflows/call_gpu_tests.yml

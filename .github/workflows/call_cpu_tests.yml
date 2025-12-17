@@ -56,11 +56,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-      - name: Install guidance in ${{ inputs.os }}
+      - name: Upgrade pip
         shell: bash
         run: |
           python -m pip install --upgrade pip
+      - name: Install guidance and dependencies
+        shell: bash
+        if: ${{ inputs.python-version != '3.14' }}
+        run: |
           python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
+          python -m pip install accelerate  # required if using smaller quantizations
+      - name: Install guidance and dependencies (3.14/ONNX workaround)
+        # https://github.com/microsoft/onnxruntime/issues/26547
+        shell: bash
+        if: ${{ inputs.python-version == '3.14' }}
+        run: |
+          python -m pip install -e .[llamacpp,transformers]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
