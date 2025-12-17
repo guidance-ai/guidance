@@ -73,8 +73,15 @@ jobs:
           python -m pip install accelerate gpustat
       - name: Install guidance in ${{ inputs.os }}
         shell: bash
+        if: ${{ inputs.python-version != '3.14' }}
         run: |
           CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
+      - name: Install guidance in ${{ inputs.os }} (3.14/ONNX workaround)
+        # https://github.com/microsoft/onnxruntime/issues/26547
+        shell: bash
+        if: ${{ inputs.python-version == '3.14' }}
+        run: |
+          CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[llamacpp,transformers,test]
       - name: Check GPU available
         shell: bash
         run: |
