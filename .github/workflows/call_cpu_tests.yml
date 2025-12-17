@@ -71,7 +71,7 @@ jobs:
         shell: bash
         if: ${{ inputs.python-version == '3.14' }}
         run: |
-          python -m pip install -e .[llamacpp,transformers]
+          python -m pip install -e .[llamacpp,transformers,test]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
