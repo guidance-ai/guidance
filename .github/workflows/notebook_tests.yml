@@ -48,34 +48,14 @@ jobs:
         shell: bash
         run: |
           python -m pip install gpustat
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-            client-id: ${{ secrets.AZURE_CLIENT_ID }}
-            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: 'Run Azure CLI commands'
-        shell: bash
-        run: |
-            az account show
-            az group list
       - name: Notebook tests
         shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           # Configure OpenAI
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Configure endpoints
-          AZUREAI_OPENAI_CHAT_ENDPOINT: ${{ vars.AZUREAI_OPENAI_CHAT_ENDPOINT }}
-          AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME: ${{ vars.AZUREAI_OPENAI_CHAT_DEPLOYMENT_NAME }}
-          AZUREAI_OPENAI_CHAT_MODEL: ${{ vars.AZUREAI_OPENAI_CHAT_MODEL }}
-          AZUREAI_OPENAI_CHAT_API_VERSION: ${{ vars.AZUREAI_OPENAI_CHAT_API_VERSION }}
         run: |
-          # First do Azure tests since we have credential timeout issues
-          pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing \
-            ./tests/notebooks/test_notebooks_azure.py
-
-          # Then do the rest
+          # Run the non-AOAI notebooks
           pytest -vv --cov=guidance --cov-report=xml --cov-report=term-missing --cov-append \
             ./tests/notebooks/test_notebooks.py
       - name: Upload coverage reports to Codecov
