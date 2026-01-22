@@ -118,15 +118,14 @@ class OnnxRuntimeGenAIEngine(Engine):
             }
         else:
             if num_cached == len(token_ids):
-                # NOTE (loc): Optimize this code. Somehow rewinding to the current location does not yield same result.
-                self._cached_token_ids.clear()
-                self.generator.rewind_to(0)
-                new_token_ids.extend(token_ids)
+                num_cached -= 1
+                new_token_ids.append(token_ids[-1])
             else:
                 extra_token_ids = len(token_ids) - num_cached
-                self._cached_token_ids = self._cached_token_ids[:num_cached]
                 new_token_ids.extend(token_ids[-extra_token_ids:])
-                self.generator.rewind_to(num_cached)
+
+            self.generator.rewind_to(num_cached)
+            self._cached_token_ids = self._cached_token_ids[:num_cached]
 
         if len(new_token_ids) > 0:
             self.generator.append_tokens(new_token_ids)

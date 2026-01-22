@@ -31,7 +31,7 @@ install_requires = [
     "requests",
     "psutil",
     "guidance-stitch==0.1.5",
-    "llguidance==1.1.0",
+    "llguidance==1.4.0",
 ]
 
 # Our basic list of 'extras'

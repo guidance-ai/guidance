@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         model:
           - "transformers_gpt2_cpu"
           - "llamacpp_phi3_mini_4k_instruct_cpu"
@@ -46,12 +46,16 @@ jobs:
     strategy:
       fail-fast: false # Don't cancel all on first failure
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         model:
           - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
           - "transformers_phi4_mini_cpu"
           - "onnxruntime_phi4_mini_instruct"
+        exclude:
+          # https://github.com/microsoft/onnxruntime/issues/26547
+          - model: "onnxruntime_phi4_mini_instruct"
+            python-version: "3.14"  # Waiting for ONNX update
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
       os: "Large_Windows"

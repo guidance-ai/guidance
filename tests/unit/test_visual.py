@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from base64 import b64encode
 
 import pytest
@@ -48,7 +49,13 @@ def test_serialization(message):
 
 def test_async():
     _, loop = get_bg_async()._thread_and_loop()
-    assert loop != asyncio.get_event_loop()
+    if sys.version_info < (3, 14):
+        assert loop != asyncio.get_event_loop()
+    else:
+        # python 3.14 made asyncio.get_event_loop() a RuntimeError
+        # if there is no current event loop
+        with pytest.raises(RuntimeError):
+            asyncio.get_event_loop()
 
     async def f():
         return True

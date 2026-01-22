@@ -1,22 +1,9 @@
 import logging
-import pathlib
-from typing import Any
 
-import papermill as pm
 import pytest
 
 from ..utils import slowdown
-
-BASE_NB_PATH = pathlib.Path("./notebooks").absolute()
-
-
-def run_notebook(notebook_path: pathlib.Path, params: dict[str, Any] | None = None):
-    assert notebook_path.exists(), f"Checking for: {notebook_path}"
-    output_nb = notebook_path.stem + ".papermill_out" + notebook_path.suffix
-    output_path = notebook_path.parent / output_nb
-
-    # Just make sure nothing throws an exception
-    pm.execute_notebook(input_path=notebook_path, output_path=output_path, parameters=params)
+from .nb_test_utils import BASE_NB_PATH, run_notebook
 
 
 def test_guarantee_valid_syntax():
@@ -75,11 +62,6 @@ class TestTutorials:
 
 class TestModels:
     BASE_MODEL_PATH = BASE_NB_PATH / "api_examples" / "models"
-
-    def test_azure_openai(self):
-        call_delay_secs = slowdown()
-        nb_path = TestModels.BASE_MODEL_PATH / "AzureOpenAI.ipynb"
-        run_notebook(nb_path, params={"call_delay_secs": call_delay_secs})
 
     def test_openai(self):
         nb_path = TestModels.BASE_MODEL_PATH / "OpenAI.ipynb"
