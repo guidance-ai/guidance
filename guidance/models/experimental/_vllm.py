@@ -31,7 +31,6 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
 
         kwargs = self._process_kwargs(**kwargs)
         extra_body = {
-            "guided_decoding_backend": "guidance",
              "structured_outputs": {"grammar": node.ll_grammar()}
         }
         kwargs["extra_body"].update(extra_body)
