@@ -1,4 +1,4 @@
-from typing import Iterator
+from typing import Iterator, Callable
 
 from guidance._schema import SamplingParams
 
@@ -24,15 +24,30 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
             ) from ie
 
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
+
+        import requests
+        from packaging.version import Version
+
+        vllm_version = requests.get(f"{base_url.rstrip('/v1')}/version").json()['version']
+        # As of v0.12.0, vLLM expects a different format for structured output requests
+        # https://docs.vllm.ai/en/latest/features/structured_outputs/
+        self.format_extra_body: Callable[[str], dict]
+        if Version(vllm_version) >= Version("0.12.0"):
+            self.format_extra_body = lambda n: {
+                "structured_outputs": {"grammar": n}
+            }
+        else:  # Use the old format
+            self.format_extra_body = lambda n: {
+                "guided_decoding_backend": "guidance",
+                "guided_grammar": n,
+            }
         super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
 
     def grammar(self, node: GrammarNode, **kwargs) -> Iterator[OutputAttr]:
         buffer: str = ""
 
         kwargs = self._process_kwargs(**kwargs)
-        extra_body = {
-             "structured_outputs": {"grammar": node.ll_grammar()}
-        }
+        extra_body = self.format_extra_body(node.ll_grammar())
         kwargs["extra_body"].update(extra_body)
 
         for attr in self._run(**kwargs):
