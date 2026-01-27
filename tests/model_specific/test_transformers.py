@@ -184,7 +184,7 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
     bos_token_bytes = transformers_model.engine.tokenizer.bos_token
     jinja2_render = jinja2_template.render(
         messages=messages,
-        bos_token=None if bos_token_bytes is None else bos_token_bytes.decode(),
+        bos_token="" if bos_token_bytes is None else bos_token_bytes.decode(),
         eos_token=transformers_model.engine.tokenizer.eos_token.decode(),
     )
 
