@@ -54,8 +54,7 @@ doc_requires = [
     "sphinx",
     "ipykernel",
     "huggingface_hub",
-    "llama-cpp-python",
-]
+] + llamacpp_requires
 unittest_requires = [
     "anytree",
     "jsonschema",
