@@ -78,10 +78,9 @@ test_requires = [
     "protobuf",
     "sentencepiece",
     "torch",
-    "transformers",
     "tiktoken>=0.3",
     "mypy==1.9.0",
-] + unittest_requires
+] + unittest_requires + transformers_requires
 
 dev_requires = ["ruff==0.13.0", "mypy"]
 
