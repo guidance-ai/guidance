@@ -472,33 +472,14 @@ class TransformersEngine(Engine):
 
         # check how many tokens are in the kv cache and what the max size of the cache is
         past_key_values = self._past_key_values
-        max_cache_shape = None
         if past_key_values is None:
             past_length = 0
         elif isinstance(past_key_values, tuple):
             past_length = past_key_values[0][0].size(-2)
         elif isinstance(past_key_values, transformers_package.Cache):
             past_length = past_key_values.get_seq_length()
-            try:
-                max_cache_shape = past_key_values.get_max_cache_shape()
-            except AttributeError:
-                # `get_max_length` is deprecated in favor of `get_max_cache_shape`
-                # as of transformers v4.48, but we use here for backwards compatibility
-                max_cache_shape = past_key_values.get_max_length()
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
-
-        # If the cache is too small, we need to resize it or make a new one.
-        if max_cache_shape is not None and len(token_ids) > max_cache_shape:
-            # TODO: `max_cache_shape` seems to get set to the length of the first sequence we pass for models using
-            # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
-            # if we want to continue generation with the same cache.
-            warnings.warn(
-                f"Cache of type {type(past_key_values)} is too small; resetting.",
-                stacklevel=1,
-            )
-            self._past_key_values = None
-            past_length = 0
 
         # clear obsolete parts of kv cache
         if past_length > num_cached:
