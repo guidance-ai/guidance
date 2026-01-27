@@ -470,7 +470,7 @@ class TransformersEngine(Engine):
             # we need to pass at least one new token
             num_cached = num_cached - 1
 
-        # check how many tokens are in the kv cache and what the max size of the cache is
+        # determine how many tokens are currently stored in the KV cache
         past_key_values = self._past_key_values
         if past_key_values is None:
             past_length = 0
