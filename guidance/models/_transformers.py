@@ -470,59 +470,16 @@ class TransformersEngine(Engine):
             # we need to pass at least one new token
             num_cached = num_cached - 1
 
-        # check how many tokens are in the kv cache and what the max size of the cache is
+        # determine how many tokens are currently stored in the KV cache
         past_key_values = self._past_key_values
-        max_cache_shape = None
         if past_key_values is None:
             past_length = 0
         elif isinstance(past_key_values, tuple):
             past_length = past_key_values[0][0].size(-2)
         elif isinstance(past_key_values, transformers_package.Cache):
-            # TODO: use model's `cache_position` once available, as this may be deprecated in a future version
-            # https://github.com/huggingface/transformers/blob/70b07d97cf2c5f61fff55700b65528a1b6845cd2/src/transformers/cache_utils.py#L64
             past_length = past_key_values.get_seq_length()
-            try:
-                max_cache_shape = past_key_values.get_max_cache_shape()
-            except AttributeError:
-                # `get_max_length` is deprecated in favor of `get_max_cache_shape`
-                # as of transformers v4.48, but we use here for backwards compatibility
-                max_cache_shape = past_key_values.get_max_length()
         else:
             raise TypeError(f"Unknown type of past_key_values: {type(past_key_values)}")
-
-        # If the cache is too small, we need to resize it or make a new one.
-        if max_cache_shape is not None and len(token_ids) > max_cache_shape:
-            # TODO: this seems to get set to the length of the first sequence we pass for models using
-            # StaticCache or HybridCache. We need to initialize our own cache with a large enough size
-            # if we want to continue generation with the same cache.
-            if isinstance(
-                past_key_values,
-                (transformers_package.StaticCache, transformers_package.HybridCache),
-            ):
-                # The __init__ API isn't consistent between different cache types, but there seems to be consistency
-                # between these two types, so we can use the same logic for both.
-                warnings.warn("Cache is too small. Re-initializing cache with larger size.", stacklevel=1)
-                cache_type = type(past_key_values)
-                config = self.model_obj.config
-                device = self.model_obj.device
-                hf_device_map = getattr(self.model_obj, "hf_device_map", {})
-                # hf_device_map is not always a complete mapping of layers to devices...
-                layer_device_map = {k: hf_device_map.get(k, device) for k in range(config.num_hidden_layers)}
-                self._past_key_values = cache_type(
-                    config=config,
-                    max_batch_size=past_key_values.max_batch_size,
-                    # Double the cache size to be safe
-                    max_cache_len=len(token_ids) * 2,
-                    dtype=past_key_values._dtype,
-                    layer_device_map=layer_device_map,
-                )
-            else:
-                warnings.warn(
-                    f"Cache is too small. Resetting cache (no method implemented to resize cache for type {type(past_key_values)}).",
-                    stacklevel=1,
-                )
-                self._past_key_values = None
-            past_length = 0
 
         # clear obsolete parts of kv cache
         if past_length > num_cached:
