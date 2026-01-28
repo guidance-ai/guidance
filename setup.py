@@ -30,7 +30,6 @@ install_requires = [
     "pydantic",
     "requests",
     "psutil"
-    "packaging",
     "guidance-stitch==0.1.5",
     "llguidance==1.4.0",
 ]
