@@ -1,7 +1,7 @@
 <div align="right">
   <a href="https://discord.gg/cjPfAK43dz"><img src="https://img.shields.io/badge/Discord-Join%20Us-5865F2?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="mailto:guidanceai@microsoft.com"><img src="https://img.shields.io/badge/Email-guidanceai%40microsoft.com-0078D4?logo=microsoft-outlook&logoColor=white" alt="Email"></a>
-  <img src="https://img.shields.io/badge/Hours-10am--5pm%20Pacific-gray" alt="Hours">
+  <img src="https://img.shields.io/badge/Hours-10am--2pm%20Pacific-gray" alt="Hours">
 </div>
 <div align="center"><picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/figures/guidance_logo_blue_dark.svg">
