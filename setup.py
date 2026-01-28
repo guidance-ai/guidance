@@ -29,7 +29,7 @@ install_requires = [
     "numpy",
     "pydantic",
     "requests",
-    "psutil"
+    "psutil",
     "guidance-stitch==0.1.5",
     "llguidance==1.4.0",
 ]
