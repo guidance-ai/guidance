@@ -79,7 +79,8 @@ test_requires = [
     "torch",
     "tiktoken>=0.3",
     "mypy==1.9.0",
-] + unittest_requires + transformers_requires
+]
+test_requires = test_requires + unittest_requires + transformers_requires
 
 dev_requires = ["ruff==0.13.0", "mypy"]
 
