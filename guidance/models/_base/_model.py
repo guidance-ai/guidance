@@ -307,7 +307,7 @@ class Model:
         self = self.copy()
         # Only EngineInterpreter has step_config; guard for other interpreter types
         if hasattr(self._interpreter, "step_config"):
-            setattr(self._interpreter, "step_config", step_config)
+            self._interpreter.step_config = step_config
         else:
             raise NotImplementedError("Step interjection is only supported for engine-backed models.")
         return self
