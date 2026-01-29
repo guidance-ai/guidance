@@ -54,8 +54,7 @@ doc_requires = [
     "sphinx",
     "ipykernel",
     "huggingface_hub",
-    "llama-cpp-python",
-]
+] + llamacpp_requires
 unittest_requires = [
     "anytree",
     "jsonschema",
@@ -78,10 +77,10 @@ test_requires = [
     "protobuf",
     "sentencepiece",
     "torch",
-    "transformers",
     "tiktoken>=0.3",
     "mypy==1.9.0",
-] + unittest_requires
+]
+test_requires = test_requires + unittest_requires + transformers_requires
 
 dev_requires = ["ruff==0.13.0", "mypy"]
 

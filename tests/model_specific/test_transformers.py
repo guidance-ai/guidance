@@ -181,9 +181,10 @@ def test_chat_format_smoke(transformers_model: models.Transformers):
     # https://github.com/ggerganov/llama.cpp/wiki/Templates-supported-by-llama_chat_apply_template
     # it does its own thing internally
     jinja2_template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(model_chat_template)
+    bos_token_bytes = transformers_model.engine.tokenizer.bos_token
     jinja2_render = jinja2_template.render(
         messages=messages,
-        bos_token=transformers_model.engine.tokenizer.bos_token.decode(),
+        bos_token="" if bos_token_bytes is None else bos_token_bytes.decode(),
         eos_token=transformers_model.engine.tokenizer.eos_token.decode(),
     )
 
