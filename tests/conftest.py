@@ -143,34 +143,6 @@ def selected_model(selected_model_name: str) -> models.Model:
             n_ctx=2048,
         )
 
-    # PHI 2
-    if selected_model_name == "transformers_phi2_cpu":
-        return models.Transformers("microsoft/phi-2", trust_remote_code=True)
-    if selected_model_name == "transformers_phi2_gpu":
-        return models.Transformers("microsoft/phi-2", trust_remote_code=True, device_map="cuda:0")
-
-    # PHI 3
-    if selected_model_name == "transformers_phi3_mini_4k_instruct_cpu":
-        return models.Transformers("microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True)
-    if selected_model_name == "llamacpp_phi3_mini_4k_instruct_cpu":
-        from huggingface_hub import hf_hub_download
-
-        return models.LlamaCpp(
-            hf_hub_download(
-                repo_id="microsoft/Phi-3-mini-4k-instruct-gguf",
-                filename="Phi-3-mini-4k-instruct-q4.gguf",
-            ),
-            verbose=True,
-            n_ctx=4096,
-        )
-    if selected_model_name == "transformers_phi3_small_8k_instruct_gpu":
-        return models.Transformers(
-            "microsoft/Phi-3-small-8k-instruct",
-            trust_remote_code=True,
-            load_in_8bit=True,
-            device_map="cuda:0",
-        )
-
     # PHI-4
     if selected_model_name == "transformers_phi4_mini_cpu":
         return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
