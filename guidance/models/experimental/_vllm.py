@@ -38,7 +38,7 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
             "guided_decoding_backend": "guidance",
             "guided_grammar": node.ll_grammar(),
             # > v0.12.0
-            "structured_outputs": {"grammar": node.ll_grammar()}
+            "structured_outputs": {"grammar": node.ll_grammar()},
         }
         kwargs["extra_body"].update(extra_body)
 
