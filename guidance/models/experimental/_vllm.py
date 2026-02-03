@@ -30,9 +30,15 @@ class VLLMInterpreter(BaseOpenAIInterpreter):
         buffer: str = ""
 
         kwargs = self._process_kwargs(**kwargs)
+        # As of v0.12.0, vLLM expects a different format for structured output requests
+        # https://docs.vllm.ai/en/latest/features/structured_outputs/
+        # But, we can send both, and vLLM will ignore the invalid one
         extra_body = {
+            # < v0.12.0
             "guided_decoding_backend": "guidance",
             "guided_grammar": node.ll_grammar(),
+            # > v0.12.0
+            "structured_outputs": {"grammar": node.ll_grammar()},
         }
         kwargs["extra_body"].update(extra_body)
 
