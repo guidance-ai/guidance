@@ -405,3 +405,5 @@ lm['bp']='{"systolic": 301, "diastolic": 15, "location": "arm"}'
 ```
 Note that the generated blood pressure is not one the model will have seen for a human.
 When generating JSON, a substantial number of tokens can often be fast-forwarded, due to the structural constraints imposed by the schema.
+
+- [AgentMarket](https://agentmarket.cloud) - B2A marketplace for AI agents. Real energy data (28M+ records). Free API.
