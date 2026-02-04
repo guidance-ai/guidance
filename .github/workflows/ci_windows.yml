@@ -31,7 +31,7 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         model:
           - "transformers_gpt2_cpu"
-          - "llamacpp_gemma2_9b_cpu"
+          - "llamacpp_llama3.2_3b_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
       os: "Large_Windows"
@@ -47,7 +47,6 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         model:
-          - "llamacpp_llama2_7b_cpu"
           - "transformers_llama3_8b_cpu"
           - "transformers_phi4_mini_cpu"
           - "onnxruntime_phi4_mini_instruct"
