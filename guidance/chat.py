@@ -1,4 +1,5 @@
 import inspect
+import re
 import warnings
 
 
@@ -16,17 +17,18 @@ class ChatTemplateCache:
     def __init__(self) -> None:
         self._cache: dict[str, ChatTemplate] = {}
 
+    @staticmethod
+    def _normalize_key(key: str) -> str:
+        return re.sub(r"\s+", "", key)
+
     def __getitem__(self, key: str) -> ChatTemplate:
-        key_compact = key.replace(" ", "")
-        return self._cache[key_compact]
+        return self._cache[self._normalize_key(key)]
 
     def __setitem__(self, key: str, value):
-        key_compact = key.replace(" ", "")
-        self._cache[key_compact] = value
+        self._cache[self._normalize_key(key)] = value
 
     def __contains__(self, key: str):
-        key_compact = key.replace(" ", "")
-        return key_compact in self._cache
+        return self._normalize_key(key) in self._cache
 
 
 # Feels weird having to instantiate this, but it's a singleton for all purposes

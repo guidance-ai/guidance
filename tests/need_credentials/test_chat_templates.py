@@ -13,6 +13,7 @@ from ..utils import env_or_skip
         ("microsoft/Phi-3-mini-4k-instruct", True),  # Phi-3-Mini
         ("microsoft/Phi-3-small-8k-instruct", True),  # Phi-3-Small
         ("microsoft/Phi-3-medium-4k-instruct", True),  # Phi-3-Medium
+        ("microsoft/Phi-4-mini-instruct", True),  # Phi-4-Mini
         ("meta-llama/Meta-Llama-3-8B-Instruct", True),  # Llama-3
         ("meta-llama/Llama-2-7b-chat-hf", True),  # Llama-2
         ("mistralai/Mistral-7B-Instruct-v0.2", True),  # Mistral-7B-Instruct-v0.2
@@ -40,13 +41,13 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
 
 
-@pytest.mark.skip(reason="Is this supposed to work still? See issue 1196")
 @pytest.mark.parametrize(
     "model_id",
     [
         "microsoft/Phi-3-mini-4k-instruct",
         "microsoft/Phi-3-small-8k-instruct",
         "microsoft/Phi-3-medium-4k-instruct",
+        "microsoft/Phi-4-mini-instruct",
         "meta-llama/Meta-Llama-3-8B-Instruct",
         "meta-llama/Llama-2-7b-chat-hf",
         "mistralai/Mistral-7B-Instruct-v0.2",
@@ -76,11 +77,11 @@ def test_chat_format_smoke(model_id: str):
     assert str(lm) in tokeniser_render
 
 
-@pytest.mark.skip(reason="Is this supposed to work still? See issue 1196")
 @pytest.mark.parametrize(
     "model_id",
     [
         "microsoft/Phi-3-mini-4k-instruct",
+        "microsoft/Phi-4-mini-instruct",
         "meta-llama/Meta-Llama-3-8B-Instruct",
         "Qwen/Qwen2.5-0.5B",
         "Qwen/Qwen2.5-0.5B-Instruct",
