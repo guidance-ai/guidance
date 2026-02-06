@@ -135,10 +135,12 @@ def selected_model(selected_model_name: str) -> models.Model:
         import json
 
         import torch
-        from huggingface_hub import snapshot_download
+        import subprocess
 
         sub_dir = "gpu/gpu-int4-rtn-block-32"
-        base_model_path = snapshot_download(repo_id="microsoft/Phi-4-mini-instruct-onnx", allow_patterns=f"{sub_dir}/*")
+        base_model_path = "./tmp_model"
+        os.makedirs(base_model_path, exist_ok=True)
+        subprocess.run(args=["hf", "download", "microsoft/Phi-4-mini-instruct-onnx", "--local-dir", base_model_path])
 
         kwargs = {}
         if torch.cuda.is_available():
