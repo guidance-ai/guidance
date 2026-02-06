@@ -18,9 +18,7 @@ from tests.tokenizer_common import TOKENIZER_ROUND_TRIP_STRINGS, BaseTestTransfo
 class TestUnauthenticatedTransformerTokenizers(BaseTestTransformerTokenizers):
     TRANSFORMER_MODELS = [
         "gpt2",
-        "microsoft/phi-2",
-        "microsoft/Phi-3-small-8k-instruct",
-        "microsoft/Phi-3-mini-4k-instruct",
+        "microsoft/Phi-4-mini-instruct",
     ]
 
     @pytest.mark.parametrize(

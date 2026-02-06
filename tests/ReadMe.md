@@ -28,7 +28,7 @@ To select a particular model when running the tests, use the `--selected_model` 
 For example:
 
 ```bash
-python -m pytest --selected_model transformers_gemma2_9b_cpu ./tests/model_integration/
+python -m pytest --selected_model transformers_gpt2_cpu ./tests/model_integration/
 ```
 
 The allowed values for `--selected_model` are in the [`confest.py`](./conftest.py) file, and are defined in the `selected_model` function.

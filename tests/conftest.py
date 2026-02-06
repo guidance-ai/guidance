@@ -42,58 +42,11 @@ def selected_model(selected_model_name: str) -> models.Model:
     - 'host' is 'cpu' or 'gpu' as appropriate
     """
 
-    # GEMMA 2
-    if selected_model_name == "llamacpp_gemma2_9b_cpu":
-        # Note that this model requires an appropriate HF_TOKEN environment variable
-        from huggingface_hub import hf_hub_download
-
-        return models.LlamaCpp(
-            hf_hub_download(repo_id="bartowski/gemma-2-9b-it-GGUF", filename="gemma-2-9b-it-IQ2_XS.gguf"),
-            verbose=True,
-            n_ctx=4096,
-        )
-    if selected_model_name == "transformers_gemma2_9b_cpu":
-        # Note that this model requires an appropriate HF_TOKEN environment variable
-        from transformers import BitsAndBytesConfig
-
-        return models.Transformers(
-            "google/gemma-2-9b-it",
-            quantization_config=BitsAndBytesConfig(load_in_8bit=True),
-        )
-    if selected_model_name == "transformers_gemma2_9b_gpu":
-        # Note that this model requires an appropriate HF_TOKEN environment variable
-        from transformers import BitsAndBytesConfig
-
-        return models.Transformers(
-            "google/gemma-2-9b-it",
-            device_map="cuda:0",
-            quantization_config=BitsAndBytesConfig(load_in_4bit=True),
-        )
-
     # GPT 2
     if selected_model_name == "transformers_gpt2_cpu":
         return models.Transformers("gpt2")
     if selected_model_name == "transformers_gpt2_gpu":
         return models.Transformers("gpt2", device_map="cuda:0")
-
-    # LLAMA 2
-    if selected_model_name == "llamacpp_llama2_7b_cpu":
-        from huggingface_hub import hf_hub_download
-
-        return models.LlamaCpp(
-            hf_hub_download(repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"),
-            verbose=True,
-            n_ctx=4096,
-        )
-    if selected_model_name == "llamacpp_llama2_7b_gpu":
-        from huggingface_hub import hf_hub_download
-
-        return models.LlamaCpp(
-            hf_hub_download(repo_id="TheBloke/Llama-2-7B-GGUF", filename="llama-2-7b.Q5_K_M.gguf"),
-            verbose=True,
-            n_ctx=4096,
-            n_gpu_layers=-1,
-        )
 
     # LLAMA 3
     if selected_model_name == "transformers_llama3_8b_cpu":
@@ -143,43 +96,15 @@ def selected_model(selected_model_name: str) -> models.Model:
             n_ctx=2048,
         )
 
-    # PHI 2
-    if selected_model_name == "transformers_phi2_cpu":
-        return models.Transformers("microsoft/phi-2", trust_remote_code=True)
-    if selected_model_name == "transformers_phi2_gpu":
-        return models.Transformers("microsoft/phi-2", trust_remote_code=True, device_map="cuda:0")
-
-    # PHI 3
-    if selected_model_name == "transformers_phi3_mini_4k_instruct_cpu":
-        return models.Transformers("microsoft/Phi-3-mini-4k-instruct", trust_remote_code=True)
-    if selected_model_name == "llamacpp_phi3_mini_4k_instruct_cpu":
-        from huggingface_hub import hf_hub_download
-
-        return models.LlamaCpp(
-            hf_hub_download(
-                repo_id="microsoft/Phi-3-mini-4k-instruct-gguf",
-                filename="Phi-3-mini-4k-instruct-q4.gguf",
-            ),
-            verbose=True,
-            n_ctx=4096,
-        )
-    if selected_model_name == "transformers_phi3_small_8k_instruct_gpu":
-        return models.Transformers(
-            "microsoft/Phi-3-small-8k-instruct",
-            trust_remote_code=True,
-            load_in_8bit=True,
-            device_map="cuda:0",
-        )
-
     # PHI-4
     if selected_model_name == "transformers_phi4_mini_cpu":
-        return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=True)
+        return models.Transformers("microsoft/Phi-4-mini-instruct", trust_remote_code=False)
     if selected_model_name == "transformers_phi4_mini_gpu":
         from torch import bfloat16
 
         return models.Transformers(
             "microsoft/Phi-4-mini-instruct",
-            trust_remote_code=True,
+            trust_remote_code=False,
             device_map="cuda:0",
             torch_dtype=bfloat16,
         )
