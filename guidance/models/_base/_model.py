@@ -318,6 +318,19 @@ class Model:
             return self._interpreter.engine
         return super().__getattribute__(name)
 
+    @property
+    def chat_template(self):
+        """Get the chat template used by this model."""
+        return getattr(self._interpreter, "chat_template", None)
+
+    @chat_template.setter
+    def chat_template(self, value):
+        """Set the chat template used by this model."""
+        if hasattr(self._interpreter, "chat_template"):
+            self._interpreter.chat_template = value
+        else:
+            raise AttributeError("This model's interpreter does not support chat templates")
+
     def _get_usage(self) -> TokenUsage:
         """Get the token usage for this model."""
         # TODO(hudson): make this public API once we stabilize the data structure
