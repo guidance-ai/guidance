@@ -360,7 +360,7 @@ def test_ll_fighter():
                 "]‧\n‧}",
             ],
         )
-    except:
+    except Exception:
         # this is what llg before 0.6.9 does
         check_grammar(
             grm,

@@ -7,7 +7,7 @@ from guidance import assistant, gen, select, system, user
 def test_lite_llm_basic_openai():
     try:
         lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")
-    except:
+    except Exception:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
@@ -20,7 +20,7 @@ def test_lite_llm_basic_openai():
 def test_lite_llm_basic_cohere():
     try:
         lm = guidance.models.LiteLLMCompletion("command-nightly")
-    except:
+    except Exception:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
@@ -33,7 +33,7 @@ def test_lite_llm_basic_cohere():
 def test_lite_llm_select():
     try:
         lm = guidance.models.LiteLLMCompletion("gpt-3.5-turbo-instruct")
-    except:
+    except Exception:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     lm += "Pick a number: "
     lm += select(["1", "11", "111", "1111", "11111", "111111", "1111111"], name="the number")
@@ -43,7 +43,7 @@ def test_lite_llm_select():
 def test_lite_llm_chat():
     try:
         lm = guidance.models.LiteLLMChat("gpt-3.5-turbo")
-    except:
+    except Exception:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     with system():
         lm += "You are a math wiz."

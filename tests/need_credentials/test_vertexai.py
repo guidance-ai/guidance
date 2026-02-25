@@ -6,7 +6,7 @@ from guidance import gen, models, role
 def test_palm2_instruct():
     try:
         vmodel = models.VertexAI("text-bison@001")
-    except:
+    except Exception:
         pytest.skip("Skipping VertexAI test because we can't load the model!")
 
     with role("instruction"):
@@ -20,7 +20,7 @@ def test_palm2_chat():
 
     try:
         vmodel = models.VertexAI("chat-bison@001")
-    except:
+    except Exception:
         pytest.skip("Skipping VertexAI test because we can't load the model!")
 
     with system():
@@ -67,7 +67,7 @@ def test_gemini_chat():
 
     try:
         vmodel = models.VertexAI("gemini-pro")
-    except:
+    except Exception:
         pytest.skip("Skipping VertexAI test because we can't load the model!")
 
     lm = vmodel

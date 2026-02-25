@@ -7,7 +7,7 @@ from guidance import gen, role
 def test_lite_llm_basic():
     try:
         lm = guidance.models.CohereCompletion("command-nightly")
-    except:
+    except Exception:
         pytest.skip("Skipping Cohere test because we can't load the model!")
     lm += "Count to 20: 1,2,3,4,"
     nl = "\n"
@@ -20,7 +20,7 @@ def test_lite_llm_basic():
 def test_lite_llm_instruct():
     try:
         lm = guidance.models.CohereInstruct("command-nightly")
-    except:
+    except Exception:
         pytest.skip("Skipping LiteLLM test because we can't load the model!")
     with role("instruction"):
         lm += "Count to 20."

@@ -72,7 +72,7 @@ class MockEngine(Engine):
             try:
                 t.decode("utf8")
                 self._valid_mask[i] = 1.0
-            except:
+            except Exception:
                 pass
         self.force = force
         self.called_temperatures = []

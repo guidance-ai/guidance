@@ -6,7 +6,7 @@ def test_gemini_pro():
 
     try:
         vmodel = models.GoogleAI("gemini-pro")
-    except:
+    except Exception:
         pytest.skip("Skipping GoogleAI test because we can't load the model!")
 
     lm = vmodel

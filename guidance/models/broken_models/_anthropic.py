@@ -38,7 +38,7 @@
 #         if tokenizer is None:
 #             try:
 #                 tokenizer = tiktoken.encoding_for_model(model)
-#             except:
+#             except Exception:
 #                 tokenizer = tiktoken.get_encoding("gpt2")
 
 #         super().__init__(tokenizer, max_streaming_tokens, timeout, compute_log_probs)

@@ -34,7 +34,7 @@ def test_grammar_closer():
     try:
         with block(closer=regex(r".") + "lose text"):
             model += regex(r".")
-    except:
+    except Exception:
         return  # we expect an exception
     raise AssertionError("We should have thrown an exception using a context (prompt) based grammar in the closer!")
 

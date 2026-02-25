@@ -158,7 +158,7 @@ def _decorator(f, *, stateless, cache, model):
                 try:
                     # call the function to get the grammar node
                     node = f(_null_grammar, *args, **kwargs)
-                except:
+                except Exception:
                     raise
                 else:
                     # If we're just wrapping a RuleNode, don't add an extra layer of RuleNode

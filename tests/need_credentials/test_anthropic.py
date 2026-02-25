@@ -7,7 +7,7 @@ from guidance import assistant, gen, select, system, user
 def test_anthropic_chat():
     try:
         lm = guidance.models.Anthropic(model="claude-3-haiku-20240307")
-    except:
+    except Exception:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
     with system():
         lm += "You are a math wiz."
@@ -25,7 +25,7 @@ def test_anthropic_chat():
 def test_anthropic_select():
     try:
         lm = guidance.models.Anthropic(model="claude-instant-1.2")
-    except:
+    except Exception:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
 
     # We can't meaningfully test or enforce select on this model
@@ -40,7 +40,7 @@ def test_anthropic_chat_loop():
     # tests issue #509
     try:
         model = guidance.models.Anthropic(model="claude-3-haiku-20240307")
-    except:
+    except Exception:
         pytest.skip("Skipping Anthropic test because we can't load the model!")
 
     for i in range(2):

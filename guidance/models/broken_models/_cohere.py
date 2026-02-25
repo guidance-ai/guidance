@@ -23,7 +23,7 @@
 #         if tokenizer is None:
 #             try:
 #                 tokenizer = tokenizers.Tokenizer.from_pretrained("Cohere/" + model)
-#             except:
+#             except Exception:
 #                 tokenizer = tokenizers.Tokenizer.from_pretrained(
 #                     "Cohere/command-nightly"
 #                 )
