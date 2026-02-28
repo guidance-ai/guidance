@@ -2,6 +2,7 @@
 # TODO(nopdive): Benchmark (expected heap fragmentation issue). Likely need memory pooling (via rust/ctypes/Cython).
 import logging
 import weakref
+from collections import deque
 from itertools import count
 from typing import Annotated, Any, ClassVar, Generator, Optional, Union
 
@@ -311,16 +312,16 @@ class TraceNode(BaseModel):
         Yields:
             Trace nodes in traversal order.
         """
-        queue = [self]
+        queue: deque[TraceNode] = deque([self])
         while queue:
-            node = queue.pop(0)
+            node = queue.popleft()
             yield node
 
             if bfs:
                 queue.extend(node.children)
             else:
                 # NOTE(nopdive): Analogous to extend but at front of list.
-                queue[0:0] = node.children
+                queue.extendleft(reversed(node.children))
 
     def __repr__(self):
         return f"{self.identifier}:{self.input!r}:{self.output!r}"
