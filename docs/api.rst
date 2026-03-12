@@ -39,6 +39,7 @@ models
 
     guidance.models.Model
     guidance.models.LlamaCpp
+    guidance.models.MiniMax
     guidance.models.Transformers
     guidance.models.Anthropic
     guidance.models.AzureOpenAI
