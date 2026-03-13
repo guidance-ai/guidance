@@ -78,7 +78,7 @@ def selected_model(selected_model_name: str) -> models.Model:
                 filename="Llama-3.2-3B-Instruct-Q6_K_L.gguf",
             ),
             verbose=True,
-            n_ctx=4096,
+            n_ctx=128000,
         )
 
     # MISTRAL

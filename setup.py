@@ -20,7 +20,6 @@ from setuptools import find_packages, setup
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-llamacpp_requires = ["llama-cpp-python==0.3.16"]
 transformers_requires = ["transformers<5"]
 onnxruntime_genai_requires = ["onnxruntime-gpu>=1.19.2", "onnxruntime-genai-cuda>=0.4.0"]
 
@@ -54,7 +53,7 @@ doc_requires = [
     "sphinx",
     "ipykernel",
     "huggingface_hub",
-] + llamacpp_requires
+]
 unittest_requires = [
     "anytree",
     "jsonschema",
@@ -113,7 +112,6 @@ setup(
     extras_require={
         "all": all_requires,
         "unittest": unittest_requires,
-        "llamacpp": llamacpp_requires,
         "transformers": transformers_requires,
         "onnxruntime_genai": onnxruntime_genai_requires,
         "test": test_requires,
