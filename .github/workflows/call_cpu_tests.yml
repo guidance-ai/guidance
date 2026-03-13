@@ -62,7 +62,7 @@ jobs:
           python -m pip install --upgrade pip
       - name: Install llama-cpp-python from new location
         shell: bash
-        if: ${{ inputs.model == 'llamacpp_llama2_7b_cpu' || inputs.model == 'llamacpp_llama2_13b_cpu' }}
+        if: ${{ startsWith(inputs.model, 'llamacpp') }}
         run: |
           pip install "llama-cpp-python @ git+https://github.com/JamePeng/llama-cpp-python.git"
       - name: Install guidance and dependencies
