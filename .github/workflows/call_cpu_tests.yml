@@ -60,18 +60,23 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
+      - name: Install llama-cpp-python from new location
+        shell: bash
+        if: ${{ inputs.model == 'llamacpp_llama2_7b_cpu' || inputs.model == 'llamacpp_llama2_13b_cpu' }}
+        run: |
+          pip install "llama-cpp-python @ git+https://github.com/JamePeng/llama-cpp-python.git"
       - name: Install guidance and dependencies
         shell: bash
         if: ${{ inputs.python-version != '3.14' }}
         run: |
-          python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
+          python -m pip install -e .[transformers,onnxruntime_genai,test]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: Install guidance and dependencies (3.14/ONNX workaround)
         # https://github.com/microsoft/onnxruntime/issues/26547
         shell: bash
         if: ${{ inputs.python-version == '3.14' }}
         run: |
-          python -m pip install -e .[llamacpp,transformers,test]
+          python -m pip install -e .[transformers,test]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
