@@ -38,6 +38,7 @@ models
     :toctree: generated/
 
     guidance.models.Model
+    guidance.models.Mock
     guidance.models.LlamaCpp
     guidance.models.Transformers
     guidance.models.Anthropic
