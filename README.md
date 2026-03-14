@@ -137,6 +137,26 @@ The constraint system offered by Guidance is extremely powerful.
 It can ensure that the output conforms to any context free grammar (so long as the backend LLM has full support for Guidance).
 More on this below.
 
+### Debug grammars offline (no model API calls)
+
+When iterating on constraints, you can validate candidate strings locally and test a full run with the `Mock` model.
+
+```python
+from guidance import gen
+from guidance.models import Mock
+
+grammar = "expr=" + gen(regex=r"\d+([+*]\d+)*", name="expr")
+
+# 1) Validate strings directly against the grammar
+assert grammar.match("expr=12+7*3") is not None
+assert grammar.match("expr=12+*3") is None
+
+# 2) Run the same grammar with a local mock model
+lm = Mock(b"<s>expr=12+7*3")
+lm += grammar
+print(lm["expr"])  # 12+7*3
+```
+
 ### Create your own Guidance functions
 
 With Guidance, you can create your own Guidance functions which can interact with language models.
