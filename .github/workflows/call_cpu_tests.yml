@@ -64,7 +64,7 @@ jobs:
         shell: bash
         if: ${{ inputs.python-version != '3.14' }}
         run: |
-          python -m pip install -e .[llamacpp,transformers,onnxruntime_genai,test]
+          python -m pip install -e .[llamacpp,transformers,onnxruntime-genai,test]
           python -m pip install accelerate  # required if using smaller quantizations
       - name: Install guidance and dependencies (3.14/ONNX workaround)
         # https://github.com/microsoft/onnxruntime/issues/26547

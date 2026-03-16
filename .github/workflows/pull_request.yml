@@ -38,7 +38,7 @@ jobs:
           python -c "import guidance"
       - name: Bigger install
         run: |
-          python -m pip install -e .[unittest]
+          python -m pip install -e .[testing]
       - name: Unit Tests
         shell: bash
         run: |
