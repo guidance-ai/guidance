@@ -1,4 +1,6 @@
-__version__ = "0.3.1"
+from importlib.metadata import version as _v
+
+__version__ = _v("guidance")
 
 import sys
 from types import ModuleType

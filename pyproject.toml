@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "guidance"
-dynamic = ["version"]
+version = "0.3.1"
 description = "A guidance language for controlling large language models."
 readme = "README.md"
 license = "MIT"
@@ -69,8 +69,6 @@ docs = [
     "huggingface_hub",
 ]
 
-[tool.setuptools.dynamic]
-version = { attr = "guidance.__version__" }
 
 [tool.setuptools.packages.find]
 exclude = ["notebooks", "client", "tests", "tests.*"]
