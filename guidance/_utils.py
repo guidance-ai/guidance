@@ -430,4 +430,3 @@ def apply_top_k_and_top_p_filter(logits: np.ndarray, sampling_params: Optional["
             logits[sorted_indices_to_remove] = -float("inf")
 
     return logits
-
