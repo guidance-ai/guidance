@@ -96,7 +96,7 @@ class normalize_notebook_stdout_stderr:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.restore_stdout is not None:
-            sys.stderr._original_stdstream_copy = self.restore_stdout
+            sys.stdout._original_stdstream_copy = self.restore_stdout
         if self.restore_stderr is not None:
             sys.stderr._original_stdstream_copy = self.restore_stderr
 
