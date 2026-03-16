@@ -78,10 +78,6 @@ class TestArtOfPromptDesign:
 
     @pytest.mark.skip("Tool calling unstable")
     def test_react(self, selected_model_name):
-        if selected_model_name in ["transformers_phi2_gpu"]:
-            # I don't know why; it doesn't make sense, but
-            msg = f"react notebook disagrees with {selected_model_name}; reasons obscure"
-            pytest.skip(msg)
         nb_path = TestArtOfPromptDesign.BASE_APD_PATH / "react.ipynb"
         run_notebook(nb_path)
 

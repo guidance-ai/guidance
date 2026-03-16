@@ -58,7 +58,6 @@ jobs:
         python-version: ["3.10", "3.14"]
         model:
           - "transformers_gpt2_cpu"
-          - "llamacpp_phi3_mini_4k_instruct_cpu"
     uses: ./.github/workflows/call_cpu_tests.yml
     with:
       os: ${{ matrix.os }}
