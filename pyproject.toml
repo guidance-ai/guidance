@@ -20,7 +20,7 @@ dependencies = [
     "requests",
     "psutil>=5.0",
     "guidance-stitch==0.1.5",
-    "llguidance==1.5.0",
+    "llguidance==1.6.1",
 ]
 
 [project.optional-dependencies]

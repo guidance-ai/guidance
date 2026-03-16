@@ -133,9 +133,9 @@ def selected_model(selected_model_name: str) -> models.Model:
 
     if selected_model_name == "onnxruntime_phi4_mini_instruct":
         import json
+        import subprocess
 
         import torch
-        import subprocess
 
         sub_dir = "gpu/gpu-int4-rtn-block-32"
         base_model_path = "./tmp_model"
