@@ -30,7 +30,7 @@ llamacpp = ["llama-cpp-python~=0.3.16"]
 transformers = ["transformers<5"]
 onnxruntime-genai = ["onnxruntime-gpu>=1.19.2", "onnxruntime-genai-cuda>=0.4.0"]
 all = ["guidance[azureai,openai,llamacpp,transformers,onnxruntime-genai]"]
-testing = [
+test-unit = [
     "anytree",
     "jsonschema",
     "pytest",
@@ -46,7 +46,7 @@ dev = [
     "types-jsonschema",
 ]
 test = [
-    "guidance[testing,transformers,dev]",
+    "guidance[test-unit,transformers,dev]",
     "diskcache",
     "azure-identity",
     "bitsandbytes",
