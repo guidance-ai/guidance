@@ -23,11 +23,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Build bdist
         run: |
-          python -m pip install build
-          python -m build --wheel
+          uv build --wheel
 
       - name: Upload bdist
         uses: actions/upload-artifact@v4
@@ -47,11 +48,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
 
       - name: Build sdist (pep517)
         run: |
-          python -m pip install build
-          python -m build --sdist
+          uv build --sdist
 
       - name: Upload sdist
         uses: actions/upload-artifact@v4
@@ -97,9 +99,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: python -m pip install guidance -f ./wheelhouse/
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+      - run: uv pip install --system guidance -f ./wheelhouse/
         name: Install guidance from wheels
-      - run: python -m pip install transformers torch
+      - run: uv pip install --system transformers torch
         name: Other installs
       # - run: python -c "import guidance; import transformers; lm = guidance.models.Transformers('gpt2'); lm += '1,2,3,4,5,' + guidance.gen('num', max_tokens=5, temperature=0); print(f'\n Transformers Version:{transformers.__version__}\n\n{str(lm)=}\n'); assert lm['num'].startswith('6')"
       #   name: Run smoke test

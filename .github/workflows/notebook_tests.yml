@@ -39,15 +39,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
       - name: Install guidance
         shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -e .[all,llamacpp,test]
+          uv pip install --system -e .[all,llamacpp,test]
       - name: Install gpustat
         shell: bash
         run: |
-          python -m pip install gpustat
+          uv pip install --system gpustat
       - name: Notebook tests
         shell: bash
         env:
