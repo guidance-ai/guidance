@@ -1,5 +1,8 @@
 name: Code Quality
 
+env:
+  PYTHON_VERSION: "3.12"
+
 on:
   pull_request:
   workflow_dispatch:
@@ -27,7 +30,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
       - name: Do dev install
@@ -86,7 +89,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
       - name: Do dev install
@@ -111,7 +114,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
       - name: Do guidance install
