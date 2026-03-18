@@ -24,15 +24,15 @@ jobs:
       checks: write
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Do dev install
         run: uv pip install --system -e .[dev]
       - name: Check format with ruff
@@ -57,7 +57,7 @@ jobs:
           fi
       - name: Mark step with a warning
         if: ${{ steps.check_format.outcome == 'failure' || steps.check_import.outcome == 'failure' }} 
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.checks.create({
@@ -83,15 +83,15 @@ jobs:
       checks: read
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Do dev install
         run: uv pip install --system -e .[dev]
       - name: Run ruff linting
@@ -108,15 +108,15 @@ jobs:
       checks: read
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - name: Do guidance install
         run: uv pip install --system -e .[all,dev]
       - name: Get mypy type packages
