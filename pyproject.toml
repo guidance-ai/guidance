@@ -1,10 +1,83 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel",
-    "pybind11>=2.10.0",
-]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "guidance"
+dynamic = ["version"]
+description = "A guidance language for controlling large language models."
+readme = "README.md"
+license = {file = "LICENSE.md"}
+requires-python = ">=3.10"
+authors = [
+    { name = "Guidance Maintainers", email = "maintainers@guidance-ai.org" },
+]
+urls = { Homepage = "https://github.com/guidance-ai/guidance" }
+dependencies = [
+    "jinja2>=2.10",
+    "numpy>=1.20",
+    "pydantic>=2",
+    "requests",
+    "psutil>=5.0",
+    "guidance-stitch==0.1.5",
+    "llguidance==1.6.1",
+]
+
+[project.optional-dependencies]
+azureai = ["openai>=1.0", "azure-ai-inference"]
+openai = ["openai>=1.0"]
+llamacpp = ["llama-cpp-python~=0.3.16"]
+transformers = ["transformers<5"]
+onnxruntime-genai = ["onnxruntime-gpu>=1.19.2", "onnxruntime-genai-cuda>=0.4.0"]
+all = ["guidance[azureai,openai,llamacpp,transformers,onnxruntime-genai]"]
+test-unit = [
+    "anytree",
+    "jsonschema",
+    "pytest",
+    "pytest-cov",
+    "pytest-asyncio",
+    "tokenizers",
+]
+dev = [
+    "ruff==0.13.0",
+    "mypy==1.9.0",
+    "types-regex",
+    "types-requests",
+    "types-jsonschema",
+]
+test = [
+    "guidance[test-unit,transformers,dev]",
+    "diskcache",
+    "azure-identity",
+    "bitsandbytes",
+    "jupyter",
+    "papermill",
+    "pillow",
+    "protobuf",
+    "sentencepiece",
+    "torch",
+    "tiktoken>=0.3",
+]
+docs = [
+    "guidance[llamacpp]",
+    "ipython",
+    "nbsphinx",
+    "numpydoc",
+    "sphinx_rtd_theme",
+    "sphinx",
+    "ipykernel",
+    "huggingface_hub",
+]
+
+
+[tool.setuptools.dynamic]
+version = { attr = "guidance.__version__" }
+
+[tool.setuptools.packages.find]
+exclude = ["notebooks", "client", "tests", "tests.*"]
+
+[tool.setuptools.package-data]
+guidance = ["resources/*"]
 
 [tool.pytest.ini_options]
 addopts = "--strict-markers"
