@@ -12,7 +12,7 @@ def minimax_model() -> Model:
     slowdown()
 
     api_key = env_or_skip("MINIMAX_API_KEY")
-    model_name = "MiniMax-M2.5"
+    model_name = "MiniMax-M2.7"
 
     lm = MiniMax(model_name, api_key=api_key)
     assert isinstance(lm, Model)
