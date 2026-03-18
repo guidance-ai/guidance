@@ -21,7 +21,7 @@ jobs:
       checks: write
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Do dev install
@@ -48,7 +48,7 @@ jobs:
           fi
       - name: Mark step with a warning
         if: ${{ steps.check_format.outcome == 'failure' || steps.check_import.outcome == 'failure' }} 
-        uses: actions/github-script@v6
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.checks.create({
@@ -74,7 +74,7 @@ jobs:
       checks: read
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Do dev install
@@ -93,7 +93,7 @@ jobs:
       checks: read
     steps:
       - name: Check out repo ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_id || github.sha }}
       - name: Do guidance install
