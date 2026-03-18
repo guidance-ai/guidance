@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       - name: Build bdist
         run: |
@@ -49,7 +49,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
 
       - name: Build sdist (pep517)
         run: |
@@ -100,7 +100,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
       - run: uv pip install --system guidance -f ./wheelhouse/
         name: Install guidance from wheels
       - run: uv pip install --system transformers torch
