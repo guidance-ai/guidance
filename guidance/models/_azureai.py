@@ -49,6 +49,11 @@ class AzureOpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin,
             raise Exception(
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             ) from ie
+
+        # Set default timeout if not provided
+        if 'timeout' not in kwargs:
+            kwargs['timeout'] = 60.0
+
         client = openai.AzureOpenAI(
             azure_endpoint=azure_endpoint,
             azure_deployment=azure_deployment,
