@@ -27,9 +27,11 @@ class OpenAIInterpreter(OpenAIRuleMixin, OpenAIJSONMixin, OpenAIRegexMixin, Base
                 "Please install the openai package version >= 1 using `pip install openai -U` in order to use guidance.models.OpenAI!"
             ) from ie
 
-        # Set default timeout if not provided
+        # Set default timeout and retry if not provided
         if 'timeout' not in kwargs:
             kwargs['timeout'] = 60.0
+        if 'max_retries' not in kwargs:
+            kwargs['max_retries'] = 3
 
         client = openai.OpenAI(api_key=api_key, **kwargs)
         super().__init__(model=model, client=OpenAIClientWrapper(client), reasoning_effort=reasoning_effort)
