@@ -73,6 +73,81 @@ class AzureOpenAIImageInterpreter(OpenAIImageMixin, AzureOpenAIInterpreter):
     pass
 
 
+class AzureOpenAI(Model):
+    def __init__(
+        self,
+        model: str,
+        azure_endpoint: str,
+        azure_deployment: str,
+        sampling_params: SamplingParams | None = None,
+        echo: bool = True,
+        *,
+        api_version: str | None = None,
+        api_key: str | None = None,
+        azure_ad_token: str | None = None,
+        azure_ad_token_provider: Callable[[], str] | None = None,
+        has_audio_support: bool = False,
+        has_image_support: bool = False,
+        reasoning_effort: str | None = None,
+        **kwargs,
+    ):
+        """Build a new AzureOpenAI model object that represents a model in a given state.
+
+        Parameters
+        ----------
+        model : str
+            The name of the Azure OpenAI model to use (e.g. gpt-4o-mini).
+        azure_endpoint : str
+            The endpoint which holds the OpenAI model deployment. It will probably be
+            https://<AZURE OPENAI RESOURCE NAME>.openai.azure.com/
+        azure_deployment : str
+            The Azure deployment name to use for the model. The Azure AI portal will
+            default this to being the model name, but it can be different.
+        echo : bool
+            If true the final result of creating this model state will be displayed (as HTML in a notebook).
+        api_version : str | None
+            The API version to use for the Azure OpenAI service.
+        api_key : str | None
+            The API key to use for the Azure OpenAI service.
+        azure_ad_token : str | None
+            The Azure AD token to use for authentication.
+        azure_ad_token_provider : Callable[[], str] | None
+            A callable that returns an Azure AD token for authentication.
+        has_audio_support : bool
+            Indicates if the deployed model has support for audio.
+        has_image_support : bool
+            Indicates if the deployed model has support for images.
+        **kwargs :
+            All extra keyword arguments are passed directly to the `openai.AzureOpenAI` constructor.
+        """
+        if has_audio_support and has_image_support:
+            raise ValueError("No known models have both audio and image support")
+
+        interpreter_cls: type[AzureOpenAIInterpreter]
+        if (model and "audio-preview" in model) or has_audio_support:
+            interpreter_cls = AzureOpenAIAudioInterpreter
+        elif (model and (model.startswith("gpt-4o") or model.startswith("o1"))) or has_image_support:
+            interpreter_cls = AzureOpenAIImageInterpreter
+        else:
+            interpreter_cls = AzureOpenAIInterpreter
+
+        super().__init__(
+            interpreter=interpreter_cls(
+                azure_endpoint=azure_endpoint,
+                model_name=model,
+                azure_deployment=azure_deployment,
+                api_version=api_version,
+                api_key=api_key,
+                azure_ad_token=azure_ad_token,
+                azure_ad_token_provider=azure_ad_token_provider,
+                reasoning_effort=reasoning_effort,
+                **kwargs,
+            ),
+            sampling_params=SamplingParams() if sampling_params is None else sampling_params,
+            echo=echo,
+        )
+
+
 def create_azure_openai_model(
     azure_endpoint: str,
     azure_deployment: str,
