@@ -67,7 +67,7 @@ jobs:
           echo "/usr/local/cuda-12.8/bin" >> $GITHUB_PATH
       - name: Install older pytorch (CUDA compatibility)
         run: |
-          pip install torch<2.11
+          pip install "torch<2.11"
       - name: Install other packages
         shell: bash
         run: |
