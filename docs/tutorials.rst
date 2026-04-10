@@ -17,5 +17,4 @@ are `available on GitHub <https://github.com/guidance-ai/guidance/tree/master/no
     example_notebooks/tutorials/token_healing.ipynb
     example_notebooks/tutorials/regex_constraints.ipynb
     example_notebooks/tutorials/guidance_acceleration.ipynb
-    example_notebooks/tutorials/code_generation.ipynb
     example_notebooks/tutorials/chat.ipynb
