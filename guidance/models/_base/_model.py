@@ -209,6 +209,16 @@ class Model:
         obj._update_trace_node(obj._id, obj._parent_id, None)
         return obj
 
+    @property
+    def chat_template(self):
+        """Get the chat template used for role-based formatting."""
+        return getattr(self._interpreter, "chat_template", None)
+
+    @chat_template.setter
+    def chat_template(self, value):
+        """Set the chat template used for role-based formatting."""
+        self._interpreter.chat_template = value
+
     def __str__(self) -> str:
         return str(self._interpreter.state)
 
