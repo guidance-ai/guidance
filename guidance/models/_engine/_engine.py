@@ -597,6 +597,13 @@ class Engine(ABC):
         masked_probs: NDArray | None = None
         if mask is not None:
             np_mask = np.frombuffer(mask, dtype=np.uint8)
+            # Handle vocab size mismatch between model logits and tokenizer mask.
+            # Some models (e.g. Gemma) output logits with a different vocab size
+            # than the tokenizer reports, causing a shape broadcast error.
+            if len(np_mask) != len(logits):
+                min_size = min(len(np_mask), len(logits))
+                np_mask = np_mask[:min_size]
+                logits = logits[:min_size]
             masked_logits = np.where(np_mask != 0, logits, -np.inf)
             # TODO: if temp is 0, we only need to apply the params that affect argmax, e.g. repetition penalty
             filtered_masked_logits = apply_temp_and_sampling_params(
