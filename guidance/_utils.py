@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 def bytes_from(src: str | pathlib.Path | bytes, allow_local: bool) -> bytes:
     if isinstance(src, str) and re.match(r"[^:/]+://", src):
+        if urllib.parse.urlparse(src).scheme == "file" and not allow_local:
+            raise Exception(f"Unable to load bytes from {src}!")
         with urllib.request.urlopen(src) as response:
             response = cast(http.client.HTTPResponse, response)
             bytes_data = response.read()
