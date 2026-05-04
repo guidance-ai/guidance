@@ -60,3 +60,30 @@ class TestBytesFromValidation:
         test_file.write_bytes(b"data")
         with pytest.raises(Exception, match="Unable to load bytes"):
             bytes_from(str(test_file), allow_local=False)
+
+
+class TestMaxBytesAndTimeout:
+    def test_local_file_exceeding_max_bytes_raises(self, tmp_path):
+        test_file = tmp_path / "big.bin"
+        test_file.write_bytes(b"x" * 100)
+        with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+            bytes_from(str(test_file), allow_local=True, max_bytes=50)
+
+    def test_local_file_at_max_bytes_succeeds(self, tmp_path):
+        test_file = tmp_path / "exact.bin"
+        test_file.write_bytes(b"x" * 50)
+        result = bytes_from(str(test_file), allow_local=True, max_bytes=50)
+        assert result == b"x" * 50
+
+    def test_bytes_exceeding_max_bytes_raises(self):
+        with pytest.raises(ValueError, match="exceeds maximum allowed size"):
+            bytes_from(b"x" * 100, allow_local=True, max_bytes=50)
+
+    def test_timeout_passed_to_urlopen(self):
+        with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("8.8.8.8", 443))]):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                mock_urlopen.return_value.__enter__ = lambda s: s
+                mock_urlopen.return_value.__exit__ = lambda s, *a: None
+                mock_urlopen.return_value.read.return_value = b"data"
+                bytes_from("https://example.com/f", allow_local=True, timeout=42.0)
+                mock_urlopen.assert_called_once_with("https://example.com/f", timeout=42.0)

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from .._ast import ImageBlob, ImageUrl
 from .._guidance import guidance
 from .._uri_validation import DEFAULT_ALLOWED_SCHEMES, validate_uri
-from .._utils import bytes_from
+from .._utils import _DEFAULT_MAX_BYTES, _DEFAULT_TIMEOUT, bytes_from
 from ..trace._trace import ImageOutput
 
 
@@ -18,12 +18,21 @@ def image(
     allow_local: bool = True,
     allowed_schemes: Sequence[str] = DEFAULT_ALLOWED_SCHEMES,
     allow_private: bool = False,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+    timeout: float = _DEFAULT_TIMEOUT,
 ):
     if isinstance(src, str) and re.match(r"^(?!file://)[^:/]+://", src):
         validate_uri(src, allowed_schemes=allowed_schemes, allow_private=allow_private, allow_local=allow_local)
         lm += ImageUrl(url=src)
     else:
-        bytes_data = bytes_from(src, allow_local=allow_local, allowed_schemes=allowed_schemes, allow_private=allow_private)
+        bytes_data = bytes_from(
+            src,
+            allow_local=allow_local,
+            allowed_schemes=allowed_schemes,
+            allow_private=allow_private,
+            max_bytes=max_bytes,
+            timeout=timeout,
+        )
         base64_bytes = base64.b64encode(bytes_data)
         lm += ImageBlob(data=base64_bytes)
     return lm

@@ -23,11 +23,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_MAX_BYTES = 16 * 1024 * 1024  # 16 MiB
+_DEFAULT_TIMEOUT = 120  # seconds
+
+
 def bytes_from(
     src: str | pathlib.Path | bytes,
     allow_local: bool,
     allowed_schemes: Sequence[str] = ("https",),
     allow_private: bool = False,
+    max_bytes: int = _DEFAULT_MAX_BYTES,
+    timeout: float = _DEFAULT_TIMEOUT,
 ) -> bytes:
     if isinstance(src, str) and re.match(r"[^:/]+://", src):
         from ._uri_validation import validate_uri
@@ -38,16 +44,16 @@ def bytes_from(
         if src.lower().startswith("file://"):
             file_path = urllib.request.url2pathname(urllib.parse.urlparse(src).path)
             with open(file_path, "rb") as f:
-                bytes_data = f.read()
+                bytes_data = f.read(max_bytes + 1)
         else:
-            with urllib.request.urlopen(src) as response:
+            with urllib.request.urlopen(src, timeout=timeout) as response:
                 response = cast(http.client.HTTPResponse, response)
-                bytes_data = response.read()
+                bytes_data = response.read(max_bytes + 1)
 
     # ...from a local path
     elif allow_local and (isinstance(src, str) or isinstance(src, pathlib.Path)):
         with open(src, "rb") as f:
-            bytes_data = f.read()
+            bytes_data = f.read(max_bytes + 1)
 
     # ...from audio file bytes
     elif isinstance(src, bytes):
@@ -55,6 +61,11 @@ def bytes_from(
 
     else:
         raise Exception(f"Unable to load bytes from {src}!")
+
+    if len(bytes_data) > max_bytes:
+        raise ValueError(
+            f"Resource exceeds maximum allowed size of {max_bytes} bytes: {src!r}"
+        )
 
     return bytes_data
 
