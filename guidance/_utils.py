@@ -12,7 +12,7 @@ import textwrap
 import types
 import urllib
 import weakref
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Optional, Sequence, cast
 
 import numpy as np
 import pydantic
@@ -23,11 +23,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def bytes_from(src: str | pathlib.Path | bytes, allow_local: bool) -> bytes:
+def bytes_from(
+    src: str | pathlib.Path | bytes,
+    allow_local: bool,
+    allowed_schemes: Sequence[str] = ("https",),
+    allow_private: bool = False,
+) -> bytes:
     if isinstance(src, str) and re.match(r"[^:/]+://", src):
-        with urllib.request.urlopen(src) as response:
-            response = cast(http.client.HTTPResponse, response)
-            bytes_data = response.read()
+        from ._uri_validation import validate_uri
+
+        validate_uri(src, allowed_schemes=allowed_schemes, allow_private=allow_private, allow_local=allow_local)
+
+        # file:// URIs are only reachable here if allow_local=True
+        if src.lower().startswith("file://"):
+            file_path = urllib.request.url2pathname(urllib.parse.urlparse(src).path)
+            with open(file_path, "rb") as f:
+                bytes_data = f.read()
+        else:
+            with urllib.request.urlopen(src) as response:
+                response = cast(http.client.HTTPResponse, response)
+                bytes_data = response.read()
 
     # ...from a local path
     elif allow_local and (isinstance(src, str) or isinstance(src, pathlib.Path)):

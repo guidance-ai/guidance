@@ -2,19 +2,28 @@ import base64
 import importlib.resources
 import pathlib
 import re
+from collections.abc import Sequence
 
 from .._ast import ImageBlob, ImageUrl
 from .._guidance import guidance
+from .._uri_validation import DEFAULT_ALLOWED_SCHEMES, validate_uri
 from .._utils import bytes_from
 from ..trace._trace import ImageOutput
 
 
 @guidance
-def image(lm, src: str | pathlib.Path | bytes, allow_local: bool = True):
+def image(
+    lm,
+    src: str | pathlib.Path | bytes,
+    allow_local: bool = True,
+    allowed_schemes: Sequence[str] = DEFAULT_ALLOWED_SCHEMES,
+    allow_private: bool = False,
+):
     if isinstance(src, str) and re.match(r"^(?!file://)[^:/]+://", src):
+        validate_uri(src, allowed_schemes=allowed_schemes, allow_private=allow_private, allow_local=allow_local)
         lm += ImageUrl(url=src)
     else:
-        bytes_data = bytes_from(src, allow_local=allow_local)
+        bytes_data = bytes_from(src, allow_local=allow_local, allowed_schemes=allowed_schemes, allow_private=allow_private)
         base64_bytes = base64.b64encode(bytes_data)
         lm += ImageBlob(data=base64_bytes)
     return lm
