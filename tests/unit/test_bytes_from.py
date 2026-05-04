@@ -42,7 +42,7 @@ class TestBytesFromValidation:
     def test_allows_file_uri_when_allow_local_true(self, tmp_path):
         test_file = tmp_path / "test.bin"
         test_file.write_bytes(b"file content")
-        result = bytes_from(f"file:///{test_file.as_posix()}", allow_local=True)
+        result = bytes_from(test_file.as_uri(), allow_local=True)
         assert result == b"file content"
 
     def test_local_path_still_works(self, tmp_path):
