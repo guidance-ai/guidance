@@ -5,7 +5,6 @@ import socket
 import urllib.parse
 from collections.abc import Sequence
 
-
 # Default: only HTTPS is permitted
 DEFAULT_ALLOWED_SCHEMES: tuple[str, ...] = ("https",)
 

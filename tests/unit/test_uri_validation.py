@@ -76,7 +76,7 @@ class TestPrivateIPBlocking:
     def test_loopback_blocked(self, ip):
         with patch("socket.getaddrinfo", return_value=[(None, None, None, None, (ip, 443))]):
             with pytest.raises(URIValidationError, match="private/loopback/link-local/reserved"):
-                validate_uri(f"https://localhost/resource")
+                validate_uri("https://localhost/resource")
 
     @pytest.mark.parametrize(
         "ip",
@@ -88,7 +88,7 @@ class TestPrivateIPBlocking:
     def test_link_local_blocked(self, ip):
         with patch("socket.getaddrinfo", return_value=[(None, None, None, None, (ip, 443))]):
             with pytest.raises(URIValidationError, match="private/loopback/link-local/reserved"):
-                validate_uri(f"https://metadata.internal/resource")
+                validate_uri("https://metadata.internal/resource")
 
     @pytest.mark.parametrize(
         "ip",
