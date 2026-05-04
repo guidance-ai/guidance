@@ -117,6 +117,7 @@ class TestPrivateIPBlocking:
 
     def test_dns_resolution_failure_raises(self):
         import socket as _socket
+
         with patch("socket.getaddrinfo", side_effect=_socket.gaierror("Name resolution failed")):
             with pytest.raises(URIValidationError, match="Failed to resolve hostname"):
                 validate_uri("https://nonexistent.invalid/resource")

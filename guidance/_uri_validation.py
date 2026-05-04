@@ -46,9 +46,7 @@ def validate_uri(
 
     # Block file:// when allow_local is False
     if scheme == "file" and not allow_local:
-        raise URIValidationError(
-            f"file:// URIs are not allowed when allow_local=False: {url}"
-        )
+        raise URIValidationError(f"file:// URIs are not allowed when allow_local=False: {url}")
 
     # Check scheme allowlist (file:// is handled separately via allow_local)
     if scheme == "file":
@@ -56,9 +54,7 @@ def validate_uri(
         return
 
     if scheme not in [s.lower() for s in allowed_schemes]:
-        raise URIValidationError(
-            f"URI scheme '{scheme}' is not in allowed schemes {list(allowed_schemes)}: {url}"
-        )
+        raise URIValidationError(f"URI scheme '{scheme}' is not in allowed schemes {list(allowed_schemes)}: {url}")
 
     # For network URIs, validate the host against private IP ranges
     if not allow_private:

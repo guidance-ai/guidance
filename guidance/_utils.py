@@ -63,9 +63,7 @@ def bytes_from(
         raise Exception(f"Unable to load bytes from {src}!")
 
     if len(bytes_data) > max_bytes:
-        raise ValueError(
-            f"Resource exceeds maximum allowed size of {max_bytes} bytes: {src!r}"
-        )
+        raise ValueError(f"Resource exceeds maximum allowed size of {max_bytes} bytes: {src!r}")
 
     return bytes_data
 
