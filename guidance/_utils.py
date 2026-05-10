@@ -10,7 +10,8 @@ import re
 import sys
 import textwrap
 import types
-import urllib
+import urllib.parse
+import urllib.request
 import weakref
 from typing import TYPE_CHECKING, Optional, Sequence, cast
 
@@ -48,6 +49,14 @@ def bytes_from(
         else:
             with urllib.request.urlopen(src, timeout=timeout) as response:
                 response = cast(http.client.HTTPResponse, response)
+                final_url = response.geturl()
+                if isinstance(final_url, str) and final_url != src:
+                    validate_uri(
+                        final_url,
+                        allowed_schemes=allowed_schemes,
+                        allow_private=allow_private,
+                        allow_local=allow_local,
+                    )
                 bytes_data = response.read(max_bytes + 1)
 
     # ...from a local path

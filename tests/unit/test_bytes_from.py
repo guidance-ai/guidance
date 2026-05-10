@@ -45,6 +45,31 @@ class TestBytesFromValidation:
         result = bytes_from(test_file.as_uri(), allow_local=True)
         assert result == b"file content"
 
+    def test_allows_file_uri_without_prior_urlopen_patch(self, tmp_path):
+        test_file = tmp_path / "clean.bin"
+        test_file.write_bytes(b"clean file")
+
+        assert bytes_from(test_file.as_uri(), allow_local=True) == b"clean file"
+
+    def test_revalidates_redirect_target(self):
+        def fake_getaddrinfo(hostname, *args, **kwargs):
+            if hostname == "example.com":
+                return [(None, None, None, None, ("93.184.216.34", 443))]
+            if hostname == "internal.example.com":
+                return [(None, None, None, None, ("10.0.0.1", 443))]
+            raise AssertionError(f"unexpected hostname: {hostname}")
+
+        with patch("socket.getaddrinfo", side_effect=fake_getaddrinfo):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                response = mock_urlopen.return_value.__enter__.return_value
+                response.geturl.return_value = "https://internal.example.com/file.bin"
+                response.read.return_value = b"private data"
+
+                with pytest.raises(URIValidationError, match="private/loopback/link-local/reserved"):
+                    bytes_from("https://example.com/file.bin", allow_local=True)
+
+                response.read.assert_not_called()
+
     def test_local_path_still_works(self, tmp_path):
         test_file = tmp_path / "test.bin"
         test_file.write_bytes(b"local data")
