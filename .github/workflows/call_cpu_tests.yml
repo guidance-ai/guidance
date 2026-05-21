@@ -57,19 +57,19 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
       - name: Install guidance and dependencies
         shell: bash
         if: ${{ inputs.python-version != '3.14' }}
         run: |
-          uv pip install --system -e .[llamacpp,transformers,onnxruntime-genai,test]
+          uv pip install --system --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e .[llamacpp,transformers,onnxruntime-genai,test]
           uv pip install --system accelerate  # required if using smaller quantizations
       - name: Install guidance and dependencies (3.14/ONNX workaround)
         # https://github.com/microsoft/onnxruntime/issues/26547
         shell: bash
         if: ${{ inputs.python-version == '3.14' }}
         run: |
-          uv pip install --system -e .[llamacpp,transformers,test]
+          uv pip install --system --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e .[llamacpp,transformers,test]
           uv pip install --system accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
@@ -80,7 +80,7 @@ jobs:
             --selected_model ${{ inputs.model }} \
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: ${{ (inputs.codeCovPython == inputs.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

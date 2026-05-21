@@ -38,10 +38,10 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Install guidance
       run: |
-        uv pip install --system -e .[all,test]
+        uv pip install --system --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e .[all,test]
     - name: Extract Python code
       run: python ./scripts/extract_python_from_readme.py --input_file ./README.md --output_file ./readme.py
     - name: Run extracted Python

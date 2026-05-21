@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
       - name: Do dev install
         run: uv pip install --system -e .[dev]
       - name: Check format with ruff
@@ -57,7 +57,7 @@ jobs:
           fi
       - name: Mark step with a warning
         if: ${{ steps.check_format.outcome == 'failure' || steps.check_import.outcome == 'failure' }} 
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             await github.rest.checks.create({
@@ -91,7 +91,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
       - name: Do dev install
         run: uv pip install --system -e .[dev]
       - name: Run ruff linting
@@ -116,7 +116,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
       - name: Do guidance install
         run: uv pip install --system -e .[all,dev]
       - name: Get mypy type packages
