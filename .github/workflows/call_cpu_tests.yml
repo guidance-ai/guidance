@@ -62,14 +62,14 @@ jobs:
         shell: bash
         if: ${{ inputs.python-version != '3.14' }}
         run: |
-          uv pip install --system -e .[llamacpp,transformers,onnxruntime-genai,test]
+          uv pip install --system --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e .[llamacpp,transformers,onnxruntime-genai,test]
           uv pip install --system accelerate  # required if using smaller quantizations
       - name: Install guidance and dependencies (3.14/ONNX workaround)
         # https://github.com/microsoft/onnxruntime/issues/26547
         shell: bash
         if: ${{ inputs.python-version == '3.14' }}
         run: |
-          uv pip install --system -e .[llamacpp,transformers,test]
+          uv pip install --system --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -e .[llamacpp,transformers,test]
           uv pip install --system accelerate  # required if using smaller quantizations
       - name: cpu_tests for ${{ inputs.model }}
         shell: bash
