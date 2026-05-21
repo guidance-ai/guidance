@@ -50,6 +50,7 @@ test = [
     "diskcache",
     "azure-identity",
     "bitsandbytes",
+    "datasets",
     "jupyter",
     "papermill",
     "pillow",
