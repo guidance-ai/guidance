@@ -38,7 +38,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     - name: Set up uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v8.1.0
     - name: Install guidance
       run: |
         uv pip install --system -e .[all,test]

@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: ${{ inputs.python-version }}
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.1.0
       - name: Install NVIDIA SDK
         shell: bash
         run: |
@@ -96,7 +96,7 @@ jobs:
             --selected_model ${{ inputs.model }} \
             ./tests/model_integration ./tests/model_specific
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         if: ${{ (inputs.codeCovPython == inputs.python-version) }}
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
