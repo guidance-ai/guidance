@@ -40,7 +40,6 @@ def test_popular_models_in_cache(model_id: str, should_pass: bool):
 # once I hook up the new ChatTemplate to guidance.models.Transformers and guidance.models.LlamaCPP, we can do this
 
 
-@pytest.mark.skip(reason="Is this supposed to work still? See issue 1196")
 @pytest.mark.parametrize(
     "model_id",
     [
@@ -76,7 +75,6 @@ def test_chat_format_smoke(model_id: str):
     assert str(lm) in tokeniser_render
 
 
-@pytest.mark.skip(reason="Is this supposed to work still? See issue 1196")
 @pytest.mark.parametrize(
     "model_id",
     [
