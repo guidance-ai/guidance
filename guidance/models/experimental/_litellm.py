@@ -1,3 +1,4 @@
+import warnings
 from typing import TYPE_CHECKING, Any, ContextManager, Iterator
 
 from guidance._schema import SamplingParams
@@ -225,9 +226,16 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
             enforce_max_tokens=False,
         )
         if matches is None:
-            # TODO: should probably raise...
-            # raise ValueError("vLLM failed to constrain the grammar")
-            pass
+            warnings.warn(
+                f"vLLM failed to match the generated output against the grammar. "
+                f"Named captures (variables) will not be accessible. "
+                f"Generated output: {buffer!r[:200]}{'...' if len(buffer) > 200 else ''}. "
+                f"This can occur when vLLM's guided decoding does not fully enforce the grammar "
+                f"(e.g. due to backtracking limitations). Consider simplifying the grammar or "
+                f"checking vLLM version compatibility.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         else:
             for name, value in matches.captures.items():
                 log_probs = matches.log_probs[name]
