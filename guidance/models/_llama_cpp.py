@@ -15,14 +15,14 @@ from ..chat import ChatTemplate
 from ._base import Model
 from ._engine import Engine, EngineInterpreter, LogitsOutput, Tokenizer
 
+is_llama_cpp = False
 try:
     import llama_cpp
+    import llguidance.llamacpp
 
     is_llama_cpp = True
-except ModuleNotFoundError:
-    is_llama_cpp = False
-else:
-    import llguidance.llamacpp
+except (ModuleNotFoundError, ImportError, AttributeError):
+    pass
 
 if TYPE_CHECKING:
     from llama_cpp.llama import Llama
