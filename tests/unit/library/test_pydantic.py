@@ -276,3 +276,54 @@ class TestDiscriminatedUnion:
             allowed_bytes={b","},  # expect a comma to continue the object with "barks"
             pydantic_model=self.Model,
         )
+
+
+class TestAdditionalProperties:
+    """Tests that pydantic models with default/explicit extra="ignore" get additionalProperties: false."""
+
+    def test_default_extra_rejects_additional_properties(self):
+        """Models with default extra='ignore' should not allow extra fields."""
+
+        class MyModel(pydantic.BaseModel):
+            a: str
+
+        grammar = gen_json(schema=MyModel)
+        # Valid: only declared property
+        assert grammar.match('{"a": "hello"}') is not None
+        # Invalid: extra property should be rejected
+        assert grammar.match('{"a": "hello", "extra": "value"}') is None
+
+    def test_explicit_extra_ignore_rejects_additional_properties(self):
+        """Models with explicit extra='ignore' should not allow extra fields."""
+
+        class MyModel(pydantic.BaseModel):
+            model_config = pydantic.ConfigDict(extra="ignore")
+            a: str
+
+        grammar = gen_json(schema=MyModel)
+        assert grammar.match('{"a": "hello"}') is not None
+        assert grammar.match('{"a": "hello", "extra": "value"}') is None
+
+    def test_extra_allow_permits_additional_properties(self):
+        """Models with extra='allow' should still permit additional fields."""
+
+        class MyModel(pydantic.BaseModel):
+            model_config = pydantic.ConfigDict(extra="allow")
+            a: str
+
+        grammar = gen_json(schema=MyModel)
+        assert grammar.match('{"a": "hello"}') is not None
+        assert grammar.match('{"a": "hello", "extra": "value"}') is not None
+
+    def test_nested_model_default_extra_rejects_additional_properties(self):
+        """Nested models with default extra should also reject extra fields."""
+
+        class Inner(pydantic.BaseModel):
+            x: int
+
+        class Outer(pydantic.BaseModel):
+            inner: Inner
+
+        grammar = gen_json(schema=Outer)
+        assert grammar.match('{"inner": {"x": 1}}') is not None
+        assert grammar.match('{"inner": {"x": 1, "extra": true}}') is None
