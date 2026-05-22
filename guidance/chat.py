@@ -49,7 +49,8 @@ def load_template_class(chat_template=None):
 
     Order of precedence:
     - If it's a chat template class, use it directly
-    - If it's a string, check the cache of popular model templates
+    - If it's a string, check the friendly name alias map (case-insensitive)
+    - If it's a string, check the cache of popular model templates (full Jinja2 template strings)
     - If it's a string and not in the cache, try to create a class dynamically
     - [TODO] If it's a string and can't be created, default to ChatML and raise a warning
     - If it's None, default to ChatML and raise a warning
@@ -60,9 +61,11 @@ def load_template_class(chat_template=None):
         return chat_template
 
     elif isinstance(chat_template, str):
-        # First check the cache of popular model types
-        # TODO: Expand keys of cache to include aliases for popular model types (e.g. "llama2, phi3")
-        # Can possibly accomplish this with an "aliases" dictionary that maps all aliases to the canonical key in cache
+        # Check the friendly name alias map first (case-insensitive, ignores spaces/dashes/underscores/dots)
+        normalized = chat_template.lower().replace(" ", "").replace("-", "").replace("_", "").replace(".", "")
+        if normalized in CHAT_TEMPLATE_NAME_MAP:
+            return CHAT_TEMPLATE_NAME_MAP[normalized]
+        # Fall through to the full Jinja2 template string cache
         if chat_template in CHAT_TEMPLATE_CACHE:
             return CHAT_TEMPLATE_CACHE[chat_template]
         # TODO: Add logic here to try to auto-create class dynamically via _template_class_from_string method
@@ -71,7 +74,7 @@ def load_template_class(chat_template=None):
     if chat_template is not None:
         warnings.warn(
             f"""Chat template {chat_template} was unable to be loaded directly into guidance.
-                        Defaulting to the ChatML format which may not be optimal for the selected model. 
+                        Defaulting to the ChatML format which may not be optimal for the selected model.
                         For best results, create and pass in a `guidance.ChatTemplate` subclass for your model.""",
             stacklevel=2,
         )
@@ -398,3 +401,43 @@ class Llama3dot2ChatTemplate(ChatTemplate):
 
 
 CHAT_TEMPLATE_CACHE[llama3dot2_template] = Llama3dot2ChatTemplate
+
+
+# --------------------------------------------------
+# Friendly name alias map for load_template_class()
+# --------------------------------------------------
+# Maps normalized names (lowercase, no spaces/dashes/underscores) to template classes.
+# This lets users pass short friendly names like "llama2" or "ChatML" instead of full Jinja2
+# template strings. Keys are pre-normalized so lookup is O(1).
+CHAT_TEMPLATE_NAME_MAP: dict[str, type[ChatTemplate]] = {
+    # ChatML
+    "chatml": ChatMLTemplate,
+    # Llama 2
+    "llama2": Llama2ChatTemplate,
+    # Llama 3
+    "llama3": Llama3ChatTemplate,
+    # Phi-3 Mini
+    "phi3mini": Phi3MiniChatTemplate,
+    "phi3": Phi3MiniChatTemplate,
+    # Phi-3 Small / Medium
+    "phi3small": Phi3SmallMediumChatTemplate,
+    "phi3medium": Phi3SmallMediumChatTemplate,
+    # Phi-4 Mini
+    "phi4mini": Phi4MiniChatTemplate,
+    "phi4": Phi4MiniChatTemplate,
+    # Mistral 7B Instruct
+    "mistral": Mistral7BInstructChatTemplate,
+    "mistral7b": Mistral7BInstructChatTemplate,
+    "mistral7binstruct": Mistral7BInstructChatTemplate,
+    # Gemma 2 9B Instruct
+    "gemma2": Gemma29BInstructChatTemplate,
+    "gemma29b": Gemma29BInstructChatTemplate,
+    # Qwen 2.5
+    "qwen25": Qwen2dot5ChatTemplate,
+    "qwen2dot5": Qwen2dot5ChatTemplate,
+    # Qwen 3
+    "qwen3": Qwen3ChatTemplate,
+    # Llama 3.2
+    "llama32": Llama3dot2ChatTemplate,
+    "llama3dot2": Llama3dot2ChatTemplate,
+}
