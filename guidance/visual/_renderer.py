@@ -339,7 +339,14 @@ class JupyterWidgetRenderer(Renderer):
             return False, -1
 
         # If we diverge from the model path, truncate and reset
-        message_trace_node = self._trace_handler[message.trace_id]
+        try:
+            message_trace_node = self._trace_handler[message.trace_id]
+        except KeyError:
+            # Trace node was garbage collected before we could resolve it
+            # (id_node_map is a WeakValueDictionary). Treat as a full divergence
+            # so the widget resets on the next message instead of crashing
+            # Model.__add__. See guidance-ai/guidance#1097.
+            return True, -1
         widget_messages = self.widget_messages[self.last_widget()]
 
         prev_trace_messages = [x for x in widget_messages if isinstance(x, TraceMessage)]

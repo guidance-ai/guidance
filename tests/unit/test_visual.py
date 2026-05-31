@@ -91,6 +91,50 @@ def test_environment():
     assert "ipython-zmq" not in env.detected_envs
 
 
+def test_has_divergence_handles_missing_trace_node():
+    """Regression test for guidance-ai/guidance#1097.
+
+    ``TraceHandler.id_node_map`` is a ``WeakValueDictionary``. A trace node added
+    moments earlier in ``Model.copy()`` can be garbage collected before
+    ``JupyterWidgetRenderer.has_divergence`` looks it up, which previously raised
+    an unhandled ``KeyError`` and crashed ``Model.__add__``. The renderer should
+    instead treat the missing node as a divergence so the widget recovers on the
+    next message.
+    """
+    from guidance.visual._renderer import JupyterWidgetRenderer
+
+    # Build a renderer without running its heavy __init__ (queues, async loops).
+    renderer = JupyterWidgetRenderer.__new__(JupyterWidgetRenderer)
+
+    trace_handler = TraceHandler()
+    # Seed an existing widget message whose trace node IS resolvable, mirroring
+    # the state right before the user's intermittent crash.
+    existing_node = trace_handler.update_node(1, None, None)
+    seed_message = TraceMessage(trace_id=1)
+
+    class _FakeWidget:
+        pass
+
+    fake_widget = _FakeWidget()
+
+    renderer._trace_handler = trace_handler
+    renderer.widget_messages = {fake_widget: [seed_message]}
+    renderer.last_widget = lambda: fake_widget
+
+    # Sanity: existing node is still alive.
+    assert existing_node is trace_handler.id_node_map[1]
+
+    # Now simulate the race: the incoming message references a trace_id whose
+    # node has been garbage collected (i.e. is no longer present in the
+    # WeakValueDictionary).
+    missing_message = TraceMessage(trace_id=999_999)
+    assert 999_999 not in trace_handler.id_node_map
+
+    diverged, ancestor_idx = renderer.has_divergence(missing_message)
+    assert diverged is True
+    assert ancestor_idx == -1
+
+
 def test_exchange():
     exchange = TopicExchange()
     assert len(exchange._observers) == 0
