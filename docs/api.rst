@@ -40,6 +40,7 @@ models
     guidance.models.Model
     guidance.models.Mock
     guidance.models.LlamaCpp
+    guidance.models.MiniMax
     guidance.models.Transformers
     guidance.models.Anthropic
     guidance.models.AzureOpenAI

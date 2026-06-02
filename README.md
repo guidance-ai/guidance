@@ -16,7 +16,7 @@
 
 
 ## Install
-Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, etc.).
+Guidance is available through PyPI and supports a variety of backends (Transformers, llama.cpp, OpenAI, MiniMax, etc.).
 If you already have the backend required for your model, you can simply run
 ```bash
 pip install guidance
