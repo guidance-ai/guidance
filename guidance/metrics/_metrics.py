@@ -165,9 +165,7 @@ class Monitor:
                     self.metrics_dict[MonitoringMetric.GPU_TOTAL_MEM].append(mem_total)
 
                 # Trim lists to max_size
-                for metrics in self.metrics_dict.values():
-                    if len(metrics) > self.max_size:
-                        metrics = metrics[-self.max_size :]
+                self._trim_metrics()
 
                 lat = time.time() - t0
                 sleep_time = self.interval_ms / 1000.0 - lat
@@ -177,6 +175,12 @@ class Monitor:
             except Exception as e:
                 logger.error(f"Caught {e}", exc_info=True)
                 await asyncio.sleep(1)  # Wait a bit before retrying on error
+
+    def _trim_metrics(self) -> None:
+        """Cap each metric history list at ``max_size`` most-recent entries."""
+        for metrics in self.metrics_dict.values():
+            if len(metrics) > self.max_size:
+                metrics[:] = metrics[-self.max_size :]
 
     def start(self):
         from ..registry import get_bg_async
