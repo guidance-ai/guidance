@@ -445,3 +445,22 @@ my_rule: %lark {
         grm = LLMatcher.grammar_from_lark(result)
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
+
+    def test_regex_node_escaped_slash(self):
+        # A "/" preceded by an escaped backslash (e.g. r"\\/", which is what
+        # re.escape("\\/") produces) is a *bare* delimiter and must itself be escaped,
+        # otherwise it closes the Lark regex literal early and yields an invalid grammar.
+        target = LarkSerializer()
+        ren = RegexNode(r"\\/")
+        result = target.serialize(ren)
+        print(result)
+
+        expected = """%llguidance {}
+
+start: START
+START: /\\\\\\//
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err

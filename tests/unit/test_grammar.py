@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 import guidance
@@ -144,3 +146,13 @@ class TestMatch:
         # Shold raise since we don't allow partial
         with pytest.raises(ByteParserException):
             g.match(b"123", raise_exceptions=True)
+
+    def test_regex_with_escaped_slash(self):
+        # A regex matching a literal backslash followed by a slash must serialize to a
+        # valid grammar -- the slash isn't escaped just because a backslash precedes it.
+        target = "a\\/b"
+        g = gen(regex=re.escape(target), name="mycap")
+        match = g.match(target)
+        assert match is not None
+        assert not match.partial
+        assert match.captures["mycap"] == target
