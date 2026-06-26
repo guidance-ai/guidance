@@ -823,5 +823,10 @@ class LarkSerializer:
         return new_name
 
     def regex(self, pattern: str) -> str:
-        escaped = re.sub(r"(?<!\\)/", r"\/", pattern).replace("\n", "\\n")
+        # Escape any bare "/" so it doesn't terminate the Lark regex literal early.
+        # Escape sequences ("\\.") are consumed first so that an even run of backslashes
+        # before a slash (e.g. "\\/", an escaped backslash followed by a *bare* slash) is
+        # not mistaken for an already-escaped slash, which a single-char lookbehind would.
+        escaped = re.sub(r"\\.|/", lambda m: r"\/" if m.group() == "/" else m.group(), pattern)
+        escaped = escaped.replace("\n", "\\n")
         return f"/{escaped}/"
