@@ -50,7 +50,11 @@ def bytes_from(
             with urllib.request.urlopen(src, timeout=timeout) as response:
                 response = cast(http.client.HTTPResponse, response)
                 final_url = response.geturl()
-                if isinstance(final_url, str) and final_url != src:
+                if not isinstance(final_url, str):
+                    raise TypeError(
+                        f"Expected urlopen response URL to be a string, got {type(final_url).__name__}"
+                    )
+                if final_url != src:
                     validate_uri(
                         final_url,
                         allowed_schemes=allowed_schemes,

@@ -17,6 +17,7 @@ class TestBytesFromValidation:
         with patch("urllib.request.urlopen") as mock_urlopen:
             mock_urlopen.return_value.__enter__ = lambda s: s
             mock_urlopen.return_value.__exit__ = lambda s, *a: None
+            mock_urlopen.return_value.geturl.return_value = "http://example.com/file.bin"
             mock_urlopen.return_value.read.return_value = b"data"
             with patch("guidance._uri_validation._validate_hostname_not_private"):
                 bytes_from("http://example.com/file.bin", allow_local=True, allowed_schemes=("http", "https"))
@@ -31,6 +32,7 @@ class TestBytesFromValidation:
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__ = lambda s: s
                 mock_urlopen.return_value.__exit__ = lambda s, *a: None
+                mock_urlopen.return_value.geturl.return_value = "https://internal.example.com/file.bin"
                 mock_urlopen.return_value.read.return_value = b"data"
                 result = bytes_from("https://internal.example.com/file.bin", allow_local=True, allow_private=True)
                 assert result == b"data"
@@ -66,6 +68,18 @@ class TestBytesFromValidation:
                 response.read.return_value = b"private data"
 
                 with pytest.raises(URIValidationError, match="private/loopback/link-local/reserved"):
+                    bytes_from("https://example.com/file.bin", allow_local=True)
+
+                response.read.assert_not_called()
+
+    def test_rejects_non_string_redirect_target(self):
+        with patch("socket.getaddrinfo", return_value=[(None, None, None, None, ("93.184.216.34", 443))]):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                response = mock_urlopen.return_value.__enter__.return_value
+                response.geturl.return_value = b"https://example.com/file.bin"
+                response.read.return_value = b"data"
+
+                with pytest.raises(TypeError, match="response URL to be a string"):
                     bytes_from("https://example.com/file.bin", allow_local=True)
 
                 response.read.assert_not_called()
@@ -109,6 +123,7 @@ class TestMaxBytesAndTimeout:
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_urlopen.return_value.__enter__ = lambda s: s
                 mock_urlopen.return_value.__exit__ = lambda s, *a: None
+                mock_urlopen.return_value.geturl.return_value = "https://example.com/f"
                 mock_urlopen.return_value.read.return_value = b"data"
                 bytes_from("https://example.com/f", allow_local=True, timeout=42.0)
                 mock_urlopen.assert_called_once_with("https://example.com/f", timeout=42.0)
