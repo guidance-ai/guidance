@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Generator, TypedDict
 
 import numpy as np
-from jinja2 import BaseLoader, Environment
+from jinja2 import BaseLoader
+from jinja2.sandbox import ImmutableSandboxedEnvironment
 from numpy.typing import NDArray
 
 from ..._parser import TokenParser
@@ -673,7 +674,7 @@ class Engine(ABC):
 
         # Render the messages
         chat_template = self.get_chat_template().template_str
-        rtemplate = Environment(loader=BaseLoader).from_string(chat_template)
+        rtemplate = ImmutableSandboxedEnvironment(loader=BaseLoader).from_string(chat_template)
         rendered_prompt = rtemplate.render(add_generation_prompt=True, messages=messages, tools=tools, **tokens)
 
         # Load into a State object
