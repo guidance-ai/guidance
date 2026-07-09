@@ -425,3 +425,15 @@ lm['bp']='{"systolic": 301, "diastolic": 15, "location": "arm"}'
 ```
 Note that the generated blood pressure is not one the model will have seen for a human.
 When generating JSON, a substantial number of tokens can often be fast-forwarded, due to the structural constraints imposed by the schema.
+
+
+## Contributing
+
+We welcome contributions of all kinds! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
+for guidelines on how to report bugs, suggest features, and submit pull requests.
+
+By participating in this project, you agree to follow our
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+---
+*Documentation contributed by [Mukller](https://github.com/Mukller)*
