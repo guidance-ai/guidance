@@ -51,9 +51,7 @@ def bytes_from(
                 response = cast(http.client.HTTPResponse, response)
                 final_url = response.geturl()
                 if not isinstance(final_url, str):
-                    raise TypeError(
-                        f"Expected urlopen response URL to be a string, got {type(final_url).__name__}"
-                    )
+                    raise TypeError(f"Expected urlopen response URL to be a string, got {type(final_url).__name__}")
                 if final_url != src:
                     validate_uri(
                         final_url,
