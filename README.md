@@ -22,6 +22,33 @@ If you already have the backend required for your model, you can simply run
 pip install guidance
 ```
 
+
+
+### OpenAI-compatible gateways (DaoXE)
+
+[DaoXE](https://daoxe.com) is a multi-model multi-protocol API gateway. Use the OpenAI-compatible Chat Completions path with `guidance.models.OpenAI` by passing a custom `base_url`. Model IDs are account-scoped (exact ID from your DaoXE dashboard or `GET /v1/models`). Not available in mainland China.
+
+```python
+import os
+from guidance import system, user, assistant, gen
+from guidance.models import OpenAI
+
+lm = OpenAI(
+    "YOUR_DAOXE_MODEL_ID",
+    api_key=os.environ["DAOXE_API_KEY"],
+    base_url="https://daoxe.com/v1",
+)
+
+with system():
+    lm += "You are a helpful assistant"
+with user():
+    lm += "Reply with OK"
+with assistant():
+    lm += gen(max_tokens=8)
+```
+
+DaoXE also exposes Anthropic Messages and other protocols for clients that speak those APIs; this Guidance path uses Chat Completions.
+
 ## Features
 
 ### A Pythonic interface for language models
