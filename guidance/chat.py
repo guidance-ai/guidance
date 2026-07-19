@@ -353,7 +353,7 @@ qwen3_gguf_template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n    
 
 class Qwen3ChatTemplate(ChatTemplate):
     # available_roles = ["system", "user", "assistant"]
-    template_str = qwen2dot5_it_template
+    template_str = qwen3_it_template
 
     def get_role_start(self, role_name):
         if role_name in ["system", "user", "assistant"]:
