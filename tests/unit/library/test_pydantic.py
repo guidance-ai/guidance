@@ -170,6 +170,28 @@ class TestDict:
             generate_and_check({1: 2}, model)
         assert exc_info.value.args[0] == "JSON does not support non-string keys, got type int"
 
+    def test_any_keys_allowed(self):
+        """
+        A dict with no key type (bare ``dict``, ``Dict[Any, ...]``) maps to an
+        unconstrained JSON object and must not be rejected as "non-string keys":
+        JSON object keys are always strings, and the resulting ``{"type":
+        "object"}`` schema is supported by the backend.
+        """
+        for model in (
+            pydantic.TypeAdapter(dict),
+            pydantic.TypeAdapter(dict[str, Any]),
+            pydantic.TypeAdapter(dict[Any, Any]),
+        ):
+            generate_and_check({"a": 1, "b": 2}, model)
+
+    def test_any_keys_allowed_as_model_field(self):
+        # The common "arbitrary JSON metadata" pattern: a bare dict field.
+        class Config(pydantic.BaseModel):
+            name: str
+            metadata: dict
+
+        generate_and_check({"name": "x", "metadata": {"k": 1}}, Config)
+
 
 class TestComposite:
     class Simple(pydantic.BaseModel):

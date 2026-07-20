@@ -17,8 +17,14 @@ class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
 
     def generate_inner(self, schema):
         if schema["type"] == "dict":
-            key_type = schema["keys_schema"]["type"]
-            if key_type != "str":
+            # A dict with no key type (bare ``dict``, ``Dict[Any, ...]``) has an
+            # ``"any"`` keys_schema. In JSON that maps to an unconstrained object
+            # (JSON object keys are always strings), which is a valid, supported
+            # schema, so it must not be rejected as "non-string keys". Only key
+            # types that genuinely can't be represented as JSON strings (``int``,
+            # ``float``, ...) are rejected.
+            key_type = schema.get("keys_schema", {}).get("type", "any")
+            if key_type not in ("str", "any"):
                 raise TypeError(f"JSON does not support non-string keys, got type {key_type}")
         return super().generate_inner(schema)
 
