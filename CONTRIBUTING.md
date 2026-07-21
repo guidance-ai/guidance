@@ -18,7 +18,7 @@ conda activate guidancedev
 
 Install guidance (without CUDA):
 ```bash
-python -m pip install -e .[all,test,llamacpp,transformers]
+python -m pip install -e '.[all,test,llamacpp,transformers]'
 ```
 
 Alternatively, install guidance with CUDA support. There are various ways to do this. We recommend:
