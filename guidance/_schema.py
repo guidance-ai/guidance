@@ -76,8 +76,11 @@ class TokenUsage(BaseModel):
         else:
             ff_tokens = (self.ff_tokens or 0) + (other.ff_tokens or 0)
 
-        ttft_ms = other.ttft_ms
-        ttfm_ms = other.ttfm_ms
+        # "time to first token/mask" is a property of the first measurement in the sequence, not the
+        # last. The producers set these once and guard with `if usage.ttft_ms == 0`, so 0.0 means
+        # "not measured here" rather than "measured as zero"; keep the earliest non-zero value.
+        ttft_ms = self.ttft_ms or other.ttft_ms
+        ttfm_ms = self.ttfm_ms or other.ttfm_ms
 
         return TokenUsage(
             ff_tokens=ff_tokens,
