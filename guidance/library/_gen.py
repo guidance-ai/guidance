@@ -40,7 +40,7 @@ def gen(
     ----------
 
         name : str or None
-            If this is not None then the the results of the generation will be saved as a variable on
+            If this is not None then the results of the generation will be saved as a variable on
             the Model object (so you can access the result as `lm["var_name"]`).
 
         max_tokens : int

@@ -53,7 +53,7 @@ def json(
     ----------
 
     name : str or None
-        If this is not None then the the results of the generation will be saved as a variable on
+        If this is not None then the results of the generation will be saved as a variable on
         the Model object (so you can access the result as ``lm["var_name"]``).
 
     schema : Union[None, Mapping[str, Any], Type[pydantic.BaseModel], pydantic.TypeAdapter]
