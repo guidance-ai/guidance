@@ -10,7 +10,8 @@ import re
 import sys
 import textwrap
 import types
-import urllib
+import urllib.parse
+import urllib.request
 import weakref
 from typing import TYPE_CHECKING, Optional, Sequence, cast
 
@@ -25,6 +26,26 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MAX_BYTES = 16 * 1024 * 1024  # 16 MiB
 _DEFAULT_TIMEOUT = 120  # seconds
+
+
+class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Validate every redirect target before urllib sends the next request."""
+
+    def __init__(self, *, allowed_schemes, allow_private, allow_local):
+        self._allowed_schemes = allowed_schemes
+        self._allow_private = allow_private
+        self._allow_local = allow_local
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from ._uri_validation import validate_uri
+
+        validate_uri(
+            newurl,
+            allowed_schemes=self._allowed_schemes,
+            allow_private=self._allow_private,
+            allow_local=self._allow_local,
+        )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 def bytes_from(
@@ -46,8 +67,25 @@ def bytes_from(
             with open(file_path, "rb") as f:
                 bytes_data = f.read(max_bytes + 1)
         else:
-            with urllib.request.urlopen(src, timeout=timeout) as response:
+            opener = urllib.request.build_opener(
+                _ValidatingRedirectHandler(
+                    allowed_schemes=allowed_schemes,
+                    allow_private=allow_private,
+                    allow_local=allow_local,
+                )
+            )
+            with opener.open(src, timeout=timeout) as response:
                 response = cast(http.client.HTTPResponse, response)
+                final_url = response.geturl()
+                if not isinstance(final_url, str):
+                    raise TypeError(f"Expected urlopen response URL to be a string, got {type(final_url).__name__}")
+                if final_url != src:
+                    validate_uri(
+                        final_url,
+                        allowed_schemes=allowed_schemes,
+                        allow_private=allow_private,
+                        allow_local=allow_local,
+                    )
                 bytes_data = response.read(max_bytes + 1)
 
     # ...from a local path
