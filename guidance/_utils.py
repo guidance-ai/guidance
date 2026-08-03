@@ -28,6 +28,26 @@ _DEFAULT_MAX_BYTES = 16 * 1024 * 1024  # 16 MiB
 _DEFAULT_TIMEOUT = 120  # seconds
 
 
+class _ValidatingRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Validate every redirect target before urllib sends the next request."""
+
+    def __init__(self, *, allowed_schemes, allow_private, allow_local):
+        self._allowed_schemes = allowed_schemes
+        self._allow_private = allow_private
+        self._allow_local = allow_local
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from ._uri_validation import validate_uri
+
+        validate_uri(
+            newurl,
+            allowed_schemes=self._allowed_schemes,
+            allow_private=self._allow_private,
+            allow_local=self._allow_local,
+        )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def bytes_from(
     src: str | pathlib.Path | bytes,
     allow_local: bool,
@@ -47,7 +67,14 @@ def bytes_from(
             with open(file_path, "rb") as f:
                 bytes_data = f.read(max_bytes + 1)
         else:
-            with urllib.request.urlopen(src, timeout=timeout) as response:
+            opener = urllib.request.build_opener(
+                _ValidatingRedirectHandler(
+                    allowed_schemes=allowed_schemes,
+                    allow_private=allow_private,
+                    allow_local=allow_local,
+                )
+            )
+            with opener.open(src, timeout=timeout) as response:
                 response = cast(http.client.HTTPResponse, response)
                 final_url = response.geturl()
                 if not isinstance(final_url, str):
