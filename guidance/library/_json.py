@@ -28,7 +28,7 @@ def json(
 
     Using a JSON schema:
 
-        >>> schema = ''{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
+        >>> schema = '{ "type": "object", "properties": { "a" : {"type": "integer"} } }'
         >>> schema_obj = json.loads(schema)
         >>> lm += json(name="generated_object", schema=schema_obj)
         >>> print(json.loads(lm["generated_object"]))
