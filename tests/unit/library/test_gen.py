@@ -1,6 +1,6 @@
 import pytest
 
-from guidance import gen, models
+from guidance import gen, models, special_token
 
 
 def test_basic():
@@ -153,3 +153,55 @@ def test_multiline():
     model = models.Mock(b"<s>this\nis\na\ntest<s>")
     model += gen(max_tokens=20)
     assert str(model) == "this\nis\na\ntest"
+
+
+class TestSpecialTokenStop:
+    """`gen(stop=...)` compiles stops into a regex, and llguidance forbids special tokens at
+    that level -- so a model whose reasoning channel closes with a special token can never
+    emit its own terminator. These cover routing a special-token stop into the rule body
+    instead, and rejecting the combinations whose semantics we haven't defined.
+
+    Mock's only special token is `<s>` (id 0), so that stands in for e.g. Gemma's `<channel|>`.
+    """
+
+    def test_terminates_and_excludes_terminator(self):
+        lm = models.Mock(b"<s>hello<s>")
+        lm += gen("text", stop=special_token("<s>"), max_tokens=20)
+        # Stopped on the token rather than running to max_tokens...
+        assert str(lm) == "hello<s>"
+        # ...and the terminator is excluded from the capture, as with an ordinary text stop.
+        assert lm["text"] == "hello"
+
+    def test_accepts_single_element_list(self):
+        lm = models.Mock(b"<s>hello<s>")
+        lm += gen("text", stop=[special_token("<s>")], max_tokens=20)
+        assert lm["text"] == "hello"
+
+    def test_text_stop_still_works(self):
+        # Regression: the ordinary path must be untouched.
+        lm = models.Mock(b"<s>Count to 10: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10")
+        lm += "Count to 10: 1, 2, 3, 4, 5, 6, 7, " + gen("text", stop=", 9")
+        assert lm["text"] == "8"
+
+    def test_rejects_mixed_with_text_stop(self):
+        # A regex stop and a special-token stop can't share RuleNode.stop, and nesting them
+        # would mean "END, then the token" rather than "whichever comes first".
+        with pytest.raises(ValueError, match="special"):
+            gen("text", stop=["END", special_token("<s>")])
+
+    def test_rejects_mixed_with_stop_regex(self):
+        # Caught by the pre-existing stop/stop_regex mutual exclusion rather than by a
+        # special-token-specific message, which is accurate enough for this combination.
+        with pytest.raises(ValueError, match="both stop and stop_regex"):
+            gen("text", stop=special_token("<s>"), stop_regex="END")
+
+    def test_rejects_multiple_special_tokens(self):
+        # RuleNode.stop holds one node; supporting several needs a SelectNode in the body.
+        with pytest.raises(ValueError, match="special"):
+            gen("text", stop=[special_token("<s>"), special_token("<s>")])
+
+    def test_rejects_save_stop_text(self):
+        # save_stop_text maps to stop_capture, which is lexer-level and has no home once the
+        # terminator moves into the rule body. Must not silently return nothing.
+        with pytest.raises(ValueError, match="special"):
+            gen("text", stop=special_token("<s>"), save_stop_text=True)

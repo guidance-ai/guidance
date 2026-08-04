@@ -2,6 +2,7 @@ import pytest
 
 import guidance
 from guidance import gen, lark, models, optional, select
+from guidance._ast import RegexNode, RuleNode, SpecialToken
 from guidance._parser import ByteParserException
 
 
@@ -144,3 +145,21 @@ class TestMatch:
         # Shold raise since we don't allow partial
         with pytest.raises(ByteParserException):
             g.match(b"123", raise_exceptions=True)
+
+
+def test_special_token_stop_terminates_generation():
+    # A special token can only terminate a rule if it lands in the rule body rather than in a
+    # `stop=` attribute (llguidance forbids special tokens in terminals). Mock's token 0 is
+    # `<s>`, its only special token, so we stop on that.
+    lm = models.Mock(b"<s>hello<s>")
+    lm += RuleNode(
+        "my_rule",
+        value=RegexNode("[a-z]*"),
+        capture="my_capture",
+        stop=SpecialToken(id=0),
+        max_tokens=20,
+    )
+    # Terminated on the token rather than running to max_tokens...
+    assert str(lm) == "hello<s>"
+    # ...and, as with an ordinary `stop=`, the terminator is excluded from the capture.
+    assert lm["my_capture"] == "hello"

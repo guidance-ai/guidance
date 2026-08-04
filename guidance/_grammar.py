@@ -26,7 +26,7 @@ def regex(pattern: str) -> RegexNode:
 
 def gen(
     regex: str | None = None,
-    stop: str | None = None,
+    stop: str | SpecialToken | None = None,
     stop_regex: str | None = None,
     suffix: str | None = None,
     stop_capture: str | None = None,
@@ -38,8 +38,10 @@ def gen(
     if stop is not None and stop_regex is not None:
         raise ValueError("You cannot specify both a stop and a stop_regex")
 
-    stop_value: LiteralNode | RegexNode | None = None
-    if stop is not None:
+    stop_value: LiteralNode | RegexNode | SpecialToken | None = None
+    if isinstance(stop, SpecialToken):
+        stop_value = stop
+    elif stop is not None:
         stop_value = LiteralNode(stop)
     elif stop_regex is not None:
         stop_value = RegexNode(stop_regex)

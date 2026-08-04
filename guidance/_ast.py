@@ -468,7 +468,7 @@ class RuleNode(GrammarNode):
     list_append: bool = False
     temperature: float | None = None
     max_tokens: int | None = None
-    stop: RegexNode | LiteralNode | None = None
+    stop: RegexNode | LiteralNode | SpecialToken | None = None
     suffix: LiteralNode | None = None
     stop_capture: str | None = None
     lazy: bool = False
@@ -656,6 +656,28 @@ class LarkSerializer:
         self.rules: dict[str, str] = {}
         self.names: dict[RuleNode, str] = {}
 
+    def _split_special_stop(self, node: RuleNode) -> RuleNode:
+        """
+        Special tokens can't be stop tokens, which makes stopping a reasoning channel hard.
+        However, other terminal-only attrs also can't be in the same node as a capture based
+        on stopping on the special token. So we have to split such cases into two rules.
+
+        attrs stay on the inner rule, and the special token goes to an outer rule
+        """
+        assert isinstance(node.stop, SpecialToken)
+        if node.stop_capture is not None or node.lazy:
+            raise ValueError("stop_capture and lazy are not supported with a special-token stop")
+        inner = RuleNode(
+            name=f"{node.name}_body",
+            value=node.value,
+            list_append=node.list_append,
+            temperature=node.temperature,
+            max_tokens=node.max_tokens,
+            suffix=node.suffix,
+            capture=node.capture,
+        )
+        return RuleNode(name=node.name, value=JoinNode((inner, node.stop)))
+
     def serialize(self, node: GrammarNode) -> str:
         if isinstance(node, RuleNode) and node.name == "start":
             self.visit(node)
@@ -683,6 +705,8 @@ class LarkSerializer:
         if isinstance(node, RuleNode):
             if node in self.names:
                 return self.names[node]
+            if isinstance(node.stop, SpecialToken):
+                return self.visit(self._split_special_stop(node), top=top)
 
             name = self.normalize_name(node.name, node.is_allowed_in_lark_terminal)
             names = set(self.names.values())

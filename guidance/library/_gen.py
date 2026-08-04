@@ -1,7 +1,7 @@
 import logging
 from typing import Literal
 
-from .._ast import ToolCallNode
+from .._ast import SpecialToken, ToolCallNode
 from .._grammar import capture, quote_regex
 from .._grammar import gen as grammar_gen
 from .._grammar import regex as regex_node
@@ -18,7 +18,7 @@ def gen(
     regex=None,
     tools=None,
     hide_tool_call=False,
-    stop: str | list[str] | None = None,
+    stop: str | SpecialToken | list[str | SpecialToken] | None = None,
     stop_regex: str | list[str] | None = None,
     suffix: str | None = None,
     n=1,
@@ -60,8 +60,11 @@ def gen(
             as the model generates anything that does not match the pattern (this ending behavior may change a bit we
             update guidance to maintain the grammar parsing state between calls).
 
-        stop : str or list or None
+        stop : str or SpecialToken or list or None
             The stop string (or list of strings) we should use for terminating this generation segment.
+            A `guidance.special_token(...)` may be given instead, to stop on a model's own terminator
+            (for example the token that closes a reasoning channel). A special token stop cannot be
+            combined with text stops, `stop_regex`, `save_stop_text`, or another special token.
 
         stop_regex : str or list or None
             The stop regular expression (or list of regular expressions) we should use for terminating this generation segment.
@@ -124,9 +127,20 @@ def gen(
 
     if stop is not None and stop_regex is not None:
         raise ValueError("Cannot use both stop and stop_regex")
-    if isinstance(stop, list):
-        stop_regex = [quote_regex(s) for s in stop]
-        stop = None
+    if isinstance(stop, (str, SpecialToken)):
+        stop = [stop]
+    special = [s for s in (stop or []) if isinstance(s, SpecialToken)]
+    plain = [s for s in (stop or []) if not isinstance(s, SpecialToken)]
+    if special and (plain or stop_regex):
+        raise ValueError("Cannot mix special tokens with plain text or regex stops")
+    if special and save_stop_text is not False:
+        raise ValueError("Can't use save stop text alongside a special stop token")
+    if len(special) > 1:
+        raise ValueError("Only one special token stop is supported")
+    if plain:
+        stop_regex = "|".join(quote_regex(s) for s in plain)
+    stop = special[0] if special else None
+
     if isinstance(stop_regex, list):
         stop_regex = "|".join(list(stop_regex))
 

@@ -1,4 +1,5 @@
 import pydantic
+import pytest
 from llguidance import LLMatcher
 
 from guidance._ast import (
@@ -11,6 +12,7 @@ from guidance._ast import (
     RuleNode,
     RuleRefNode,
     SelectNode,
+    SpecialToken,
     SubgrammarNode,
 )
 from guidance.library._pydantic import pydantic_to_json_schema
@@ -169,6 +171,94 @@ MY_RULE: /.*/
         grm = LLMatcher.grammar_from_lark(result)
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
+
+    def test_special_token_stop_rule_node(self):
+        # A special token can't be a `stop=` attribute: `stop=` is lexer-level and llguidance
+        # rejects special tokens in terminals. It has to go in the rule body instead -- and
+        # because temperature=/max_tokens= force terminal treatment, they can't share a rule
+        # with it, so the node is split in two.
+        target = LarkSerializer(enforce_max_tokens=True)
+        ren = RegexNode(".*")
+        st = SpecialToken(text="channel|")
+        rule_node = RuleNode("my_rule", value=ren, capture="my_capture", temperature=0.7, max_tokens=300, stop=st)
+
+        result = target.serialize(rule_node.simplify())
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule: my_rule_body <channel|>
+my_rule_body[capture="my_capture", temperature=0.7, max_tokens=300]: MY_RULE_BODY
+MY_RULE_BODY: /.*/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_special_token_stop_select_body(self):
+        # The select body must end up wrapped in its own terminal, otherwise the token would
+        # bind to the last alternative only.
+        target = LarkSerializer(enforce_max_tokens=True)
+        sn = SelectNode((LiteralNode("A"), LiteralNode("B")))
+        st = SpecialToken(text="channel|")
+        rule_node = RuleNode("my_rule", value=sn, capture="my_capture", stop=st)
+
+        result = target.serialize(rule_node.simplify())
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule: my_rule_body <channel|>
+my_rule_body[capture="my_capture"]: MY_RULE_BODY
+
+MY_RULE_BODY: "A"
+     | "B"
+
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_special_token_stop_with_suffix(self):
+        # suffix= is terminal-only, so it stays on the inner rule -- meaning the suffix is
+        # matched *before* the special token, which is the ordering a caller would expect
+        # from "generate, then the suffix, then the thing that terminates it".
+        target = LarkSerializer(enforce_max_tokens=True)
+        ren = RegexNode(".*")
+        st = SpecialToken(text="channel|")
+        rule_node = RuleNode(
+            "my_rule", value=ren, capture="my_capture", max_tokens=300, suffix=LiteralNode("DONE"), stop=st
+        )
+
+        result = target.serialize(rule_node.simplify())
+        print(result)
+
+        expected = """%llguidance {}
+
+start: my_rule
+my_rule: my_rule_body <channel|>
+my_rule_body[capture="my_capture", max_tokens=300, suffix="DONE"]: MY_RULE_BODY
+MY_RULE_BODY: /.*/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_special_token_stop_rejects_stop_capture_and_lazy(self):
+        # Both are lexer-level and have no home once the terminator moves into the rule body,
+        # so the split must refuse them rather than silently dropping them.
+        target = LarkSerializer(enforce_max_tokens=True)
+        st = SpecialToken(text="channel|")
+
+        for kwargs in ({"stop_capture": "my_stop"}, {"lazy": True}):
+            rule_node = RuleNode("my_rule", value=RegexNode(".*"), stop=st, **kwargs)
+            with pytest.raises(ValueError, match="special-token stop"):
+                target.serialize(rule_node.simplify())
 
     def test_suffix_rule_node(self):
         target = LarkSerializer()
