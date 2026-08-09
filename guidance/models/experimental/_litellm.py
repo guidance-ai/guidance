@@ -116,7 +116,7 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
             raise ValueError(f"stop_capture not yet supported for {self.ep_type} endpoint")
 
         kwargs = kwargs.copy()
-        if node.temperature:
+        if node.temperature is not None:
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
