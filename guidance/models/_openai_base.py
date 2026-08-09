@@ -566,7 +566,7 @@ class OpenAIRuleMixin(BaseOpenAIInterpreter):
             raise ValueError("Save stop text not yet supported for OpenAI")
 
         kwargs = kwargs.copy()
-        if node.temperature:
+        if node.temperature is not None:
             kwargs["temperature"] = node.temperature
         if node.max_tokens:
             kwargs["max_completion_tokens"] = node.max_tokens
