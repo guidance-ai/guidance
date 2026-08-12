@@ -18,13 +18,13 @@ conda activate guidancedev
 
 Install guidance (without CUDA):
 ```bash
-python -m pip install -e .[all,test,llamacpp,transformers]
+python -m pip install -e '.[all,test,llamacpp,transformers]'
 ```
 
 Alternatively, install guidance with CUDA support. There are various ways to do this. We recommend:
 ```bash
 conda install pytorch pytorch-cuda=12.1 -c pytorch -c nvidia
-CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e .[all,test,llamacpp,transformers]
+CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install -e '.[all,test,llamacpp,transformers]'
 ```
 
 ## Running Tests
@@ -69,7 +69,7 @@ See `test_azureai_openai.py` for examples of this being done.
 ## Formatting & Linting
 
 We use `ruff` to format our codebase.
-To install the correct version, run `pip install -e .[dev]`.
+To install the correct version, run `pip install -e '.[dev]'`.
 You can then run `ruff format /path/to/modified/file.py` to format the code.
 The path can also be an entire directory, or omitted entirely to format all files beneath the current directory.
 There are (rare) cases where manual formatting is preferable; for these [`ruff` provides pragmas for suppression](https://docs.astral.sh/ruff/formatter/#format-suppression).
