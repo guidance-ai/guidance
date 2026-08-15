@@ -82,7 +82,9 @@ class TestPrivateIPBlocking:
         "ip",
         [
             "169.254.0.1",
-            "169.254.169.254",  # AWS metadata endpoint
+            "169.254.1.1",
+            # 169.254.169.254 lives in this range too, but it is now rejected by the metadata
+            # check first and reports a different message. See TestCloudMetadataEndpoints.
         ],
     )
     def test_link_local_blocked(self, ip):
@@ -135,3 +137,63 @@ class TestPrivateIPBlocking:
         with patch("socket.getaddrinfo", return_value=addrinfos):
             with pytest.raises(URIValidationError, match="private/loopback/link-local/reserved"):
                 validate_uri("https://tricky.example.com/resource")
+
+
+METADATA_ADDRESSES = [
+    "169.254.169.254",  # AWS IMDS, GCP, Azure, OCI, DigitalOcean
+    "169.254.170.2",  # AWS ECS task IAM role credentials
+    "169.254.170.23",  # AWS EKS Pod Identity Agent
+    "168.63.129.16",  # Azure WireServer (publicly routable)
+    "100.100.100.200",  # Alibaba Cloud (100.64.0.0/10, not reported as private)
+    "192.0.0.192",  # Oracle Cloud (Classic)
+    "169.254.42.42",  # Scaleway
+]
+
+
+class TestCloudMetadataEndpoints:
+    @pytest.mark.parametrize("ip", METADATA_ADDRESSES)
+    def test_metadata_endpoints_blocked_by_default(self, ip):
+        with pytest.raises(URIValidationError):
+            validate_uri(f"https://{ip}/latest/meta-data/")
+
+    @pytest.mark.parametrize("ip", METADATA_ADDRESSES)
+    def test_metadata_endpoints_blocked_even_with_allow_private(self, ip):
+        """`allow_private` is for reaching your own network, not the credential endpoint."""
+        with pytest.raises(URIValidationError, match="cloud metadata endpoint"):
+            validate_uri(f"https://{ip}/latest/meta-data/", allow_private=True)
+
+    def test_allow_private_still_permits_rfc1918(self):
+        validate_uri("https://10.0.0.5/resource", allow_private=True)
+
+    def test_allow_private_still_permits_loopback(self):
+        validate_uri("https://127.0.0.1/resource", allow_private=True)
+
+    def test_public_address_still_allowed(self):
+        validate_uri("https://1.1.1.1/resource")
+
+    def test_metadata_endpoint_via_dns_blocked(self):
+        """The check runs on every resolved address, not just on IP literals."""
+        addrinfo = [(2, 1, 6, "", ("168.63.129.16", 0))]
+        with (
+            patch("guidance._uri_validation.socket.getaddrinfo", return_value=addrinfo),
+            pytest.raises(URIValidationError, match="cloud metadata endpoint"),
+        ):
+            validate_uri("https://metadata.example.com/x")
+
+    @pytest.mark.parametrize(
+        "ip",
+        [
+            "168.63.129.16",  # Azure WireServer, publicly routable
+            "100.100.100.200",  # Alibaba Cloud, inside 100.64.0.0/10 which Python calls public
+        ],
+    )
+    def test_metadata_endpoint_not_reachable_through_ipv4_mapped_ipv6(self, ip):
+        """Wrapping the address in `::ffff:` must not walk past the list.
+
+        These are the two entries that motivated the list: both are publicly routable, so the
+        private/loopback/link-local/reserved checks never catch them and the membership test is
+        the only guard. The link-local entries hide this, because Python reports an IPv4-mapped
+        link-local address as link-local and blocks it on the range check regardless.
+        """
+        with pytest.raises(URIValidationError, match="cloud metadata endpoint"):
+            validate_uri(f"https://[::ffff:{ip}]/latest/meta-data/")
