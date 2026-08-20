@@ -170,6 +170,35 @@ class TestDict:
             generate_and_check({1: 2}, model)
         assert exc_info.value.args[0] == "JSON does not support non-string keys, got type int"
 
+    def test_bare_dict(self):
+        """
+        A bare `dict` (unparametrized) should be accepted: pydantic gives it
+        an "any" key type, which maps to a valid, unconstrained JSON object
+        since JSON object keys are always strings.
+        """
+        model = pydantic.TypeAdapter(dict)
+        generate_and_check({"hello": "world", "n": 1}, model)
+
+    def test_dict_any_any(self):
+        model = pydantic.TypeAdapter(dict[Any, Any])
+        generate_and_check({"hello": "world"}, model)
+
+    def test_dict_str_any(self):
+        model = pydantic.TypeAdapter(dict[str, Any])
+        generate_and_check({"hello": 42}, model)
+
+    def test_bare_dict_field_on_model(self):
+        """
+        Regression test for https://github.com/guidance-ai/guidance/issues/1493
+        """
+
+        class Config(pydantic.BaseModel):
+            name: str
+            metadata: dict
+
+        obj = Config(name="foo", metadata={"a": 1, "b": "two"})
+        generate_and_check(obj, Config)
+
 
 class TestComposite:
     class Simple(pydantic.BaseModel):
