@@ -167,7 +167,7 @@ class Monitor:
                 # Trim lists to max_size
                 for metrics in self.metrics_dict.values():
                     if len(metrics) > self.max_size:
-                        metrics = metrics[-self.max_size :]
+                        del metrics[: len(metrics) - self.max_size]
 
                 lat = time.time() - t0
                 sleep_time = self.interval_ms / 1000.0 - lat
