@@ -333,6 +333,7 @@ class ModelStream:
         model: Model,
         grammar: Union["ModelStream", str, ASTNode, Function, None] = None,
         timeout=5,
+        operations: tuple[tuple[tuple["Block", ...], str | ASTNode | Function], ...] | None = None,
     ) -> None:
         """Create a model stream object that delays execution until it is iterated over."""
         if model.echo:
@@ -341,22 +342,46 @@ class ModelStream:
         self.model = model
         self.grammar = grammar
         self.timeout = timeout
-
-    def __add__(self, grammar: str | ASTNode) -> Self:
-        """Extend this delayed chain of execution with another grammar append."""
-        if self.grammar is None:
-            return ModelStream(self.model, grammar)
+        if operations is not None:
+            self._operations = operations
+        elif isinstance(grammar, ModelStream):
+            self._operations = grammar._operations
+        elif grammar is None:
+            self._operations = ()
         else:
-            return ModelStream(self.model, self.grammar + grammar)
+            self._operations = (((), grammar),)
+
+    def __add__(self, grammar: str | ASTNode | Function) -> Self:
+        """Extend this delayed chain of execution with another grammar append."""
+        combined_grammar = grammar if self.grammar is None else self.grammar + grammar
+        current_blocks = _active_blocks.get()
+        operations = self._operations
+        # Keep adjacent appends as one grammar unless a block transition must be replayed.
+        if operations and operations[-1][0] == current_blocks:
+            previous_blocks, previous_grammar = operations[-1]
+            operations = operations[:-1] + ((previous_blocks, previous_grammar + grammar),)
+        else:
+            operations += ((current_blocks, grammar),)
+        return ModelStream(
+            self.model,
+            combined_grammar,
+            timeout=self.timeout,
+            operations=operations,
+        )
 
     def _inner_run(self, model):
         """This runs the model stream without iterating, and is only using internally by __iter__."""
-        if isinstance(self.grammar, ModelStream):
-            model = self.grammar._inner_run(model)
-        elif self.grammar is None:
+        if not self._operations:
             model = self.model + ""
-        else:
-            model = self.model + self.grammar
+            return model
+
+        for active_blocks, grammar in self._operations:
+            token = _active_blocks.set(active_blocks)
+            try:
+                model = model + grammar
+            finally:
+                _active_blocks.reset(token)
+        return model
 
     def __iter__(self) -> Iterator[Model]:
         """Starts a thread to execute the model and grammar, yielding events as they occur."""

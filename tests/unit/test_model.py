@@ -2,6 +2,7 @@ import pytest
 
 import guidance
 from guidance import gen, models
+from guidance.chat import Llama3ChatTemplate
 
 
 def test_call_embeddings():
@@ -53,6 +54,30 @@ def test_trace():
         m2 = m1 + "Roses are red and " + gen(name="suffix", regex="[A-Za-z]{2,5}", max_tokens=5)
 
     assert m2["suffix"] is not None
+
+
+def test_stream_preserves_role_blocks():
+    expected = models.Mock(echo=False)
+    expected._interpreter.chat_template = Llama3ChatTemplate()
+
+    with guidance.user():
+        expected += "Hey "
+        expected += "there!"
+    with guidance.assistant():
+        expected += "Hello!"
+
+    streamed = models.Mock(echo=False)
+    streamed._interpreter.chat_template = Llama3ChatTemplate()
+    stream = streamed.stream()
+
+    with guidance.user():
+        stream += "Hey "
+        stream += "there!"
+    with guidance.assistant():
+        stream += "Hello!"
+
+    *_, last = stream
+    assert str(last) == str(expected)
 
 
 def test_step_every_k_injection():
