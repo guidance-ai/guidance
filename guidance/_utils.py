@@ -1,7 +1,6 @@
 import ast
 import asyncio
 import functools
-import http
 import inspect
 import json
 import logging
@@ -12,7 +11,7 @@ import textwrap
 import types
 import urllib
 import weakref
-from typing import TYPE_CHECKING, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Optional, Sequence
 
 import numpy as np
 import pydantic
@@ -37,18 +36,24 @@ def bytes_from(
 ) -> bytes:
     if isinstance(src, str) and re.match(r"[^:/]+://", src):
         from ._uri_validation import validate_uri
-
-        validate_uri(src, allowed_schemes=allowed_schemes, allow_private=allow_private, allow_local=allow_local)
+        from ._safe_fetch import fetch_url_bytes
 
         # file:// URIs are only reachable here if allow_local=True
         if src.lower().startswith("file://"):
+            validate_uri(src, allowed_schemes=allowed_schemes, allow_private=allow_private, allow_local=allow_local)
             file_path = urllib.request.url2pathname(urllib.parse.urlparse(src).path)
             with open(file_path, "rb") as f:
                 bytes_data = f.read(max_bytes + 1)
         else:
-            with urllib.request.urlopen(src, timeout=timeout) as response:
-                response = cast(http.client.HTTPResponse, response)
-                bytes_data = response.read(max_bytes + 1)
+            # validate + fetch with redirect re-check and DNS pinning (SSRF hardening)
+            bytes_data = fetch_url_bytes(
+                src,
+                allowed_schemes=allowed_schemes,
+                allow_private=allow_private,
+                allow_local=allow_local,
+                max_bytes=max_bytes,
+                timeout=timeout,
+            )
 
     # ...from a local path
     elif allow_local and (isinstance(src, str) or isinstance(src, pathlib.Path)):
