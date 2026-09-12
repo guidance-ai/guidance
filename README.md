@@ -13,6 +13,7 @@
 
    * [Install](#install)
    * [Features](#features)
+   * [FAQ](#faq)
 
 
 ## Install
@@ -21,6 +22,20 @@ If you already have the backend required for your model, you can simply run
 ```bash
 pip install guidance
 ```
+
+## FAQ
+
+**How do I know if a prompt (e.g. one recommended on a model's Hugging Face page) is good for a given model?**
+
+Guidance constructs prompts from the grammars you write with constructs like `with system():`, `with user():`,
+`gen()`, etc. -- it does not automatically verify that the resulting prompt is well-suited to a particular model.
+Model-specific prompting conventions (chat templates, special tokens, recommended system prompts) come from the
+model provider, not from Guidance; Guidance's job is to apply the chat template for the model/backend you've
+selected and let you constrain/steer the output, not to judge prompt quality. If you want feedback on a prompt or
+want to discuss what works well for a specific model, use
+[GitHub Discussions](https://github.com/guidance-ai/guidance/discussions) or the
+[Discord server](https://discord.gg/cjPfAK43dz) -- those are better suited to open-ended questions than the issue
+tracker, which is reserved for bugs and feature requests.
 
 ## Features
 
