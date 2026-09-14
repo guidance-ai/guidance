@@ -101,3 +101,47 @@ def test_step_stop_token_trigger_injection():
     s = str(lm)
     assert "[FIX2]" in s and "ym" not in s
     assert calls["count"] == 1
+
+
+def test_step_stop_token_trigger_injection_across_chunks(monkeypatch):
+    """Ensure stop tokens spanning multiple chunks do not double backtrack or leak fragments."""
+    from guidance._schema import GenTokenExtra
+    from guidance.models._mock import MockEngine
+
+    lm0 = models.Mock(echo=False)
+    tokens = lm0.engine.tokenizer.tokens
+    scripted = [tokens.index(b"ab"), tokens.index(b"cd"), tokens.index(b"\n")]
+    call_count = {"n": 0}
+
+    def scripted_next_token(
+        self, logits, logits_lat_ms, token_ids, mask, temperature, k, compute_unmasked_probs, sampling_params
+    ):
+        token_id = scripted[call_count["n"]]
+        call_count["n"] += 1
+        return GenTokenExtra(
+            token_id=token_id,
+            prob=1.0,
+            bytes=self.tokenizer.decode([token_id]),
+            latency_ms=0.0,
+            is_generated=True,
+            top_k=[],
+        )
+
+    monkeypatch.setattr(MockEngine, "get_next_token_with_top_k", scripted_next_token)
+
+    calls = {"count": 0}
+
+    def cb(ctx):
+        calls["count"] += 1
+        return {"injected_text": "[INJ]"}
+
+    cfg = {
+        "step_stop_tokens": {"abcd"},
+        "callback": cb,
+    }
+    lm = models.Mock(echo=False).with_step_config(cfg)
+    lm = lm + gen(max_tokens=10, stop="\n", temperature=0.0)
+
+    s = str(lm)
+    assert s == "[INJ]"
+    assert calls["count"] == 1
