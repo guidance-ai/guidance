@@ -17,8 +17,8 @@ class GenerateJsonSchemaSafe(pydantic.json_schema.GenerateJsonSchema):
 
     def generate_inner(self, schema):
         if schema["type"] == "dict":
-            key_type = schema["keys_schema"]["type"]
-            if key_type != "str":
+            key_type = schema.get("keys_schema", {}).get("type", "any")
+            if key_type not in ("str", "any"):
                 raise TypeError(f"JSON does not support non-string keys, got type {key_type}")
         return super().generate_inner(schema)
 

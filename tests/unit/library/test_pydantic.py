@@ -161,6 +161,26 @@ class TestDict:
         model = pydantic.TypeAdapter(dict[str, int])
         generate_and_check({"hello": 42}, model)
 
+    def test_bare_dict(self):
+        model = pydantic.TypeAdapter(dict)
+        generate_and_check({"hello": "world"}, model)
+
+    def test_dict_any_any(self):
+        model = pydantic.TypeAdapter(dict[Any, Any])
+        generate_and_check({"hello": "world"}, model)
+
+    def test_dict_str_any(self):
+        model = pydantic.TypeAdapter(dict[str, Any])
+        generate_and_check({"hello": 42}, model)
+
+    def test_model_with_bare_dict(self):
+        class ModelWithDict(pydantic.BaseModel):
+            name: str
+            metadata: dict
+
+        obj = ModelWithDict(name="test", metadata={"key": "val"})
+        generate_and_check(obj, ModelWithDict)
+
     def test_prevent_non_string_keys(self):
         """
         Test that we catch attempts to generate non-string keys.
