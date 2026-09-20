@@ -20,7 +20,8 @@ def substring(
     elif chunk == "character":
         chunks = tuple(target_string)
     elif callable(chunk):
-        chunks = chunk(target_string)
+        # materialise once: the returned iterable may be a one-shot iterator or generator
+        chunks = tuple(chunk(target_string))
         if "".join(chunks) != target_string:
             raise ValueError(
                 "chunk_on function must return a sequence of strings that can be joined to form the target string"
