@@ -5,7 +5,15 @@ from base64 import b64encode
 import pytest
 
 from guidance.registry import get_bg_async
-from guidance.trace import Backtrack, LiteralInput, TextOutput, Token, TokenOutput, TraceHandler
+from guidance.trace import (
+    Backtrack,
+    LiteralInput,
+    RoleOpenerInput,
+    TextOutput,
+    Token,
+    TokenOutput,
+    TraceHandler,
+)
 from guidance.visual import (
     ClientReadyAckMessage,
     ClientReadyMessage,
@@ -81,6 +89,32 @@ def test_str_method_smoke():
         pass
     except Exception as e:
         raise e
+
+
+def test_trace_node_to_html_prettify_roles_first_text_in_role():
+    # A role opener and the first text of the role share a trace node
+    trace_handler = TraceHandler()
+    role_node = trace_handler.update_node(1, None, RoleOpenerInput(name="user", text="@", closer_text="<end>"))
+    child_node = trace_handler.update_node(1, None, TextOutput(value="Hello world", is_generated=True))
+    assert child_node is role_node
+
+    html = trace_node_to_html(child_node, prettify_roles=True)
+
+    assert "Hello world" in html
+
+
+def test_trace_node_to_html_prettify_roles_text_after_text():
+    trace_handler = TraceHandler()
+    prefix_node = trace_handler.update_node(1, None, TextOutput(value="PREFIX "))
+    role_node = trace_handler.update_node(2, 1, RoleOpenerInput(name="user", text="@", closer_text="<end>"))
+    child_node = trace_handler.update_node(2, 1, TextOutput(value="Hello world", is_generated=True))
+    assert child_node is role_node
+    assert child_node.parent is prefix_node
+
+    html = trace_node_to_html(child_node, prettify_roles=True)
+
+    assert "Hello world" in html
+    assert html.count("Chunk: PREFIX ") == 1
 
 
 def test_environment():

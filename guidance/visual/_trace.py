@@ -54,10 +54,9 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                     if not prettify_roles:
                         buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
 
-                if not (active_role and prettify_roles):
-                    attr = output_attr
-                    latency = f"{attr.latency_ms:.2f}"
-                    chunk_text = attr.value
+                attr = output_attr
+                latency = f"{attr.latency_ms:.2f}"
+                chunk_text = attr.value
 
                 if not isinstance(attr, TokenOutput):
                     if attr.is_generated:
