@@ -215,11 +215,16 @@ class WeakRefList(list):
         super().append(weakref.ref(item))
 
     def __getitem__(self, index):
-        ref = super().__getitem__(index)
-        obj = ref()
-        if obj is None:
-            raise ReferenceError("The referenced object has been garbage collected")
-        return obj
+        refs = super().__getitem__(index)
+        if not isinstance(index, slice):
+            refs = [refs]
+        objs = []
+        for ref in refs:
+            obj = ref()
+            if obj is None:
+                raise ReferenceError("The referenced object has been garbage collected")
+            objs.append(obj)
+        return objs if isinstance(index, slice) else objs[0]
 
     def __iter__(self):
         return (ref() for ref in super().__iter__() if ref() is not None)

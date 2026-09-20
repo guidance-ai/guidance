@@ -40,6 +40,30 @@ def test_weak_ref_list():
         _ = el
 
 
+def test_weak_ref_list_slice():
+    class EmptyClass:
+        pass
+
+    a = EmptyClass()
+    b = EmptyClass()
+    c = EmptyClass()
+    li = WeakRefList()
+    li.append(a)
+    li.append(b)
+    li.append(c)
+
+    # Slice goes over referenced objects
+    assert li[0:2] == [a, b]
+    assert li[1:] == [b, c]
+    assert li[::2] == [a, c]
+    assert li[:] == [a, b, c]
+
+    # Slice with a dead entry raises
+    del a
+    with pytest.raises(ReferenceError):
+        _ = li[0:1]
+
+
 def test_trace_node():
     root = TraceNode()
     child1 = TraceNode()
@@ -56,6 +80,9 @@ def test_trace_node():
     assert list(child1.ancestors()) == [root]
     assert list(child1.path()) == [root, child1]
     assert list(child1.traverse()) == [child1]
+
+    assert root.children[0:2] == [child1, child2]
+    assert root.children[1:] == [child2]
 
 
 def test_trace_handler():
