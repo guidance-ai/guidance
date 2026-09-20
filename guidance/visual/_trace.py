@@ -1,5 +1,6 @@
 """Visualization related to trace."""
 
+import base64
 import html
 import json
 
@@ -38,22 +39,20 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                 active_role = node
                 break
         for output_attr in node.output:
-            if isinstance(output_attr, TextOutput):
-                if active_role is not None:
-                    # Find the first RoleOpenerInput in the active role's input list
-                    role_opener_input = next(
-                        (inp for inp in active_role.input if isinstance(inp, RoleOpenerInput)), None
-                    )
-                    if (
-                        prettify_roles
-                        and role_opener_input is not None
-                        and (role_name := role_opener_input.name) is not None
-                    ):
-                        fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
-                        buffer.append(fmt)
-                    if not prettify_roles:
-                        buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
+            if active_role is not None and isinstance(output_attr, (TextOutput, ImageOutput)):
+                # Find the first RoleOpenerInput in the active role's input list
+                role_opener_input = next((inp for inp in active_role.input if isinstance(inp, RoleOpenerInput)), None)
+                if (
+                    prettify_roles
+                    and role_opener_input is not None
+                    and (role_name := role_opener_input.name) is not None
+                ):
+                    fmt = f"<div style='display: flex; border-bottom: 1px solid rgba(127, 127, 127, 0.2);  justify-content: center; align-items: center;'><div style='flex: 0 0 80px; opacity: 0.5;'>{role_name.lower()}</div><div style='flex-grow: 1; padding: 5px; padding-top: 10px; padding-bottom: 10px; margin-top: 0px; white-space: pre-wrap; margin-bottom: 0px;'>"
+                    buffer.append(fmt)
+                if not prettify_roles:
+                    buffer.append("<span style='background-color: rgba(255, 180, 0, 0.3); border-radius: 3px;'>")
 
+            if isinstance(output_attr, TextOutput):
                 if not (active_role and prettify_roles):
                     attr = output_attr
                     latency = f"{attr.latency_ms:.2f}"
@@ -86,6 +85,10 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                         fmt = f"<span style='background-color: rgba({255}, {255}, {255}, 0.15); border-radius: 3ps;' title='Token: \"{token_str}\" : {prob}\nTop-k: {top_k_repr}'>{html.escape(token_str)}</span>"
 
                 buffer.append(fmt)
+            elif isinstance(output_attr, ImageOutput):
+                buffer.append(
+                    f'<img src="data:image/{output_attr.format};base64,{base64.b64encode(output_attr.value).decode()}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
+                )
 
             if active_role is not None:
                 if not prettify_roles:
@@ -95,10 +98,6 @@ def trace_node_to_html(node: TraceNode, prettify_roles=False) -> str:
                 if has_role_closer and prettify_roles:
                     buffer.append("</div></div>")
                 active_role = None
-            elif isinstance(output_attr, ImageOutput):
-                buffer.append(
-                    f'<img src="data:image/png;base64,{output_attr.value.decode()}" style="max-width" 400px; vertical-align: middle; margin: 4px;">'
-                )
 
     buffer.insert(
         0,

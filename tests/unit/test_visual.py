@@ -5,7 +5,17 @@ from base64 import b64encode
 import pytest
 
 from guidance.registry import get_bg_async
-from guidance.trace import Backtrack, LiteralInput, TextOutput, Token, TokenOutput, TraceHandler
+from guidance.trace import (
+    Backtrack,
+    ImageInput,
+    ImageOutput,
+    LiteralInput,
+    RoleOpenerInput,
+    TextOutput,
+    Token,
+    TokenOutput,
+    TraceHandler,
+)
 from guidance.visual import (
     ClientReadyAckMessage,
     ClientReadyMessage,
@@ -81,6 +91,46 @@ def test_str_method_smoke():
         pass
     except Exception as e:
         raise e
+
+
+def test_image_output_html():
+    image_bytes = b"\x89PNG\r\n\x1a\n"  # real image bytes are not valid utf-8
+    image_b64 = b64encode(image_bytes)
+
+    trace_handler = TraceHandler()
+    child_node = trace_handler.update_node(1, 0, ImageInput(value=image_b64))
+    trace_handler.update_node(1, 0, ImageOutput(value=image_b64, is_input=True))
+
+    html_output = trace_node_to_html(child_node)
+
+    assert f'<img src="data:image/png;base64,{image_b64.decode()}"' in html_output
+
+    # the image format is respected
+    trace_handler = TraceHandler()
+    child_node = trace_handler.update_node(1, 0, ImageInput(value=image_b64, format="jpeg"))
+    trace_handler.update_node(1, 0, ImageOutput(value=image_b64, format="jpeg", is_input=True))
+
+    html_output = trace_node_to_html(child_node)
+
+    assert f'<img src="data:image/jpeg;base64,{image_b64.decode()}"' in html_output
+
+
+def test_image_output_html_in_role():
+    image_bytes = b"\x89PNG\r\n\x1a\n"  # real image bytes are not valid utf-8
+    image_b64 = b64encode(image_bytes)
+
+    # `with user(): lm += image(...)` records the role opener on one trace node
+    # and the image output on its child node
+    trace_handler = TraceHandler()
+    role_node = trace_handler.update_node(1, 0, RoleOpenerInput(name="user"))
+    child_node = trace_handler.update_node(2, 1, ImageInput(value=image_b64))
+    trace_handler.update_node(2, 1, ImageOutput(value=image_b64, is_input=True))
+
+    html_output = trace_node_to_html(child_node)
+
+    assert child_node.parent is role_node
+    assert f'<img src="data:image/png;base64,{image_b64.decode()}"' in html_output
+    assert html_output.count("<span") == html_output.count("</span>")
 
 
 def test_environment():
