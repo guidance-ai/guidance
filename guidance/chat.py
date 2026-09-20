@@ -49,11 +49,15 @@ def load_template_class(chat_template=None):
 
     Order of precedence:
     - If it's a chat template class, use it directly
+    - If it's a chat template instance, use its class
     - If it's a string, check the cache of popular model templates
     - If it's a string and not in the cache, try to create a class dynamically
     - [TODO] If it's a string and can't be created, default to ChatML and raise a warning
     - If it's None, default to ChatML and raise a warning
     """
+    if isinstance(chat_template, ChatTemplate):
+        chat_template = type(chat_template)
+
     if inspect.isclass(chat_template) and issubclass(chat_template, ChatTemplate):
         if chat_template is ChatTemplate:
             raise Exception("You can't use the base ChatTemplate class directly. Create or use a subclass instead.")
