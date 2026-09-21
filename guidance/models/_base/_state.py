@@ -55,6 +55,6 @@ class State(ABC):
         return CaptureOutput(
             name=name,
             value=value,
-            log_probs=log_prob or float("nan"),
+            log_probs=log_prob if log_prob is not None else float("nan"),
             is_append=is_append,
         )

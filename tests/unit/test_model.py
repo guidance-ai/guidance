@@ -1,7 +1,8 @@
 import pytest
 
 import guidance
-from guidance import gen, models
+from guidance import gen, models, select
+from guidance.trace import CaptureOutput
 
 
 def test_call_embeddings():
@@ -53,6 +54,24 @@ def test_trace():
         m2 = m1 + "Roses are red and " + gen(name="suffix", regex="[A-Za-z]{2,5}", max_tokens=5)
 
     assert m2["suffix"] is not None
+
+
+@pytest.mark.parametrize("list_append", [False, True])
+def test_capture_trace_preserves_zero_log_probability(list_append):
+    model = models.Mock(echo=False) + select(["fixed"], name="result", list_append=list_append)
+
+    assert model["result"] == (["fixed"] if list_append else "fixed")
+    assert model.log_prob("result") == ([0.0] if list_append else 0.0)
+    captures = [
+        output
+        for node in model._trace_nodes
+        for output in node.output
+        if isinstance(output, CaptureOutput) and output.name == "result"
+    ]
+    assert len(captures) == 1
+    capture = captures[0]
+    assert capture.log_probs == 0.0
+    assert CaptureOutput.model_validate_json(capture.model_dump_json()) == capture
 
 
 def test_step_every_k_injection():
