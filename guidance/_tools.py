@@ -3,7 +3,7 @@ import inspect
 import textwrap
 import traceback
 from types import TracebackType
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Callable, Literal, get_type_hints
 
 from pydantic import BaseModel, ConfigDict, Field, create_model, field_serializer
 
@@ -40,6 +40,14 @@ class FunctionTool(BaseModel):
             )
 
         signature = inspect.signature(callable)
+        try:
+            # Resolve the annotations in the callable's own namespace, so that string
+            # annotations (e.g. from `from __future__ import annotations`) are not
+            # resolved against guidance's namespace when the model is built
+            type_hints = get_type_hints(callable, include_extras=True)
+        except Exception:  # noqa: BLE001
+            # Keep the raw annotations if they cannot be resolved
+            type_hints = {}
         parameters = {}
         for name, param in signature.parameters.items():
             if param.kind not in {
@@ -47,7 +55,8 @@ class FunctionTool(BaseModel):
                 inspect.Parameter.KEYWORD_ONLY,
             }:
                 raise ValueError(f"Unsupported parameter kind: {param.kind.description}")
-            parameters[name] = param.annotation if param.annotation is not inspect.Parameter.empty else Any
+            annotation = param.annotation if param.annotation is not inspect.Parameter.empty else Any
+            parameters[name] = type_hints.get(name, annotation)
 
         return FunctionTool(
             parameters=create_model(callable.__name__, __config__=ConfigDict(extra="forbid"), **parameters),
