@@ -820,6 +820,13 @@ class LarkSerializer:
             new_name = new_name.upper()
         else:
             new_name = new_name.lower()
+        # Sanitize: replace any remaining invalid characters with underscore
+        new_name = re.sub(r"[^A-Za-z0-9_]", "_", new_name)
+        # Prefix with underscore if starts with digit or is empty
+        if new_name and not new_name[0].isalpha():
+            new_name = "_" + new_name
+        elif not new_name:
+            new_name = "_"
         return new_name
 
     def regex(self, pattern: str) -> str:
