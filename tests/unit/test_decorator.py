@@ -25,6 +25,53 @@ def test_dedent_basic():
     assert str(result).startswith("{")
 
 
+@pytest.mark.parametrize("stateless", [False, True])
+def test_dedent_with_multiline_decorator(stateless):
+    @guidance(
+        stateless=stateless,
+    )
+    def prompt(lm):
+        lm += """\
+        Hello
+            world
+        """
+        return lm
+
+    assert str(guidance.models.Mock(echo=False) + prompt()) == "Hello\n    world\n"
+
+
+@pytest.mark.parametrize("stateless", [False, True])
+def test_dedent_with_function_call(stateless):
+    def prompt(lm, *, name: str = "world"):
+        lm += f"""\
+        Hello
+            {name}
+        """
+        return lm
+
+    wrapped = guidance(prompt, stateless=stateless)
+
+    assert str(guidance.models.Mock(echo=False) + wrapped()) == "Hello\n    world\n"
+    assert str(guidance.models.Mock(echo=False) + wrapped(name="Guidance")) == "Hello\n    Guidance\n"
+    assert wrapped.__name__ == prompt.__name__
+    assert inspect.signature(wrapped).parameters["name"] == inspect.signature(prompt).parameters["name"]
+
+
+def test_dedent_preserves_exception_line_number():
+    def prompt(lm):
+        raise RuntimeError("prompt failed")
+
+    source_lines, first_line = inspect.getsourcelines(prompt)
+    exception_line = first_line + next(i for i, line in enumerate(source_lines) if "raise RuntimeError" in line)
+    wrapped = guidance(prompt, stateless=True)
+
+    with pytest.raises(RuntimeError, match="prompt failed") as exc_info:
+        wrapped()
+
+    assert exc_info.traceback[-1].lineno == exception_line - 1
+    assert str(exc_info.traceback[-1].path) == prompt.__code__.co_filename
+
+
 def test_basic_multiline_fstring():
     """Test a simple multiline f-string."""
 
