@@ -127,8 +127,8 @@ class normalize_notebook_stdout_stderr:
 
 def strip_multiline_string_indents(f):
     source = textwrap.dedent(inspect.getsource(f))
-    blanks = "\n" * f.__code__.co_firstlineno  # pad the source so the lines in the file line up for the debugger
-    source = blanks + "\n".join(source.splitlines()[1:])  # remove the decorator first line.
+    blanks = "\n" * (f.__code__.co_firstlineno - 1)  # pad the source so the lines in the file line up for the debugger
+    source = blanks + source
 
     # define the external closure variables so f.__closure__ will match our recompiled version
     if len(f.__code__.co_freevars) > 0:
