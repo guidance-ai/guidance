@@ -4,7 +4,7 @@ from .._guidance import guidance
 from ._block import block
 
 
-@guidance(stateless=lambda *args, **kwargs: isinstance(args[0], GrammarNode))
+@guidance(stateless=lambda value, name: isinstance(value, GrammarNode))
 def capture(lm, value, name):
     if isinstance(value, GrammarNode):
         return lm + grammar_capture(value, name)
