@@ -43,3 +43,39 @@ def test_capture_raw_function():
     assert str(lm_nocap).endswith("|the end")
     assert str(lm_cap_arg).endswith("|the end")
     assert str(lm_cap_kwarg).endswith("|the end")
+
+
+def test_capture_grammar_keyword_value():
+    grammar = capture(value=select(["one", "two"]), name="result")
+    # Grammar captures must remain stateless so they can be composed in a select.
+    combined = select([grammar, "other"])
+    match = combined.match("one", raise_exceptions=True)
+    assert match is not None
+    assert match["result"] == "one"
+
+    lm = models.Mock(b"<s>two<s>") + combined
+    assert str(lm) == "two"
+    assert lm["result"] == "two"
+
+
+def test_capture_text_keyword_value():
+    lm = models.Mock() + "prefix " + capture(value="captured text", name="result") + " suffix"
+    assert str(lm) == "prefix captured text suffix"
+    assert lm["result"] == "captured text"
+
+
+def test_capture_stateful_keyword_value():
+    calls = []
+
+    @guidance(dedent=False)
+    def raw_fn(lm):
+        calls.append(lm["seed"])
+        return lm + lm["seed"]
+
+    captured = capture(value=raw_fn(), name="result")
+    assert calls == []
+
+    lm = models.Mock().set("seed", "stateful text") + "prefix " + captured + " suffix"
+    assert str(lm) == "prefix stateful text suffix"
+    assert lm["result"] == "stateful text"
+    assert calls == ["stateful text"]
