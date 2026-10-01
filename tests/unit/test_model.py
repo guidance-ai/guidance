@@ -55,6 +55,49 @@ def test_trace():
     assert m2["suffix"] is not None
 
 
+class _DefaultSystemPromptTemplate(guidance.chat.ChatMLTemplate):
+    default_system_prompt = "You are a helpful assistant."
+
+
+def _mock_with_template(template_cls):
+    model = models.Mock()
+    model._interpreter.chat_template = template_cls()
+    return model
+
+
+def test_default_system_prompt_inserted_when_missing():
+    from guidance import user
+
+    lm = _mock_with_template(_DefaultSystemPromptTemplate)
+    with user():
+        lm += "Hi"
+
+    assert str(lm) == "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nHi"
+
+
+def test_default_system_prompt_not_inserted_with_explicit_system():
+    from guidance import system, user
+
+    lm = _mock_with_template(_DefaultSystemPromptTemplate)
+    with system():
+        lm += "You are a cat expert."
+    with user():
+        lm += "Hi"
+
+    assert "You are a helpful assistant." not in str(lm)
+    assert str(lm).count("<|im_start|>system") == 1
+
+
+def test_no_default_system_prompt_by_default():
+    from guidance import user
+
+    lm = _mock_with_template(guidance.chat.ChatMLTemplate)
+    with user():
+        lm += "Hi"
+
+    assert str(lm) == "<|im_start|>user\nHi"
+
+
 def test_step_every_k_injection():
     import re
 
