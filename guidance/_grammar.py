@@ -199,7 +199,7 @@ def subgrammar(
 
 
 def special_token(token: str) -> SpecialToken:
-    match = re.match(r"<([^<>]+)>", token)
+    match = re.fullmatch(r"<([^<>]+)>", token)
     if not match:
         # TODO: Support special tokens that do not start and end with '<' and '>' -- requires a PR to llguidance
         raise ValueError(
