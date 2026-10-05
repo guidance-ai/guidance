@@ -162,6 +162,8 @@ def with_temperature(value: GrammarNode, temperature: float) -> RuleNode:
 
     def inner(value: GrammarNode) -> RuleNode:
         if isinstance(value, RuleNode):
+            if value.temperature is not None:
+                return value
             return dataclasses.replace(value, temperature=temperature)
         else:
             return RuleNode(name="with_temperature", value=value, temperature=temperature)

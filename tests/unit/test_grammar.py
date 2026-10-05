@@ -1,8 +1,9 @@
 import pytest
 
 import guidance
-from guidance import gen, lark, models, optional, select
+from guidance import gen, lark, models, optional, select, with_temperature
 from guidance._parser import ByteParserException
+from guidance.library._subgrammar import subgrammar
 
 
 def test_select_reset_pos():
@@ -57,6 +58,55 @@ def test_grammar_plus_fstring():
     lm = models.Mock()
     lm += test()
     assert "{{G|" not in str(lm)
+
+
+@pytest.mark.parametrize("inner_temperature", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("outer_temperature", [0.0, 0.9])
+@pytest.mark.parametrize("use_subgrammar", [False, True])
+def test_with_temperature_preserves_explicit_temperature(inner_temperature, outer_temperature, use_subgrammar):
+    node = gen(name="answer", regex="[ab]{3}", max_tokens=3, stop=";", save_stop_text="stop")
+    if use_subgrammar:
+        node = subgrammar(node)
+    original = with_temperature(node, inner_temperature)
+
+    wrapped = with_temperature(original, outer_temperature)
+
+    assert wrapped == original
+    assert original.temperature == inner_temperature
+    assert f"temperature={inner_temperature}" in wrapped.ll_grammar()
+
+
+@pytest.mark.parametrize("temperature", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("use_subgrammar", [False, True])
+def test_with_temperature_sets_unset_temperature(temperature, use_subgrammar):
+    original = gen(name="answer", regex="[ab]{3}", max_tokens=3)
+    if use_subgrammar:
+        original = subgrammar(original)
+
+    wrapped = with_temperature(original, temperature)
+
+    assert wrapped.temperature == temperature
+    assert original.temperature is None
+    lm = models.Mock(b"<s>aaa") + wrapped
+    assert lm["answer"] == "aaa"
+    assert lm.engine.called_temperatures
+    assert all(value == temperature for value in lm.engine.called_temperatures)
+
+
+@pytest.mark.parametrize("temperature", [0.0, 0.5, 1.0])
+@pytest.mark.parametrize("use_subgrammar", [False, True])
+def test_with_temperature_preserves_sampling_temperature(temperature, use_subgrammar):
+    node = gen(name="answer", regex="[ab]+", max_tokens=10, stop=";", save_stop_text="stop")
+    if use_subgrammar:
+        node = subgrammar(node)
+    original = with_temperature(node, temperature)
+
+    lm = models.Mock(b"<s>aaa;") + with_temperature(original, 0.9)
+
+    assert lm["answer"] == "aaa"
+    assert lm["stop"] == ";"
+    assert lm.engine.called_temperatures
+    assert all(value == temperature for value in lm.engine.called_temperatures)
 
 
 class TestRecursion:
