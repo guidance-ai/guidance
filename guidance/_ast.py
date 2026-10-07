@@ -397,6 +397,21 @@ class SelectNode(GrammarNode):
 class JoinNode(GrammarNode):
     nodes: tuple[GrammarNode, ...]
 
+    def __post_init__(self):
+        # Concatenation is associative. Flatten nested JoinNodes so a long
+        # `lm += term` loop stays O(n) deep instead of a left-nested tree
+        # that overflows is_null / is_allowed_in_lark_terminal.
+        flat: list[GrammarNode] = []
+        nested = False
+        for node in self.nodes:
+            if isinstance(node, JoinNode):
+                flat.extend(node.nodes)
+                nested = True
+            else:
+                flat.append(node)
+        if nested:
+            object.__setattr__(self, "nodes", tuple(flat))
+
     @property
     def is_null(self) -> bool:
         return all(node.is_null for node in self.nodes)
@@ -404,10 +419,20 @@ class JoinNode(GrammarNode):
     def simplify(self) -> "GrammarNode":
         if self.is_null:
             return LiteralNode("")
-        nodes = tuple(node.simplify() for node in self.nodes if not node.is_null)
+        nodes: list[GrammarNode] = []
+        for node in self.nodes:
+            simplified = node.simplify()
+            if simplified.is_null:
+                continue
+            if isinstance(simplified, JoinNode):
+                nodes.extend(simplified.nodes)
+            else:
+                nodes.append(simplified)
+        if not nodes:
+            return LiteralNode("")
         if len(nodes) == 1:
             return nodes[0]
-        return JoinNode(nodes)
+        return JoinNode(tuple(nodes))
 
     def children(self) -> Sequence["GrammarNode"]:
         return self.nodes

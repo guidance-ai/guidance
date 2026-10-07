@@ -445,3 +445,21 @@ my_rule: %lark {
         grm = LLMatcher.grammar_from_lark(result)
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
+
+
+class TestJoinFlatten:
+    def test_add_flattens_nested_join_nodes(self):
+        node = LiteralNode("0")
+        for i in range(1, 500):
+            node = node + LiteralNode(str(i))
+
+        assert isinstance(node, JoinNode)
+        assert len(node.nodes) == 500
+        assert not any(isinstance(child, JoinNode) for child in node.nodes)
+        assert node.is_null is False
+        assert node.is_allowed_in_lark_terminal is True
+
+    def test_constructor_flattens_nested_join_nodes(self):
+        nested = JoinNode((JoinNode((LiteralNode("A"), LiteralNode("B"))), LiteralNode("C")))
+        assert nested.nodes == (LiteralNode("A"), LiteralNode("B"), LiteralNode("C"))
+        assert nested.ll_grammar() == JoinNode((LiteralNode("A"), LiteralNode("B"), LiteralNode("C"))).ll_grammar()
