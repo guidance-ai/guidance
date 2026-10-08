@@ -395,7 +395,7 @@ def apply_repetition_penalty(input_ids: list[int], logits: np.ndarray, sampling_
 
 
 def apply_top_k_only(logits: np.ndarray, k: int) -> np.ndarray:
-    if k <= 0:
+    if k <= 0 or k >= len(logits):
         return logits
 
     indices_to_remove = logits.argpartition(-k)[:-k]
