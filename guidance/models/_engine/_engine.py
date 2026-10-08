@@ -723,6 +723,7 @@ class Engine(ABC):
 def get_top_k(_probs: NDArray, _k: int = 5) -> list[int]:
     if _k <= 0:
         return []
+    _k = min(_k, len(_probs))
     top_k_indices = _probs.argpartition(-_k)[-_k:].tolist()
     # Sort by probability in descending order, as above argpartition
     # does not guarantee order. Sorting the smaller array is faster.
