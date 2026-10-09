@@ -2359,6 +2359,29 @@ class TestWhitespace:
 
 
 class TestStringSchema:
+    @pytest.mark.parametrize("schema", ["true", " \n true \t"])
+    @pytest.mark.parametrize("target_obj", [None, 123, "hello", [1, 2], {"a": True}])
+    def test_true(self, schema, target_obj):
+        grammar = gen_json(schema=schema)
+        prepared_json = json_dumps(target_obj)
+        assert grammar.match(prepared_json) is not None
+        model = models.Mock(f"<s>{prepared_json}".encode())
+        assert str(model + grammar) == prepared_json
+
+    @pytest.mark.parametrize("schema", ["false", "\nfalse\t"])
+    def test_false(self, schema):
+        with pytest.raises(ValueError, match="^Unsatisfiable schema: schema is false$"):
+            gen_json(schema=schema)
+
+    @pytest.mark.parametrize("schema", ["null", "42", "0", "[]", '"object"'])
+    def test_invalid_schema_type(self, schema):
+        with pytest.raises(ValueError, match="^JSON schema string must be a JSON object"):
+            gen_json(schema=schema)
+
+    def test_invalid_json(self):
+        with pytest.raises(json.JSONDecodeError):
+            gen_json(schema="{not valid json}")
+
     def test_good(self):
         schema = """{"type": "object", "properties": {"a": {"type": "string"}}}"""
         target_obj = {"a": "hello"}

@@ -64,6 +64,11 @@ def json(
             - A subclass of ``pydantic.BaseModel``
             - An instance of ``pydantic.TypeAdapter``
     """
+    if isinstance(schema, str):
+        schema = json_loads(schema)
+        if not isinstance(schema, (dict, bool)):
+            raise ValueError("JSON schema string must be a JSON object (i.e. a dictionary) or a boolean")
+
     if schema is False:
         raise ValueError("Unsatisfiable schema: schema is false")
     elif schema is True:
@@ -73,12 +78,6 @@ def json(
         isinstance(schema, type) and issubclass(schema, pydantic.BaseModel)
     ):
         schema = pydantic_to_json_schema(schema)
-    elif isinstance(schema, str):
-        from_str = json_loads(schema)
-        if not isinstance(from_str, dict):
-            raise ValueError("JSON schema string must be a JSON object (i.e. a dictionary)")
-        schema = from_str
-
     if whitespace_pattern is not None:
         whitespace_flexible = True
 
