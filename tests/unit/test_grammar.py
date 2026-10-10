@@ -18,6 +18,22 @@ def test_select_longer():
     assert lm["text"] == "nice man."
 
 
+def test_long_numbered_list_with_mock():
+    @guidance(stateless=True)
+    def numbered_list(lm, n):
+        for i in range(n):
+            lm += f"{i}. "
+            lm += select(["yes", "no"])
+            lm += "\n"
+        return lm
+
+    lm = models.Mock() + numbered_list(164)
+    lines = str(lm).splitlines()
+    assert len(lines) == 164
+    for i, line in enumerate(lines):
+        assert line in (f"{i}. yes", f"{i}. no")
+
+
 @pytest.mark.xfail(
     reason="Lexer sees 'a' then 'b' and here decides to continue matching abq; see https://github.com/guidance-ai/llguidance/issues/2"
 )
