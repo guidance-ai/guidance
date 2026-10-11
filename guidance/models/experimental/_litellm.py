@@ -121,10 +121,11 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
         if node.stop:
-            if self.ep_type in ["xai"] and isinstance(node.stop.regex, str):
-                kwargs["stop"] = [node.stop.regex]
+            stop_value = node.stop.regex if isinstance(node.stop, RegexNode) else node.stop.value
+            if self.ep_type in ["xai"] and isinstance(stop_value, str):
+                kwargs["stop"] = [stop_value]
             else:
-                kwargs["stop"] = node.stop.regex
+                kwargs["stop"] = stop_value
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:

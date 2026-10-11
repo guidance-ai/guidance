@@ -41,7 +41,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
         if node.stop:
-            kwargs["stop"] = node.stop.regex
+            kwargs["stop"] = node.stop.regex if isinstance(node.stop, RegexNode) else node.stop.value
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:
