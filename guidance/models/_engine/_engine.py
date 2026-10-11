@@ -666,9 +666,10 @@ class Engine(ABC):
         It is very much experimental in nature, and the API is subject to change.
         """
         # Get the tokens which might be needed by the chat template
+        bos_token = self.tokenizer.bos_token
         tokens = {
             "eos_token": self.tokenizer.eos_token.decode("utf-8"),
-            "bos_token": self.tokenizer.bos_token.decode("utf-8"),
+            "bos_token": "" if bos_token is None else bos_token.decode("utf-8"),
         }
 
         # Render the messages
