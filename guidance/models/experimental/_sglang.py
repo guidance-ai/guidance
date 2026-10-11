@@ -14,6 +14,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
         model: str,
         base_url: str | None = None,
         api_key: str | None = None,
+        reasoning_effort: str | None = None,
         **kwargs,
     ):
         try:
@@ -24,7 +25,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
             ) from ie
 
         client = openai.OpenAI(base_url=base_url, api_key=api_key, **kwargs)
-        super().__init__(model=model, client=OpenAIClientWrapper(client), **kwargs)
+        super().__init__(model=model, client=OpenAIClientWrapper(client), reasoning_effort=reasoning_effort)
 
     def rule(self, node: RuleNode, **kwargs) -> Iterator[OutputAttr]:
         kwargs = self._process_kwargs(**kwargs)
