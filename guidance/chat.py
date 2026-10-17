@@ -343,7 +343,13 @@ class Qwen2dot5ChatTemplate(ChatTemplate):
         return "<|im_end|>\n"
 
 
-CHAT_TEMPLATE_CACHE[qwen2dot5_template] = Qwen2dot5ChatTemplate
+class Qwen2dot5BaseChatTemplate(Qwen2dot5ChatTemplate):
+    # The base model's template uses a different default system prompt than Instruct
+    template_str = qwen2dot5_template
+    default_system_prompt = "You are a helpful assistant."
+
+
+CHAT_TEMPLATE_CACHE[qwen2dot5_template] = Qwen2dot5BaseChatTemplate
 CHAT_TEMPLATE_CACHE[qwen2dot5_it_template] = Qwen2dot5ChatTemplate
 
 

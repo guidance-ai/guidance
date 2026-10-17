@@ -98,6 +98,27 @@ def test_no_default_system_prompt_by_default():
     assert str(lm) == "<|im_start|>user\nHi"
 
 
+@pytest.mark.parametrize(
+    "template_str", [guidance.chat.qwen2dot5_template, guidance.chat.qwen2dot5_it_template], ids=["base", "instruct"]
+)
+def test_default_system_prompt_matches_hf_template(template_str):
+    import jinja2.sandbox
+
+    from guidance import assistant, user
+
+    lm = _mock_with_template(guidance.chat.load_template_class(template_str))
+    with user():
+        lm += "Hi"
+    with assistant():
+        lm += "Hello"
+
+    env = jinja2.sandbox.ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
+    messages = [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"}]
+    expected = env.from_string(template_str).render(messages=messages, add_generation_prompt=False)
+    # guidance doesn't emit the closing tag of the last role block
+    assert str(lm) == expected.removesuffix("<|im_end|>\n")
+
+
 def test_step_every_k_injection():
     import re
 
