@@ -5,6 +5,10 @@ import warnings
 class ChatTemplate:
     """Contains template for all chat and instruct tuned models."""
 
+    # System prompt to insert when a conversation starts without one, mirroring
+    # the default that some models' official chat templates add (e.g. Qwen2.5).
+    default_system_prompt: str | None = None
+
     def get_role_start(self, role_name: str, **kwargs):
         raise NotImplementedError("You need to use a ChatTemplate subclass that overrides the get_role_start method")
 
@@ -327,6 +331,7 @@ qwen2dot5_it_template = "{%- if tools %}\n    {{- '<|im_start|>system\\n' }}\n  
 class Qwen2dot5ChatTemplate(ChatTemplate):
     # available_roles = ["system", "user", "assistant"]
     template_str = qwen2dot5_it_template
+    default_system_prompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
 
     def get_role_start(self, role_name):
         if role_name in ["system", "user", "assistant"]:
@@ -338,7 +343,13 @@ class Qwen2dot5ChatTemplate(ChatTemplate):
         return "<|im_end|>\n"
 
 
-CHAT_TEMPLATE_CACHE[qwen2dot5_template] = Qwen2dot5ChatTemplate
+class Qwen2dot5BaseChatTemplate(Qwen2dot5ChatTemplate):
+    # The base model's template uses a different default system prompt than Instruct
+    template_str = qwen2dot5_template
+    default_system_prompt = "You are a helpful assistant."
+
+
+CHAT_TEMPLATE_CACHE[qwen2dot5_template] = Qwen2dot5BaseChatTemplate
 CHAT_TEMPLATE_CACHE[qwen2dot5_it_template] = Qwen2dot5ChatTemplate
 
 

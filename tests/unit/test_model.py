@@ -55,6 +55,70 @@ def test_trace():
     assert m2["suffix"] is not None
 
 
+class _DefaultSystemPromptTemplate(guidance.chat.ChatMLTemplate):
+    default_system_prompt = "You are a helpful assistant."
+
+
+def _mock_with_template(template_cls):
+    model = models.Mock()
+    model._interpreter.chat_template = template_cls()
+    return model
+
+
+def test_default_system_prompt_inserted_when_missing():
+    from guidance import user
+
+    lm = _mock_with_template(_DefaultSystemPromptTemplate)
+    with user():
+        lm += "Hi"
+
+    assert str(lm) == "<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n<|im_start|>user\nHi"
+
+
+def test_default_system_prompt_not_inserted_with_explicit_system():
+    from guidance import system, user
+
+    lm = _mock_with_template(_DefaultSystemPromptTemplate)
+    with system():
+        lm += "You are a cat expert."
+    with user():
+        lm += "Hi"
+
+    assert "You are a helpful assistant." not in str(lm)
+    assert str(lm).count("<|im_start|>system") == 1
+
+
+def test_no_default_system_prompt_by_default():
+    from guidance import user
+
+    lm = _mock_with_template(guidance.chat.ChatMLTemplate)
+    with user():
+        lm += "Hi"
+
+    assert str(lm) == "<|im_start|>user\nHi"
+
+
+@pytest.mark.parametrize(
+    "template_str", [guidance.chat.qwen2dot5_template, guidance.chat.qwen2dot5_it_template], ids=["base", "instruct"]
+)
+def test_default_system_prompt_matches_hf_template(template_str):
+    import jinja2.sandbox
+
+    from guidance import assistant, user
+
+    lm = _mock_with_template(guidance.chat.load_template_class(template_str))
+    with user():
+        lm += "Hi"
+    with assistant():
+        lm += "Hello"
+
+    env = jinja2.sandbox.ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
+    messages = [{"role": "user", "content": "Hi"}, {"role": "assistant", "content": "Hello"}]
+    expected = env.from_string(template_str).render(messages=messages, add_generation_prompt=False)
+    # guidance doesn't emit the closing tag of the last role block
+    assert str(lm) == expected.removesuffix("<|im_end|>\n")
+
+
 def test_step_every_k_injection():
     import re
 

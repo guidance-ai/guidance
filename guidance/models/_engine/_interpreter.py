@@ -44,8 +44,12 @@ class EngineInterpreter(Interpreter[EngineState]):
         return self.chat_template.get_role_end(role)
 
     def role_start(self, node: RoleStart, **kwargs) -> Iterator[OutputAttr]:
-        self.state.active_role = node.role
         text = self.get_role_start(node.role)
+        default_system_prompt = getattr(self.chat_template, "default_system_prompt", None)
+        if default_system_prompt is not None and node.role != "system" and self.state.prompt == "":
+            # Conversation starts without a system role, so add the model's default one
+            text = self.get_role_start("system") + default_system_prompt + self.get_role_end("system") + text
+        self.state.active_role = node.role
         # TODO: it's probably somewhat wasteful to trigger engine calls here,
         # so we can maybe add this as "pending text" to the state instead,
         # accumulating it until the next engine call..?
