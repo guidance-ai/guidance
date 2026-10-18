@@ -1,5 +1,6 @@
 import pytest
 
+from guidance import capture
 from guidance.library._subgrammar import lexeme, subgrammar
 
 
@@ -18,3 +19,33 @@ class TestEndingLexemeAmbiguous:
         match = g.match(string)
         assert match is not None
         assert match.captures["mycap"] == string
+
+
+@pytest.mark.parametrize("string", ["x=1", "x = 1", "x = // note\n1", "x/=/1"])
+def test_skip_regex_containing_slash(string):
+    body = capture(lexeme(r"[a-z]+"), "key") + "=" + capture(lexeme(r"[0-9]+"), "value")
+    g = subgrammar(body=body, skip_regex=r"(\s|/|//[^\n]*)+", name="mycap")
+    match = g.match(string)
+    assert match is not None
+    assert match.captures["mycap"] == string
+
+
+@pytest.mark.parametrize(
+    "skip_regex",
+    [
+        "(?x)\n    \\s+\n",
+        r"""(?x)
+        (
+            \s+          # whitespace
+          | \#[^\n]*     # hash comment
+        )+
+        """,
+    ],
+)
+@pytest.mark.parametrize("string", ["x=1", "x = 1", "x\n=\n1"])
+def test_multiline_verbose_skip_regex(skip_regex, string):
+    body = capture(lexeme(r"[a-z]+"), "key") + "=" + capture(lexeme(r"[0-9]+"), "value")
+    g = subgrammar(body=body, skip_regex=skip_regex, name="mycap")
+    match = g.match(string)
+    assert match is not None
+    assert match.captures["mycap"] == string
