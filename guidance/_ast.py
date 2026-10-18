@@ -729,7 +729,8 @@ class LarkSerializer:
             elif isinstance(target, SubgrammarNode):
                 lark_grammar = LarkSerializer(enforce_max_tokens=self.enforce_max_tokens).serialize(target.body)
                 if target.skip_regex:
-                    lark_grammar += f"\n%ignore /{target.skip_regex}/"
+                    skip_regex = re.sub(r"(?<!\\)/", r"\/", target.skip_regex)
+                    lark_grammar += f"\n%ignore /{skip_regex}/"
                 res += f"%lark {{\n{textwrap.indent(lark_grammar, '  ').strip()}\n}}"
             elif isinstance(target, GrammarNode):
                 if (
