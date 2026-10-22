@@ -136,6 +136,8 @@ class MockEngine(Engine):
             for p in self.byte_patterns:
                 if p.startswith(byte_string) and len(p) > len(byte_string):
                     for i in self._get_next_tokens(p[len(byte_string) :]):
+                        if self.force and np.isneginf(logits[i]):
+                            logits[i] = 0.0
                         logits[i] += bias
                         bias /= 2  # if we have multiple matches then they apply with decreasing bias
 
