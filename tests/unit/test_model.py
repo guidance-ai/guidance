@@ -4,6 +4,22 @@ import guidance
 from guidance import gen, models
 
 
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("expected", ["yes", "no", "blue"])
+@pytest.mark.parametrize("temperature", [0.0, 0.7])
+def test_mock_forced_byte_patterns(force, expected, temperature):
+    model = models.Mock(f"<s>{expected}<s>", force=force)
+    model += gen("answer", regex="yes|no|blue", max_tokens=8, temperature=temperature)
+    assert model["answer"] == expected
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_mock_overlapping_byte_patterns(force):
+    model = models.Mock([b"<s>yes<s>", b"<s>no<s>", b"<s>yes<s>"], force=force)
+    model += gen("answer", regex="yes|no", temperature=0.0)
+    assert model["answer"] == "yes"
+
+
 def test_call_embeddings():
     """This tests calls embedded in strings."""
     model = models.Mock()
