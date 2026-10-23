@@ -2,7 +2,7 @@ from typing import Iterator
 
 from guidance._schema import SamplingParams
 
-from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
+from ..._ast import GrammarNode, JsonNode, LiteralNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
 from .._openai_base import BaseOpenAIInterpreter, OpenAIClientWrapper
@@ -41,7 +41,7 @@ class SglangInterpreter(BaseOpenAIInterpreter):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
         if node.stop:
-            kwargs["stop"] = node.stop.regex
+            kwargs["stop"] = node.stop.value if isinstance(node.stop, LiteralNode) else node.stop.regex
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:

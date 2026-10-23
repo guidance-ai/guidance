@@ -101,3 +101,40 @@ def test_step_stop_token_trigger_injection():
     s = str(lm)
     assert "[FIX2]" in s and "ym" not in s
     assert calls["count"] == 1
+
+
+def test_experimental_rule_stop():
+    from unittest.mock import MagicMock
+
+    from guidance.models.experimental._litellm import LiteLLMInterpreter
+    from guidance.models.experimental._sglang import SglangInterpreter
+
+    sglang = SglangInterpreter.__new__(SglangInterpreter)
+    sglang.state = MagicMock()
+    sglang.run = MagicMock(return_value=iter([]))
+
+    rule_stop = gen(stop="stop_word")
+    list(sglang.rule(rule_stop))
+    assert sglang.run.call_args[1]["stop"] == "stop_word"
+
+    rule_stop_regex = gen(stop_regex=r"\d+")
+    list(sglang.rule(rule_stop_regex))
+    assert sglang.run.call_args[1]["stop"] == r"\d+"
+
+    litellm = LiteLLMInterpreter.__new__(LiteLLMInterpreter)
+    litellm.ep_type = "hosted_vllm"
+    litellm.state = MagicMock()
+    litellm.run = MagicMock(return_value=iter([]))
+
+    list(litellm.rule(rule_stop))
+    assert litellm.run.call_args[1]["stop"] == "stop_word"
+
+    list(litellm.rule(rule_stop_regex))
+    assert litellm.run.call_args[1]["stop"] == r"\d+"
+
+    litellm.ep_type = "xai"
+    list(litellm.rule(rule_stop))
+    assert litellm.run.call_args[1]["stop"] == ["stop_word"]
+
+    list(litellm.rule(rule_stop_regex))
+    assert litellm.run.call_args[1]["stop"] == [r"\d+"]

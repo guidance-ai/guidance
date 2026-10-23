@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, ContextManager, Iterator
 
 from guidance._schema import SamplingParams
 
-from ..._ast import GrammarNode, JsonNode, RegexNode, RuleNode
+from ..._ast import GrammarNode, JsonNode, LiteralNode, RegexNode, RuleNode
 from ...trace import OutputAttr, TextOutput
 from .._base import Model
 from .._openai_base import BaseOpenAIClientWrapper, BaseOpenAIInterpreter
@@ -121,10 +121,11 @@ class LiteLLMInterpreter(BaseOpenAIInterpreter):
         if node.max_tokens:
             kwargs["max_tokens"] = node.max_tokens
         if node.stop:
-            if self.ep_type in ["xai"] and isinstance(node.stop.regex, str):
-                kwargs["stop"] = [node.stop.regex]
+            stop = node.stop.value if isinstance(node.stop, LiteralNode) else node.stop.regex
+            if self.ep_type in ["xai"] and isinstance(stop, str):
+                kwargs["stop"] = [stop]
             else:
-                kwargs["stop"] = node.stop.regex
+                kwargs["stop"] = stop
 
         chunks = self.run(node.value, **kwargs)
         if node.capture:
