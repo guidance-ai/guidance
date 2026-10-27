@@ -43,7 +43,11 @@ def _parse_tags(s: str) -> Union["GrammarNode", "Function"]:
     is_tag = True
     for part in parts:
         if is_tag:
-            obj += _tag_pool[part]
+            # Only ids the library minted itself can be in the pool. Anything else came in
+            # as plain text (a user message, a retrieved doc, ...) that happens to look like
+            # a tag, so keep it as literal text instead of raising.
+            tag = _tag_pool.get(part)
+            obj += LiteralNode(tag_start + part + tag_end) if tag is None else tag
         else:
             obj += LiteralNode(part)
         is_tag = not is_tag

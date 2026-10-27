@@ -12,6 +12,7 @@ from guidance._ast import (
     RuleRefNode,
     SelectNode,
     SubgrammarNode,
+    _parse_tags,
 )
 from guidance.library._pydantic import pydantic_to_json_schema
 
@@ -445,3 +446,30 @@ my_rule: %lark {
         grm = LLMatcher.grammar_from_lark(result)
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
+
+
+class TestParseTags:
+    def test_unknown_tag_is_kept_as_literal_text(self):
+        # Text that merely looks like a tag (user input, a retrieved document) must not
+        # blow up on a KeyError, and has to stay literal text.
+        node = _parse_tags("user says: {{G|not-a-real-id|G}} ok")
+        assert _literal_text(node) == "user says: {{G|not-a-real-id|G}} ok"
+
+    def test_known_tag_still_resolves(self):
+        inner = LiteralNode("inner")
+        node = _parse_tags(f"a {inner} b")
+        assert isinstance(node, JoinNode)
+        # joining the tag back in gives us the inner node, not its literal repr
+        assert inner in _flatten(node)
+
+
+def _literal_text(node):
+    return "".join(n.value for n in _flatten(node))
+
+
+def _flatten(node):
+    if isinstance(node, JoinNode):
+        for child in node.nodes:
+            yield from _flatten(child)
+    else:
+        yield node
