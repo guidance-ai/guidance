@@ -88,6 +88,12 @@ def select(
         to a list (if no list with the current name is present one will be created). This is useful for
         building lists inside python loops.
     """
+    options = list(options)
+    if not options:
+        raise ValueError(
+            "Cannot select from an empty options list (the grammar would be unsatisfiable)"
+        )
+
     alternatives: list[GrammarNode] = []
     for v in options:
         if isinstance(v, (int, float)):
