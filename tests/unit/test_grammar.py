@@ -144,3 +144,16 @@ class TestMatch:
         # Shold raise since we don't allow partial
         with pytest.raises(ByteParserException):
             g.match(b"123", raise_exceptions=True)
+
+
+def test_select_empty_options_raises():
+    """An empty options list is unsatisfiable: `select()` must fail loudly instead of
+    silently matching the empty string without ever touching the model."""
+    with pytest.raises(ValueError, match="empty options"):
+        select(options=[])
+
+
+def test_select_empty_options_from_generator_raises():
+    """The check should also cover non-sequence iterables (e.g. filtered generators)."""
+    with pytest.raises(ValueError, match="empty options"):
+        select(options=(option for option in []))
