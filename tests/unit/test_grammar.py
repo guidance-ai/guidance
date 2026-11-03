@@ -144,3 +144,12 @@ class TestMatch:
         # Shold raise since we don't allow partial
         with pytest.raises(ByteParserException):
             g.match(b"123", raise_exceptions=True)
+
+def test_gen_rejects_empty_stop():
+    with pytest.raises(ValueError, match="`stop` cannot be an empty string"):
+        gen(stop="")
+
+
+def test_gen_rejects_empty_stop_regex():
+    with pytest.raises(ValueError, match="`stop_regex` cannot be an empty regex"):
+        gen(stop_regex="")

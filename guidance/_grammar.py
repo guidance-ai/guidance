@@ -37,6 +37,16 @@ def gen(
 ) -> RuleNode:
     if stop is not None and stop_regex is not None:
         raise ValueError("You cannot specify both a stop and a stop_regex")
+    if stop == "":
+        raise ValueError(
+            "`stop` cannot be an empty string: generation would never terminate. "
+            "Use `stop=None` instead."
+        )
+    if stop_regex == "":
+        raise ValueError(
+            "`stop_regex` cannot be an empty regex: it matches everywhere, so "
+            "generation would never start."
+        )
 
     stop_value: LiteralNode | RegexNode | None = None
     if stop is not None:
