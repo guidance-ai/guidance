@@ -153,3 +153,18 @@ def test_multiline():
     model = models.Mock(b"<s>this\nis\na\ntest<s>")
     model += gen(max_tokens=20)
     assert str(model) == "this\nis\na\ntest"
+
+
+@pytest.mark.parametrize("n", [0, -1, 1.5, "2", True])
+def test_gen_rejects_a_bad_n(n):
+    lm = models.Mock(b"<s>abc")
+
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        lm + gen("text", n=n)
+
+
+def test_gen_reports_more_than_one_choice_as_unimplemented():
+    lm = models.Mock(b"<s>abc")
+
+    with pytest.raises(NotImplementedError):
+        lm + gen("text", n=2)
