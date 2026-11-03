@@ -117,7 +117,13 @@ def gen(
 
         return tool_gen()
 
-    assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ValueError(f"`n` must be a positive integer, got {n!r}")
+    if n > 1:
+        raise NotImplementedError(
+            "We still need to add support for n>1! Consider putting your gen call "
+            "in a loop for now."
+        )
     assert top_p == 1, "Please use `model.with_sampling_params` to set top_p."
 
     logger.debug(f'start gen(name="{name}")')
