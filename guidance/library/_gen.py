@@ -117,6 +117,11 @@ def gen(
 
         return tool_gen()
 
+    if max_tokens is not None and (
+        not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens < 1
+    ):
+        raise ValueError(f"max_tokens must be a positive integer, got {max_tokens!r}")
+
     assert n == 1, "We still need to add support for n>1! Consider putting your gen call in a loop for now."
     assert top_p == 1, "Please use `model.with_sampling_params` to set top_p."
 
