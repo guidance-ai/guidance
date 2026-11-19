@@ -49,3 +49,9 @@ def test_multiline_verbose_skip_regex(skip_regex, string):
     match = g.match(string)
     assert match is not None
     assert match.captures["mycap"] == string
+
+
+@pytest.mark.parametrize("skip_regex", [r"\\/", r"\\\/"])
+def test_skip_regex_with_backslashes_before_slash(skip_regex):
+    body = capture(lexeme(r"[a-z]+"), "key") + capture(lexeme(r"[0-9]+"), "value")
+    assert subgrammar(body=body, skip_regex=skip_regex).match(r"x\/1") is not None
