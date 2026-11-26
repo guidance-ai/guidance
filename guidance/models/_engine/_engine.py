@@ -420,8 +420,6 @@ class Engine(ABC):
                             # For injection: only backtrack what's in previous responses
                             backtracked_bytes = backtrack_bytes_from_previous + backtracked_bytes
                             backtrack = previous_response_token_count + backtrack
-                            backtracked_bytes = backtrack_bytes_from_previous + backtracked_bytes
-                            backtrack = previous_response_token_count + backtrack
 
                             # Set flag to indicate this is an injection backtrack
                             has_injection_backtrack = True
