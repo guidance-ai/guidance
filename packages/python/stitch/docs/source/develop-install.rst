@@ -6,8 +6,8 @@ Developer install
 To install a developer version of stitch, you will first need to clone
 the repository::
 
-    git clone https://github.com/guidance-ai/stitch
-    cd stitch
+    git clone https://github.com/guidance-ai/guidance
+    cd guidance/packages/python/stitch
 
 Next, install it with a develop install using pip::
 
