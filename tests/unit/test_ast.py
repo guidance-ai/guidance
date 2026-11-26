@@ -1,4 +1,7 @@
+import json
+
 import pydantic
+import pytest
 from llguidance import LLMatcher
 
 from guidance._ast import (
@@ -445,3 +448,50 @@ my_rule: %lark {
         grm = LLMatcher.grammar_from_lark(result)
         is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
         assert not is_err
+
+
+class TestLarkSerializerRuleNames:
+    @pytest.mark.parametrize(
+        "capture, rule_name",
+        [
+            ("first name", "first_name"),
+            ("a.b", "a_b"),
+            ("héllo", "h_llo"),
+            ("a|b", "a_b"),
+        ],
+    )
+    def test_capture_name_not_valid_lark_identifier(self, capture, rule_name):
+        target = LarkSerializer()
+        rule_node = RuleNode(capture, value=RegexNode("[a-z]+"), capture=capture)
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        expected = f"""%llguidance {{}}
+
+start: {rule_name}
+{rule_name}[capture={json.dumps(capture)}]: {rule_name.upper()}
+{rule_name.upper()}: /[a-z]+/
+"""
+        assert result == expected
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_capture_name_starting_with_digit(self):
+        target = LarkSerializer()
+        rule_node = RuleNode("123", value=RegexNode("[a-z]+"), capture="123")
+
+        result = target.serialize(rule_node)
+        print(result)
+
+        assert "start: n_123\n" in result
+        grm = LLMatcher.grammar_from_lark(result)
+        is_err, _ = LLMatcher.validate_grammar_with_warnings(grm)
+        assert not is_err
+
+    def test_gen_with_space_in_name_matches(self):
+        from guidance.library import gen
+
+        node = gen(name="first name", regex=r"[a-z]+")
+        assert node.match("alice") is not None

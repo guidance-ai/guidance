@@ -813,7 +813,12 @@ class LarkSerializer:
         raise TypeError(f"Unknown node type: {node}")
 
     def normalize_name(self, name: str, terminal: bool) -> str:
-        new_name = name.replace("-", "_")
+        # Anything that cannot appear in a Lark rule name (spaces, dots, non-ASCII, ...)
+        # becomes "_"; the original name is still used for the capture.
+        new_name = re.sub(r"[^A-Za-z0-9_]", "_", name)
+        # rule names cannot start with a digit (or be empty)
+        if not new_name or new_name[0].isdigit():
+            new_name = "n_" + new_name
         # convert fooBar_Baz to foo_Bar_Baz
         new_name = re.sub(r"([a-z])([A-Z])", r"\1_\2", new_name)
         if terminal:
