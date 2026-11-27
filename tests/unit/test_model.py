@@ -101,3 +101,51 @@ def test_step_stop_token_trigger_injection():
     s = str(lm)
     assert "[FIX2]" in s and "ym" not in s
     assert calls["count"] == 1
+
+
+@pytest.mark.parametrize("outcome", ["complete", "error", "close", "start_error"])
+def test_stream_restores_event_queues(outcome, monkeypatch):
+    import queue
+    import threading
+
+    from guidance.models._base._model import _event_queues
+
+    outer_queue = queue.Queue()
+    outer_queues = (outer_queue,)
+    token = _event_queues.set(outer_queues)
+    try:
+        model = models.Mock(echo=False)
+        failure = RuntimeError("stream worker failed")
+
+        @guidance(dedent=False)
+        def fail(lm):
+            raise failure
+
+        stream = model.stream() + (fail() if outcome == "error" else "hello")
+        iterator = iter(stream)
+        if outcome == "error":
+            with pytest.raises(RuntimeError) as exc:
+                list(iterator)
+            assert exc.value is failure
+        elif outcome == "start_error":
+
+            def fail_start(self):
+                raise failure
+
+            monkeypatch.setattr(threading.Thread, "start", fail_start)
+            with pytest.raises(RuntimeError) as exc:
+                next(iterator)
+            assert exc.value is failure
+            monkeypatch.undo()
+        elif outcome == "close":
+            next(iterator)
+            iterator.close()
+        else:
+            assert str(list(iterator)[-1]) == "hello"
+
+        assert _event_queues.get() is outer_queues
+        size_before = outer_queue.qsize()
+        model + "unrelated"
+        assert outer_queue.qsize() > size_before
+    finally:
+        _event_queues.reset(token)

@@ -374,27 +374,27 @@ class ModelStream:
             except BaseException as ex:  # noqa: BLE001
                 events.put(ex)
 
-        # Start the thread
-        thread = threading.Thread(target=target, args=(copy_context(),))
-        thread.start()
+        try:
+            # Start the thread
+            thread = threading.Thread(target=target, args=(copy_context(),))
+            thread.start()
 
-        # Yield events from the queue as they become available
-        while True:
-            try:
-                # Wait for an event with a timeout to allow for thread termination
-                event = events.get(timeout=self.timeout)
-                if event is None:
-                    break
-                elif isinstance(event, BaseException):
-                    raise event
-                yield event
-            except queue.Empty:
-                # Check if the thread is still alive
-                if not thread.is_alive():
-                    break
+            # Yield events from the queue as they become available
+            while True:
+                try:
+                    # Wait for an event with a timeout to allow for thread termination
+                    event = events.get(timeout=self.timeout)
+                    if event is None:
+                        break
+                    elif isinstance(event, BaseException):
+                        raise event
+                    yield event
+                except queue.Empty:
+                    # Check if the thread is still alive
+                    if not thread.is_alive():
+                        break
 
-        # Ensure the thread has completed
-        thread.join()
-
-        # Reset the event queues context variable
-        _event_queues.reset(token)
+            # Ensure the thread has completed
+            thread.join()
+        finally:
+            _event_queues.reset(token)
